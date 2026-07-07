@@ -109,21 +109,21 @@ export default function Footer() {
   return (
     <footer className="mt-auto bg-[#0a0a0a] text-white">
       <div className="border-b border-white/10">
-        <div className="mx-auto max-w-7xl px-6 py-12 md:py-16 lg:px-8">
+        <div className="mx-auto max-w-7xl px-6 py-10 md:py-14 lg:px-8">
           <div className="flex flex-col gap-12 lg:flex-row lg:items-start lg:justify-between lg:gap-16">
             <div className="flex flex-col items-center text-center lg:max-w-xs lg:items-start lg:text-left">
-              <Link to="/" className="inline-block">
+              <Link to="/" className="-my-1 inline-block">
                 <img
-                  src="/Logo/Balenzi - Logo1.png"
-                  alt="Balenzi Perfumes"
-                  className="h-12 w-auto object-contain md:h-14"
+                  src="/Logo/Balenzi - Logo.png"
+                  alt="BalenziShop"
+                  className="navbar-logo h-[4.75rem] w-auto object-contain md:h-[5.5rem]"
                 />
               </Link>
-              <p className="mt-5 text-sm leading-relaxed text-white/55">
+              <p className="mt-2 text-sm leading-snug text-white/55">
                 Tu destino premium para fragancias exclusivas. Perfumes originales de las mejores
                 casas del mundo, con envío en Lima y todo el Perú.
               </p>
-              <div className="mt-6 flex items-center gap-3">
+              <div className="mt-3.5 flex items-center gap-3">
                 <SocialButton href={SOCIAL_LINKS.instagram} label="Instagram de Balenzi">
                   <InstagramIcon className="h-4 w-4" />
                 </SocialButton>

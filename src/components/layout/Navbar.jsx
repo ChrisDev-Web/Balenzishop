@@ -17,8 +17,8 @@ const navLinks = [
 ]
 
 const navLinkClass = (isActive) =>
-  `navbar-text font-nav px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white transition-opacity lg:px-4 lg:text-xs ${
-    isActive ? 'opacity-100' : 'opacity-90 hover:opacity-100'
+  `navbar-text rounded-full px-2.5 py-1 text-sm font-medium text-white transition-colors hover:bg-white/10 lg:px-3 ${
+    isActive ? 'bg-white/10' : ''
   }`
 
 const sidebarLinkClass = (isActive) =>

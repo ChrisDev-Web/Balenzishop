@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react'
 import { useState } from 'react'
-import { brands, categories, aromaOptions } from '../../data/perfumes'
+import { aromaOptions } from '../../data/perfumes'
 
 const sections = [
   { key: 'category', label: 'Categoría' },
@@ -27,11 +27,30 @@ function countActiveFilters(filters) {
   return n
 }
 
-export default function FilterSidebar({ filters, onChange, maxPrice }) {
+export default function FilterSidebar({
+  filters,
+  onChange,
+  maxPrice,
+  categories = [],
+  categoriesReady = false,
+  categoriesError = null,
+  onCategoriesRefresh,
+  brands = [],
+  brandsReady = false,
+  brandsError = null,
+  onBrandsRefresh,
+}) {
   const [open, setOpen] = useState(defaultOpen)
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const toggle = (key) => setOpen((prev) => ({ ...prev, [key]: !prev[key] }))
+  const toggle = (key) => {
+    setOpen((prev) => {
+      const willOpen = !prev[key]
+      if (willOpen && key === 'category') onCategoriesRefresh?.()
+      if (willOpen && key === 'brand') onBrandsRefresh?.()
+      return { ...prev, [key]: willOpen }
+    })
+  }
 
   const toggleInList = (listKey, value) => {
     const current = filters[listKey] || []
@@ -76,39 +95,59 @@ export default function FilterSidebar({ filters, onChange, maxPrice }) {
           </button>
 
           {open[key] && key === 'category' && (
-            <ul className="mt-3 space-y-2">
-              {categories.map((cat) => (
-                <li key={cat.value}>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
-                    <input
-                      type="checkbox"
-                      checked={selectedCategories.includes(cat.value)}
-                      onChange={() => toggleInList('categories', cat.value)}
-                      className="accent-gray-900"
-                    />
-                    {cat.label}
-                  </label>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-3">
+              {categoriesError && (
+                <p className="text-sm text-red-600">{categoriesError}</p>
+              )}
+              {!categoriesError && categoriesReady && categories.length === 0 && (
+                <p className="text-sm text-gray-500">No hay categorías disponibles.</p>
+              )}
+              {categories.length > 0 && (
+                <ul className="space-y-2">
+                  {categories.map((cat) => (
+                    <li key={cat.value}>
+                      <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.includes(cat.value)}
+                          onChange={() => toggleInList('categories', cat.value)}
+                          className="accent-gray-900"
+                        />
+                        {cat.label}
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
 
           {open[key] && key === 'brand' && (
-            <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto">
-              {brands.map((brand) => (
-                <li key={brand}>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
-                    <input
-                      type="checkbox"
-                      checked={selectedBrands.includes(brand)}
-                      onChange={() => toggleInList('brands', brand)}
-                      className="accent-gray-900"
-                    />
-                    {brand}
-                  </label>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-3">
+              {brandsError && (
+                <p className="text-sm text-red-600">{brandsError}</p>
+              )}
+              {!brandsError && brandsReady && brands.length === 0 && (
+                <p className="text-sm text-gray-500">No hay marcas disponibles.</p>
+              )}
+              {brands.length > 0 && (
+                <ul className="max-h-48 space-y-2 overflow-y-auto">
+                  {brands.map((brand) => (
+                    <li key={brand.value}>
+                      <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={selectedBrands.includes(brand.value)}
+                          onChange={() => toggleInList('brands', brand.value)}
+                          className="accent-gray-900"
+                        />
+                        {brand.label}
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
 
           {open[key] && key === 'price' && (
@@ -205,7 +244,6 @@ export default function FilterSidebar({ filters, onChange, maxPrice }) {
 
   return (
     <aside className="w-full shrink-0 lg:w-64">
-      {/* Móvil / tablet: botón para abrir o cerrar filtros */}
       <button
         type="button"
         onClick={() => setMobileOpen((v) => !v)}
@@ -228,7 +266,6 @@ export default function FilterSidebar({ filters, onChange, maxPrice }) {
         )}
       </button>
 
-      {/* Panel móvil (colapsable) */}
       <div
         className={`mt-2 rounded-lg border border-gray-200 bg-white p-4 lg:hidden ${
           mobileOpen ? 'block' : 'hidden'
@@ -237,7 +274,6 @@ export default function FilterSidebar({ filters, onChange, maxPrice }) {
         {filterPanel}
       </div>
 
-      {/* Panel desktop (siempre visible) */}
       <div className="hidden rounded-lg border border-gray-200 bg-white p-4 lg:block">
         <h2 className="mb-4 text-lg font-bold text-gray-900">Filtros</h2>
         {filterPanel}

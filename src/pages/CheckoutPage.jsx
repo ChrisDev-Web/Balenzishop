@@ -234,7 +234,7 @@ export default function CheckoutPage() {
               </div>
               <ul className="mt-3 space-y-1 text-sm text-gray-600">
                 <li>{[user.firstName, user.lastNamePaternal, user.lastNameMaternal].filter(Boolean).join(' ') || '—'}</li>
-                {user.documentId && <li>{user.documentType || 'DNI'}: {user.documentId}</li>}
+                {user.documentId && <li>{user.documentTypeName || 'Documento'}: {user.documentId}</li>}
                 <li>{user.email}</li>
                 <li>{user.phone || '—'}</li>
               </ul>

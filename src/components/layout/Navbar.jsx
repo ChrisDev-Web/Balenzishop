@@ -112,7 +112,7 @@ function AccountMenu({ accountOpen, setAccountOpen, accountRef, isAuthenticated,
               <hr className="border-gray-100" />
               <button
                 type="button"
-                onClick={() => { logout(); setAccountOpen(false) }}
+                onClick={async () => { await logout(); setAccountOpen(false) }}
                 className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50"
               >
                 <LogOut className="h-4 w-4" />

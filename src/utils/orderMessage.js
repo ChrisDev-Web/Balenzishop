@@ -106,7 +106,7 @@ export function buildWhatsAppMessage({
   lines.push(`${ICON.wave} ${fullName || 'Sin nombre'}`)
 
   if (customer.documentId) {
-    const docLabel = customer.documentType === 'CE' ? 'CE' : 'DNI'
+    const docLabel = customer.documentTypeName || 'Documento'
     lines.push(`${ICON.id} ${docLabel}: ${customer.documentId}`)
   }
   if (customer.email) lines.push(`${ICON.email} ${customer.email}`)

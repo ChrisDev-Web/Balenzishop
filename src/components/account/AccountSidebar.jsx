@@ -13,8 +13,8 @@ export default function AccountSidebar() {
   const navigate = useNavigate()
   const displayName = user?.firstName || user?.email?.split('@')[0] || 'Usuario'
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     navigate('/')
   }
 

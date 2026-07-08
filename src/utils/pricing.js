@@ -6,14 +6,7 @@ export const USER_ROLES = {
 export const WHOLESALE_DISCOUNT = 0.1
 export const WHOLESALE_MIN_QTY = 6
 
-const ROLE_EMAILS = {
-  'chris.sosa.dev.23@gmail.com': USER_ROLES.MAYORISTA,
-  'cristofersosa159@gmail.com': USER_ROLES.MINORISTA,
-}
-
-export function resolveUserRole(email, currentRole) {
-  const normalized = email?.toLowerCase().trim()
-  if (ROLE_EMAILS[normalized]) return ROLE_EMAILS[normalized]
+export function resolveUserRole(_email, currentRole) {
   return currentRole || USER_ROLES.MINORISTA
 }
 

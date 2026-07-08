@@ -1,10 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
+import { useDocumentTypes } from '../../hooks/useDocumentTypes'
 import { getRouteAfterLogin, getRouteAfterProfile } from '../../utils/authFlow'
-import { DOCUMENT_TYPES, validateDocument, formatDocumentInput } from '../../utils/documentValidation'
-import PasswordInput from '../../components/ui/PasswordInput'
+import {
+  formatDocumentInputById,
+  getDocumentDigits,
+  validateDocumentById,
+} from '../../utils/documentValidation'
 
 const fieldClass =
   'mt-1 w-full rounded-lg border border-gray-300 px-4 py-2.5 text-base md:text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900'
@@ -22,43 +26,72 @@ export default function CompleteProfilePage() {
   const navigate = useNavigate()
   const { user, completeProfile } = useAuthStore()
   const authIntent = useUiStore((s) => s.authIntent)
+  const { documentTypes, loading: documentTypesLoading } = useDocumentTypes()
   const [form, setForm] = useState({
     firstName: '',
     lastNamePaternal: '',
     lastNameMaternal: '',
-    documentType: 'DNI',
+    idDocumentType: '',
     documentId: '',
     phone: '',
-    password: '',
-    confirmPassword: '',
   })
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!user) return
+
+    setForm({
+      firstName: user.firstName || '',
+      lastNamePaternal: user.lastNamePaternal || '',
+      lastNameMaternal: user.lastNameMaternal || '',
+      idDocumentType: user.idDocumentType ? String(user.idDocumentType) : '',
+      documentId: user.documentId || '',
+      phone: user.phone || '',
+    })
+  }, [user])
+
+  useEffect(() => {
+    if (!form.idDocumentType && documentTypes.length > 0) {
+      setForm((prev) => ({
+        ...prev,
+        idDocumentType: String(documentTypes[0].id),
+      }))
+    }
+  }, [documentTypes, form.idDocumentType])
 
   if (user?.profileComplete) {
     return <Navigate to={getRouteAfterLogin(user, authIntent)} replace />
   }
 
+  const selectedDocumentType = documentTypes.find(
+    (type) => type.id === Number(form.idDocumentType),
+  )
+
   const handleChange = (e) => {
     const { name, value } = e.target
+
     if (name === 'documentId') {
       setForm((prev) => ({
         ...prev,
-        documentId: formatDocumentInput(prev.documentType, value),
+        documentId: formatDocumentInputById(documentTypes, prev.idDocumentType, value),
       }))
       return
     }
-    if (name === 'documentType') {
+
+    if (name === 'idDocumentType') {
       setForm((prev) => ({
         ...prev,
-        documentType: value,
-        documentId: formatDocumentInput(value, prev.documentId),
+        idDocumentType: value,
+        documentId: formatDocumentInputById(documentTypes, value, prev.documentId),
       }))
       return
     }
+
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
 
@@ -67,32 +100,29 @@ export default function CompleteProfilePage() {
       return
     }
 
-    const docError = validateDocument(form.documentType, form.documentId)
+    const docError = validateDocumentById(documentTypes, form.idDocumentType, form.documentId)
     if (docError) {
       setError(docError)
       return
     }
 
-    if (form.password && form.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres')
-      return
-    }
-    if (form.password !== form.confirmPassword) {
-      setError('Las contraseñas no coinciden')
-      return
-    }
-
-    completeProfile({
+    setLoading(true)
+    const result = await completeProfile({
       firstName: form.firstName,
       lastNamePaternal: form.lastNamePaternal,
       lastNameMaternal: form.lastNameMaternal,
-      documentType: form.documentType,
+      idDocumentType: Number(form.idDocumentType),
       documentId: form.documentId,
       phone: form.phone,
-      password: form.password || undefined,
       email: user.email,
     })
-    navigate(getRouteAfterProfile(authIntent))
+    setLoading(false)
+
+    if (result.success) {
+      navigate(getRouteAfterProfile(authIntent))
+    } else {
+      setError(result.error)
+    }
   }
 
   return (
@@ -109,7 +139,6 @@ export default function CompleteProfilePage() {
         className="mt-8 w-full rounded-xl border border-gray-200 bg-white p-6 shadow-sm md:p-8"
       >
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          {/* Fila 1 */}
           <Field label="Correo electrónico" className="sm:col-span-2">
             <input
               type="email"
@@ -119,7 +148,6 @@ export default function CompleteProfilePage() {
             />
           </Field>
 
-          {/* Fila 2 */}
           <Field label="Nombre *">
             <input
               name="firstName"
@@ -140,7 +168,6 @@ export default function CompleteProfilePage() {
             />
           </Field>
 
-          {/* Fila 3 */}
           <Field label="Apellido materno">
             <input
               name="lastNameMaternal"
@@ -162,48 +189,37 @@ export default function CompleteProfilePage() {
             />
           </Field>
 
-          {/* Fila 4 */}
           <Field label="Tipo de documento *">
             <select
-              name="documentType"
-              value={form.documentType}
+              name="idDocumentType"
+              value={form.idDocumentType}
               onChange={handleChange}
               required
+              disabled={documentTypesLoading || documentTypes.length === 0}
               className={fieldClass}
             >
-              {Object.entries(DOCUMENT_TYPES).map(([key, { label }]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
+              {documentTypes.length === 0 ? (
+                <option value="">Cargando...</option>
+              ) : (
+                documentTypes.map((type) => (
+                  <option key={type.id} value={type.id}>{type.name}</option>
+                ))
+              )}
             </select>
           </Field>
-          <Field label={`Número de documento * (${DOCUMENT_TYPES[form.documentType].digits} dígitos)`}>
+          <Field
+            label={`Número de documento *${
+              selectedDocumentType
+                ? ` (${getDocumentDigits(selectedDocumentType.name)} dígitos)`
+                : ''
+            }`}
+          >
             <input
               name="documentId"
               value={form.documentId}
               onChange={handleChange}
               required
               inputMode="numeric"
-              maxLength={DOCUMENT_TYPES[form.documentType].digits}
-              placeholder={form.documentType === 'DNI' ? '12345678' : '123456789'}
-              className={fieldClass}
-            />
-          </Field>
-
-          {/* Fila 5 */}
-          <Field label="Contraseña">
-            <PasswordInput
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              placeholder={user?.authProvider === 'google' ? 'Crea una contraseña' : 'Nueva contraseña'}
-              className={fieldClass}
-            />
-          </Field>
-          <Field label="Confirmar contraseña">
-            <PasswordInput
-              name="confirmPassword"
-              value={form.confirmPassword}
-              onChange={handleChange}
               className={fieldClass}
             />
           </Field>
@@ -213,9 +229,10 @@ export default function CompleteProfilePage() {
 
         <button
           type="submit"
-          className="btn-fill mt-6 w-full rounded-full py-3 text-sm"
+          disabled={loading || documentTypesLoading}
+          className="btn-fill mt-6 w-full rounded-full py-3 text-sm disabled:opacity-50"
         >
-          Guardar y continuar
+          {loading ? 'Guardando...' : 'Guardar y continuar'}
         </button>
       </form>
     </div>

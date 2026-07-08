@@ -1,142 +1,130 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { resolveUserRole, USER_ROLES } from '../utils/pricing'
+import {
+  loginClient,
+  registerClient,
+  fetchCurrentClient,
+  updateClientProfile,
+  logoutClient,
+} from '../api/clients'
+import { clearUserSessionsCache } from '../utils/clearUserSessions'
+import {
+  mapClientToUser,
+  mapRegisterFormToPayload,
+  mapUserToProfilePayload,
+} from '../utils/clientMapper'
+import { USER_ROLES } from '../utils/pricing'
 
-const defaultProfile = {
-  firstName: '',
-  lastNamePaternal: '',
-  lastNameMaternal: '',
-  email: '',
-  documentId: '',
-  documentType: '',
-  phone: '',
-  password: '',
-}
-
-function applyRoleToUser(user) {
-  if (!user) return null
-  const role = resolveUserRole(user.email, user.role)
-  const next = { ...user, role }
-  delete next.password
-  return next
+function applySession(set, client, tokens, existingUser = null) {
+  const user = mapClientToUser(client, existingUser)
+  set({
+    user,
+    accessToken: tokens.access_token,
+    refreshToken: tokens.refresh_token,
+    isAuthenticated: true,
+  })
+  return user
 }
 
 export const useAuthStore = create(
   persist(
     (set, get) => ({
       user: null,
+      accessToken: null,
+      refreshToken: null,
       isAuthenticated: false,
-      registeredUsers: [],
 
-      loginWithEmail: (email, password) => {
-        const { registeredUsers } = get()
-        const found = registeredUsers.find(
-          (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password,
-        )
-        if (!found) return { success: false, error: 'Correo o contraseña incorrectos' }
+      bootstrapSession: async () => {
+        const { accessToken, user } = get()
+        if (!accessToken) return
 
-        const role = resolveUserRole(found.email, found.role)
-        const updatedFound = { ...found, role }
-        const user = applyRoleToUser(updatedFound)
-
-        set({
-          user,
-          isAuthenticated: true,
-          registeredUsers: registeredUsers.map((u) =>
-            u.id === found.id ? { ...updatedFound, password: found.password } : u,
-          ),
-        })
-        return { success: true, needsProfile: !found.profileComplete }
-      },
-
-      registerWithEmail: (data) => {
-        const { registeredUsers } = get()
-        if (registeredUsers.some((u) => u.email.toLowerCase() === data.email.toLowerCase())) {
-          return { success: false, error: 'Este correo ya está registrado' }
-        }
-        const newUser = {
-          id: crypto.randomUUID(),
-          ...data,
-          role: resolveUserRole(data.email, data.role || USER_ROLES.MINORISTA),
-          profileComplete: false,
-          addresses: [],
-          orders: [],
-          authProvider: 'email',
-        }
-        const user = applyRoleToUser(newUser)
-        set({
-          registeredUsers: [...registeredUsers, newUser],
-          user,
-          isAuthenticated: true,
-        })
-        return { success: true, needsProfile: true }
-      },
-
-      loginWithGoogle: (email) => {
-        const { registeredUsers } = get()
-        let found = registeredUsers.find((u) => u.email.toLowerCase() === email.toLowerCase())
-
-        if (!found) {
-          found = {
-            id: crypto.randomUUID(),
-            email,
-            ...defaultProfile,
-            email,
-            role: resolveUserRole(email, USER_ROLES.MINORISTA),
-            profileComplete: false,
-            addresses: [],
-            orders: [],
-            authProvider: 'google',
-          }
-          set({ registeredUsers: [...registeredUsers, found] })
-        } else {
-          const role = resolveUserRole(found.email, found.role)
-          found = { ...found, role }
+        try {
+          const response = await fetchCurrentClient(accessToken)
+          const nextUser = mapClientToUser(response.data, user)
+          set({ user: nextUser, isAuthenticated: true })
+        } catch {
           set({
-            registeredUsers: registeredUsers.map((u) =>
-              u.id === found.id ? { ...found, password: u.password } : u,
-            ),
+            user: null,
+            accessToken: null,
+            refreshToken: null,
+            isAuthenticated: false,
           })
         }
-
-        const user = applyRoleToUser(found)
-        set({ user, isAuthenticated: true })
-        return { success: true, needsProfile: !found.profileComplete }
       },
 
-      completeProfile: (data) => {
-        const { user, registeredUsers } = get()
-        if (!user) return
+      loginWithEmail: async (email, password) => {
+        try {
+          const response = await loginClient(email, password)
+          const { client, access_token, refresh_token } = response.data
+          const user = applySession(set, client, {
+            access_token,
+            refresh_token,
+          })
+          return { success: true, needsProfile: !user.profileComplete }
+        } catch (err) {
+          return { success: false, error: err.message || 'Correo o contraseña incorrectos' }
+        }
+      },
 
-        const updated = {
+      registerWithEmail: async (form) => {
+        try {
+          const response = await registerClient(mapRegisterFormToPayload(form))
+          const { client, access_token, refresh_token } = response.data
+          const user = applySession(set, client, {
+            access_token,
+            refresh_token,
+          })
+          return { success: true, needsProfile: !user.profileComplete }
+        } catch (err) {
+          return { success: false, error: err.message || 'No se pudo registrar la cuenta' }
+        }
+      },
+
+      loginWithGoogle: async () => ({
+        success: false,
+        error: 'El inicio de sesión con Google estará disponible próximamente',
+      }),
+
+      completeProfile: async (data) => {
+        const { user, accessToken } = get()
+        if (!user || !accessToken) return { success: false, error: 'Sesión no válida' }
+
+        const payload = mapUserToProfilePayload({
           ...user,
           ...data,
-          profileComplete: true,
-        }
-
-        set({
-          user: { ...updated, password: undefined },
-          registeredUsers: registeredUsers.map((u) =>
-            u.id === user.id ? { ...updated } : u,
-          ),
         })
+
+        try {
+          const response = await updateClientProfile(payload, accessToken)
+          const nextUser = mapClientToUser(response.data, user)
+          set({ user: nextUser })
+          return { success: true }
+        } catch (err) {
+          return { success: false, error: err.message || 'No se pudo actualizar el perfil' }
+        }
       },
 
-      updateProfile: (data) => {
-        const { user, registeredUsers } = get()
-        if (!user) return
+      updateProfile: async (data) => {
+        const { user, accessToken } = get()
+        if (!user || !accessToken) return { success: false, error: 'Sesión no válida' }
 
-        const updated = { ...user, ...data }
-        set({
-          user: { ...updated, password: undefined },
-          registeredUsers: registeredUsers.map((u) =>
-            u.id === user.id ? { ...updated, password: data.password || u.password } : u,
-          ),
+        const payload = mapUserToProfilePayload({
+          ...user,
+          ...data,
         })
+
+        try {
+          const response = await updateClientProfile(payload, accessToken)
+          const nextUser = mapClientToUser(response.data, user)
+          set({ user: nextUser })
+          return { success: true }
+        } catch (err) {
+          return { success: false, error: err.message || 'No se pudo actualizar el perfil' }
+        }
       },
 
       addAddress: (address) => {
-        const { user, registeredUsers } = get()
+        const { user } = get()
         if (!user) return
 
         const newAddress = { id: crypto.randomUUID(), ...address }
@@ -149,17 +137,11 @@ export const useAuthStore = create(
           }))
         }
 
-        const updated = { ...user, addresses }
-        set({
-          user: updated,
-          registeredUsers: registeredUsers.map((u) =>
-            u.id === user.id ? { ...updated, password: u.password } : u,
-          ),
-        })
+        set({ user: { ...user, addresses } })
       },
 
       updateAddress: (id, data) => {
-        const { user, registeredUsers } = get()
+        const { user } = get()
         if (!user) return
 
         let addresses = user.addresses.map((a) => (a.id === id ? { ...a, ...data } : a))
@@ -168,17 +150,11 @@ export const useAuthStore = create(
           addresses = addresses.map((a) => ({ ...a, isPrimary: a.id === id }))
         }
 
-        const updated = { ...user, addresses }
-        set({
-          user: updated,
-          registeredUsers: registeredUsers.map((u) =>
-            u.id === user.id ? { ...updated, password: u.password } : u,
-          ),
-        })
+        set({ user: { ...user, addresses } })
       },
 
       deleteAddress: (id) => {
-        const { user, registeredUsers } = get()
+        const { user } = get()
         if (!user) return
 
         let addresses = user.addresses.filter((a) => a.id !== id)
@@ -186,17 +162,11 @@ export const useAuthStore = create(
           addresses[0].isPrimary = true
         }
 
-        const updated = { ...user, addresses }
-        set({
-          user: updated,
-          registeredUsers: registeredUsers.map((u) =>
-            u.id === user.id ? { ...updated, password: u.password } : u,
-          ),
-        })
+        set({ user: { ...user, addresses } })
       },
 
       addOrder: (order) => {
-        const { user, registeredUsers } = get()
+        const { user } = get()
         if (!user) return null
 
         const newOrder = {
@@ -214,23 +184,18 @@ export const useAuthStore = create(
           address: order.address,
         }
 
-        const updated = {
-          ...user,
-          orders: [newOrder, ...(user.orders || [])],
-        }
-
         set({
-          user: updated,
-          registeredUsers: registeredUsers.map((u) =>
-            u.id === user.id ? { ...updated, password: u.password } : u,
-          ),
+          user: {
+            ...user,
+            orders: [newOrder, ...(user.orders || [])],
+          },
         })
 
         return newOrder
       },
 
       updateOrder: (orderId, orderData) => {
-        const { user, registeredUsers } = get()
+        const { user } = get()
         if (!user) return null
 
         const orders = (user.orders || []).map((o) => {
@@ -250,45 +215,61 @@ export const useAuthStore = create(
           }
         })
 
-        const updated = { ...user, orders }
-
-        set({
-          user: updated,
-          registeredUsers: registeredUsers.map((u) =>
-            u.id === user.id ? { ...updated, password: u.password } : u,
-          ),
-        })
-
+        set({ user: { ...user, orders } })
         return orders.find((o) => o.id === orderId) || null
       },
 
-      /** Para el dashboard administrativo: cambiar rol minorista/mayorista */
       setUserRole: (userId, role) => {
         if (!Object.values(USER_ROLES).includes(role)) return
 
-        const { user, registeredUsers } = get()
-        const updatedUsers = registeredUsers.map((u) =>
-          u.id === userId ? { ...u, role } : u,
-        )
-        const nextUser = user?.id === userId ? { ...user, role } : user
+        const { user } = get()
+        if (user?.id !== String(userId)) return
 
-        set({ user: nextUser, registeredUsers: updatedUsers })
+        set({ user: { ...user, role } })
       },
 
-      logout: () => set({ user: null, isAuthenticated: false }),
+      logout: async () => {
+        const { accessToken, refreshToken } = get()
+
+        if (accessToken && refreshToken) {
+          try {
+            await logoutClient(refreshToken, accessToken)
+          } catch {
+            // Invalidar sesión local aunque falle el backend
+          }
+        }
+
+        set({
+          user: null,
+          accessToken: null,
+          refreshToken: null,
+          isAuthenticated: false,
+        })
+      },
+
+      clearAllSessions: () => {
+        clearUserSessionsCache()
+        set({
+          user: null,
+          accessToken: null,
+          refreshToken: null,
+          isAuthenticated: false,
+        })
+      },
     }),
     {
       name: 'balenzi-auth',
+      partialize: (state) => ({
+        user: state.user,
+        accessToken: state.accessToken,
+        refreshToken: state.refreshToken,
+        isAuthenticated: state.isAuthenticated,
+      }),
       onRehydrateStorage: () => (state) => {
-        if (!state) return
-        const registeredUsers = (state.registeredUsers || []).map((u) => ({
-          ...u,
-          role: resolveUserRole(u.email, u.role),
-        }))
-        const user = state.user
-          ? applyRoleToUser({ ...state.user, role: resolveUserRole(state.user.email, state.user.role) })
-          : null
-        useAuthStore.setState({ registeredUsers, user, isAuthenticated: Boolean(user) })
+        if (!state?.user) return
+        useAuthStore.setState({
+          isAuthenticated: Boolean(state.accessToken && state.user),
+        })
       },
     },
   ),

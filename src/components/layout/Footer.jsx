@@ -5,6 +5,7 @@ import { getWhatsAppNumber } from '../../utils/orderMessage'
 const SOCIAL_LINKS = {
   instagram: 'https://www.instagram.com/balenzi_perfumes?igsh=MWd2b3pub3RhZmdheA%3D%3D&utm_source=qr',
   tiktok: 'https://www.tiktok.com/@balenzishop?_r=1&_t=ZS-97VorcZVhVh',
+  whatsappCommunity: 'https://chat.whatsapp.com/Egl2f1pw2arBH9FY6DztwD?mode=gi_t',
 }
 
 const FOOTER_SECTIONS = [
@@ -31,6 +32,7 @@ const FOOTER_SECTIONS = [
     title: 'Contacto',
     links: [
       { label: 'WhatsApp · 924 341 477', href: `https://api.whatsapp.com/send?phone=${getWhatsAppNumber()}` },
+      { label: 'Comunidad Balenzishop', href: SOCIAL_LINKS.whatsappCommunity },
       { label: 'Instagram · @balenzi_perfumes', href: SOCIAL_LINKS.instagram },
       { label: 'TikTok · @balenzishop', href: SOCIAL_LINKS.tiktok },
     ],

@@ -71,7 +71,7 @@ export default function LoginModal({ isOpen, onClose }) {
   const [loading, setLoading] = useState(false)
 
   const { loginWithEmail, registerWithEmail, loginWithGoogle } = useAuthStore()
-  const { documentTypes, loading: documentTypesLoading } = useDocumentTypes()
+  const { documentTypes, loading: documentTypesLoading } = useDocumentTypes({ enabled: isOpen })
   const authIntent = useUiStore((s) => s.authIntent)
   const clearAuthIntent = useUiStore((s) => s.clearAuthIntent)
   const navigate = useNavigate()

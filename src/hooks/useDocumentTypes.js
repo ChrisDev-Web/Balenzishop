@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react'
 import { fetchActiveDocumentTypes } from '../api/documentTypes'
 
-export function useDocumentTypes() {
+export function useDocumentTypes({ enabled = true } = {}) {
   const [documentTypes, setDocumentTypes] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false)
+      return undefined
+    }
+
     let cancelled = false
+    setLoading(true)
 
     fetchActiveDocumentTypes()
       .then((items) => {
@@ -28,7 +34,7 @@ export function useDocumentTypes() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [enabled])
 
   return { documentTypes, loading, error }
 }

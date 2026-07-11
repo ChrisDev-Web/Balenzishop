@@ -15,6 +15,14 @@ import {
 } from '../utils/clientMapper'
 import { USER_ROLES } from '../utils/pricing'
 
+let bootstrapSessionPromise = null
+let bootstrapSessionToken = null
+
+function resetBootstrapSession() {
+  bootstrapSessionPromise = null
+  bootstrapSessionToken = null
+}
+
 function applySession(set, client, tokens, existingUser = null) {
   const user = mapClientToUser(client, existingUser)
   set({
@@ -33,23 +41,33 @@ export const useAuthStore = create(
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
+      hasHydrated: false,
 
-      bootstrapSession: async () => {
+      bootstrapSession: () => {
         const { accessToken, user } = get()
-        if (!accessToken) return
+        if (!accessToken) return Promise.resolve()
 
-        try {
-          const response = await fetchCurrentClient(accessToken)
-          const nextUser = mapClientToUser(response.data, user)
-          set({ user: nextUser, isAuthenticated: true })
-        } catch {
-          set({
-            user: null,
-            accessToken: null,
-            refreshToken: null,
-            isAuthenticated: false,
-          })
+        if (bootstrapSessionPromise && bootstrapSessionToken === accessToken) {
+          return bootstrapSessionPromise
         }
+
+        bootstrapSessionToken = accessToken
+        bootstrapSessionPromise = fetchCurrentClient(accessToken)
+          .then((response) => {
+            const nextUser = mapClientToUser(response.data, user)
+            set({ user: nextUser, isAuthenticated: true })
+          })
+          .catch(() => {
+            resetBootstrapSession()
+            set({
+              user: null,
+              accessToken: null,
+              refreshToken: null,
+              isAuthenticated: false,
+            })
+          })
+
+        return bootstrapSessionPromise
       },
 
       loginWithEmail: async (email, password) => {
@@ -239,6 +257,8 @@ export const useAuthStore = create(
           }
         }
 
+        resetBootstrapSession()
+
         set({
           user: null,
           accessToken: null,
@@ -249,6 +269,7 @@ export const useAuthStore = create(
 
       clearAllSessions: () => {
         clearUserSessionsCache()
+        resetBootstrapSession()
         set({
           user: null,
           accessToken: null,
@@ -266,7 +287,10 @@ export const useAuthStore = create(
         isAuthenticated: state.isAuthenticated,
       }),
       onRehydrateStorage: () => (state) => {
+        useAuthStore.setState({ hasHydrated: true })
+
         if (!state?.user) return
+
         useAuthStore.setState({
           isAuthenticated: Boolean(state.accessToken && state.user),
         })

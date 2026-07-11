@@ -1,4 +1,5 @@
 import { apiGet, apiPost, apiPut } from './client'
+import { buildRequestKey, dedupeRequest } from './requestDedupe'
 
 export async function registerClient(payload) {
   return apiPost('clients/register', payload)
@@ -9,7 +10,8 @@ export async function loginClient(email, password) {
 }
 
 export async function fetchCurrentClient(token) {
-  return apiGet('clients/me', {}, token)
+  const cacheKey = buildRequestKey('GET', 'clients/me', { token: token ?? '' })
+  return dedupeRequest(cacheKey, () => apiGet('clients/me', {}, token))
 }
 
 export async function updateClientProfile(payload, token) {

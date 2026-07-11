@@ -22,6 +22,15 @@ export function getMinQuantity(role) {
   return isMayorista(role) ? WHOLESALE_MIN_QTY : 1
 }
 
+export function getCatalogDisplayPrices(product, role) {
+  const displayPrice = Number(product?.price ?? 0)
+  const strikePrice = isMayorista(role)
+    ? product?.referencePrice ?? null
+    : product?.originalPrice ?? null
+
+  return { displayPrice, strikePrice }
+}
+
 export function getProductPrice(basePrice, role) {
   if (isMayorista(role)) {
     return Math.round(basePrice * (1 - WHOLESALE_DISCOUNT) * 100) / 100

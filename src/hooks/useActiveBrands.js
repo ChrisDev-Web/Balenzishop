@@ -34,12 +34,6 @@ export function useActiveBrands() {
     loadBrands()
   }, [loadBrands])
 
-  useEffect(() => {
-    const handleFocus = () => loadBrands({ silent: true })
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
-  }, [loadBrands])
-
   const refetch = useCallback(() => loadBrands({ silent: true }), [loadBrands])
 
   return { brands, ready, error, refetch }

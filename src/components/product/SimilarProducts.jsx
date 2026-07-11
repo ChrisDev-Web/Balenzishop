@@ -8,7 +8,7 @@ import { productLink } from '../../utils/productUtils'
 export default function SimilarProducts({ products, categoryLink }) {
   const scrollRef = useRef(null)
   const addItem = useCartStore((s) => s.addItem)
-  const { getPrice, isMayorista, minQuantity } = useUserPricing()
+  const { getCatalogDisplayPrices, isMayorista, minQuantity } = useUserPricing()
 
   if (!products.length) return null
 
@@ -52,7 +52,10 @@ export default function SimilarProducts({ products, categoryLink }) {
         ref={scrollRef}
         className="mt-6 flex gap-4 overflow-x-auto pb-4 scrollbar-thin"
       >
-        {products.map((p) => (
+        {products.map((p) => {
+          const { displayPrice, strikePrice } = getCatalogDisplayPrices(p)
+
+          return (
           <article
             key={p.id}
             className="w-[200px] shrink-0 rounded-xl border border-gray-200 bg-white p-3 sm:w-[220px]"
@@ -65,13 +68,10 @@ export default function SimilarProducts({ products, categoryLink }) {
               <h3 className="mt-0.5 line-clamp-2 text-sm font-medium text-gray-900">{p.name}</h3>
             </Link>
             <div className="mt-2 flex flex-wrap items-baseline gap-1">
-              {isMayorista && (
-                <span className="text-xs text-gray-400 line-through">S/ {p.price.toFixed(2)}</span>
+              {strikePrice != null && (
+                <span className="text-xs text-gray-400 line-through">S/ {strikePrice.toFixed(2)}</span>
               )}
-              {!isMayorista && p.originalPrice && (
-                <span className="text-xs text-gray-400 line-through">S/ {p.originalPrice.toFixed(2)}</span>
-              )}
-              <span className="text-base font-bold text-gray-900">S/ {getPrice(p.price).toFixed(2)}</span>
+              <span className="text-base font-bold text-gray-900">S/ {displayPrice.toFixed(2)}</span>
             </div>
             <button
               type="button"
@@ -81,7 +81,7 @@ export default function SimilarProducts({ products, categoryLink }) {
               {isMayorista ? `Agregar (${minQuantity})` : 'Agregar'}
             </button>
           </article>
-        ))}
+        )})}
       </div>
     </section>
   )

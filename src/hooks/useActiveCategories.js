@@ -34,12 +34,6 @@ export function useActiveCategories() {
     loadCategories()
   }, [loadCategories])
 
-  useEffect(() => {
-    const handleFocus = () => loadCategories({ silent: true })
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
-  }, [loadCategories])
-
   const refetch = useCallback(() => loadCategories({ silent: true }), [loadCategories])
 
   return { categories, ready, error, refetch }

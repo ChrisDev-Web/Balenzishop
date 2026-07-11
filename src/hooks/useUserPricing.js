@@ -1,6 +1,6 @@
 import { useAuthStore } from '../stores/authStore'
 import {
-  getProductPrice,
+  getCatalogDisplayPrices,
   getMinQuantity,
   getRoleLabel,
   isMayorista,
@@ -14,6 +14,6 @@ export function useUserPricing() {
     roleLabel: getRoleLabel(role),
     isMayorista: isMayorista(role),
     minQuantity: getMinQuantity(role),
-    getPrice: (basePrice) => getProductPrice(basePrice, role),
+    getCatalogDisplayPrices: (product) => getCatalogDisplayPrices(product, role),
   }
 }

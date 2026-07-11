@@ -5,11 +5,11 @@ import { useCartStore } from '../../stores/cartStore'
 import { useUserPricing } from '../../hooks/useUserPricing'
 import { productLink } from '../../utils/productUtils'
 
-function ProductCard({ perfume }) {
+function ProductCard({ perfume, priority = false }) {
   const addItem = useCartStore((s) => s.addItem)
-  const { getPrice, isMayorista, minQuantity } = useUserPricing()
+  const { getCatalogDisplayPrices, isMayorista, minQuantity } = useUserPricing()
   const [imgError, setImgError] = useState(false)
-  const displayPrice = getPrice(perfume.price)
+  const { displayPrice, strikePrice } = getCatalogDisplayPrices(perfume)
 
   const handleAdd = (e) => {
     e.preventDefault()
@@ -30,9 +30,9 @@ function ProductCard({ perfume }) {
             width={200}
             height={250}
             className="h-full w-full object-contain p-1 sm:p-2 md:transition md:group-hover:scale-105"
-            loading="lazy"
+            loading={priority ? 'eager' : 'lazy'}
             decoding="async"
-            fetchPriority="low"
+            fetchPriority={priority ? 'high' : 'low'}
             onError={() => setImgError(true)}
           />
         ) : (
@@ -73,9 +73,9 @@ function ProductCard({ perfume }) {
             <p className="truncate text-xs font-bold text-gray-900 sm:text-sm md:text-lg">
               S/ {displayPrice.toFixed(2)}
             </p>
-            {(isMayorista || perfume.originalPrice) && (
+            {strikePrice != null && (
               <p className="truncate text-[9px] text-gray-400 line-through sm:text-[10px] md:text-xs">
-                S/ {(isMayorista ? perfume.price : perfume.originalPrice).toFixed(2)}
+                S/ {strikePrice.toFixed(2)}
               </p>
             )}
             {isMayorista && (

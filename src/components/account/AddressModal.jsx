@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X, MapPin, Star, Pencil } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { LIMA_CITY } from '../../data/shalonLocations'
@@ -362,13 +363,13 @@ export default function AddressModal({ address, initialMode = 'view', onClose })
     ? !form.idProvince || isLoadingDistricts
     : isResolvingLimaProvinces || limaProvinceIds.length === 0 || isLoadingDistricts
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
       <div
         role="dialog"
         aria-labelledby="address-modal-title"
-        className="relative z-10 flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+        className="relative z-10 flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-xl"
       >
         <div className="flex items-center justify-between border-b px-5 py-4">
           <h2 id="address-modal-title" className="text-lg font-bold text-gray-900">
@@ -574,6 +575,7 @@ export default function AddressModal({ address, initialMode = 'view', onClose })
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

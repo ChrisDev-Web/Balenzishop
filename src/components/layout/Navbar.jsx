@@ -156,6 +156,8 @@ function CartButton({ count, isOpen, toggleCart, closeCart }) {
 export default function Navbar() {
   const [accountOpen, setAccountOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarDragX, setSidebarDragX] = useState(0)
+  const sidebarTouchStartX = useRef(null)
   const mobileAccountRef = useRef(null)
   const desktopAccountRef = useRef(null)
   const navigate = useNavigate()
@@ -183,7 +185,7 @@ export default function Navbar() {
     if (!sidebarOpen) return undefined
 
     const onKeyDown = (e) => {
-      if (e.key === 'Escape') setSidebarOpen(false)
+      if (e.key === 'Escape') closeSidebar()
     }
 
     document.body.style.overflow = 'hidden'
@@ -195,11 +197,62 @@ export default function Navbar() {
     }
   }, [sidebarOpen])
 
+  useEffect(() => {
+    if (!isOpen) return undefined
+
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') closeCart()
+    }
+
+    const isMobile = window.matchMedia('(max-width: 639px)').matches
+    if (isMobile) {
+      closeSidebar()
+      document.body.style.overflow = 'hidden'
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      document.body.style.overflow = ''
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [isOpen, closeCart])
+
   const displayName = user?.firstName || user?.email?.split('@')[0] || 'Usuario'
 
   const openSidebar = () => {
     setAccountOpen(false)
+    setSidebarDragX(0)
     setSidebarOpen(true)
+  }
+
+  function handleSidebarTouchStart(event) {
+    sidebarTouchStartX.current = event.touches[0].clientX
+    setSidebarDragX(0)
+  }
+
+  function handleSidebarTouchMove(event) {
+    if (sidebarTouchStartX.current === null) return
+
+    const deltaX = event.touches[0].clientX - sidebarTouchStartX.current
+    if (deltaX < 0) {
+      setSidebarDragX(deltaX)
+    }
+  }
+
+  function handleSidebarTouchEnd() {
+    if (sidebarDragX < -72) {
+      closeSidebar()
+    }
+
+    sidebarTouchStartX.current = null
+    setSidebarDragX(0)
+  }
+
+  function closeSidebar() {
+    setSidebarOpen(false)
+    setSidebarDragX(0)
+    sidebarTouchStartX.current = null
   }
 
   const { pathname } = useLocation()
@@ -211,21 +264,23 @@ export default function Navbar() {
 
   useEffect(() => {
     setAccountOpen(false)
-    setSidebarOpen(false)
+    closeSidebar()
     document.body.style.overflow = ''
   }, [pathname])
 
   const goToPedidos = (e) => {
     e.preventDefault()
     setAccountOpen(false)
-    setSidebarOpen(false)
+    closeSidebar()
     navigate('/mi-cuenta/pedidos')
   }
 
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-[100] w-full ${immersiveNav ? 'navbar-glass-immersive' : 'navbar-glass'}`}
+        className={`fixed top-0 left-0 right-0 z-[100] w-full ${immersiveNav ? 'navbar-glass-immersive' : 'navbar-glass'} ${
+          isOpen ? 'max-sm:hidden' : ''
+        }`}
       >
         {/* Mobile bar */}
         <div className="relative flex h-14 items-center justify-between px-3 min-[400px]:h-16 min-[400px]:px-4 md:hidden">
@@ -325,7 +380,7 @@ export default function Navbar() {
         <>
           <div
             className="fixed inset-0 z-[110] bg-black/50 md:hidden"
-            onClick={() => setSidebarOpen(false)}
+            onClick={closeSidebar}
             aria-hidden="true"
           />
           <aside
@@ -333,6 +388,11 @@ export default function Navbar() {
             role="dialog"
             aria-modal="true"
             aria-label="Menú de navegación"
+            style={sidebarDragX < 0 ? { transform: `translateX(${sidebarDragX}px)` } : undefined}
+            onTouchStart={handleSidebarTouchStart}
+            onTouchMove={handleSidebarTouchMove}
+            onTouchEnd={handleSidebarTouchEnd}
+            onTouchCancel={handleSidebarTouchEnd}
           >
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
               <span className="text-sm font-medium text-gray-500">
@@ -340,7 +400,7 @@ export default function Navbar() {
               </span>
               <button
                 type="button"
-                onClick={() => setSidebarOpen(false)}
+                onClick={closeSidebar}
                 className="rounded-full p-1.5 text-gray-500 hover:bg-gray-100"
                 aria-label="Cerrar menú"
               >
@@ -353,7 +413,7 @@ export default function Navbar() {
                 <NavLink
                   key={link.to}
                   to={link.to}
-                  onClick={() => setSidebarOpen(false)}
+                  onClick={closeSidebar}
                   className={({ isActive }) => sidebarLinkClass(isActive)}
                 >
                   {link.label}
@@ -363,14 +423,14 @@ export default function Navbar() {
               <div className="mt-4 border-t border-gray-200 pt-2">
                 <NavLink
                   to="/mi-cuenta"
-                  onClick={() => setSidebarOpen(false)}
+                  onClick={closeSidebar}
                   className={({ isActive }) => sidebarLinkClass(isActive)}
                 >
                   Mi cuenta
                 </NavLink>
                 <NavLink
                   to="/mi-cuenta/pedidos"
-                  onClick={() => setSidebarOpen(false)}
+                  onClick={closeSidebar}
                   className={({ isActive }) => sidebarLinkClass(isActive)}
                 >
                   Mis pedidos
@@ -381,11 +441,15 @@ export default function Navbar() {
         </>
       )}
 
-      <div className="navbar-spacer" aria-hidden="true" />
+      <div className={`navbar-spacer ${isOpen ? 'max-sm:hidden' : ''}`} aria-hidden="true" />
 
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/40" onClick={closeCart} aria-hidden="true" />
+          <div
+            className="fixed inset-0 z-[120] bg-black/40 sm:z-40"
+            onClick={closeCart}
+            aria-hidden="true"
+          />
           <div className="sm:hidden">
             <CartDropdown onClose={closeCart} variant="mobile" />
           </div>

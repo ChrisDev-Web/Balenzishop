@@ -9,11 +9,12 @@ import SimilarProducts from '../components/product/SimilarProducts'
 import ProductSpecs from '../components/product/ProductSpecs'
 import { getCategoryBreadcrumbFromProduct } from '../utils/catalogProductMapper'
 import { catalogLink } from '../utils/catalogLinks'
-import { getCatalogDisplayPrices } from '../utils/pricing'
+import { getCatalogDisplayPrices, getMaxCartQuantity } from '../utils/pricing'
 
 export default function ProductDetailPage() {
   const { id } = useParams()
   const addItem = useCartStore((s) => s.addItem)
+  const cartItem = useCartStore((s) => s.items.find((item) => item.id === id))
   const { isMayorista, minQuantity, role } = useUserPricing()
   const { product, error, ready, isFetching } = useProductDetail(id)
 
@@ -36,6 +37,8 @@ export default function ProductDetailPage() {
   const breadcrumb = getCategoryBreadcrumbFromProduct(product)
   const categoryCatalogLink = catalogLink({ categories: [product.category] })
   const { displayPrice, strikePrice } = getCatalogDisplayPrices(product, role)
+  const maxQuantity = getMaxCartQuantity(product.stock, role)
+  const canAddToCart = maxQuantity > 0 && (!cartItem || cartItem.quantity < maxQuantity)
 
   return (
     <div
@@ -93,8 +96,9 @@ export default function ProductDetailPage() {
           <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
             <button
               type="button"
-              onClick={() => addItem(product)}
-              className="btn-fill px-10 py-3.5 text-sm sm:text-base"
+              onClick={() => canAddToCart && addItem(product)}
+              disabled={!canAddToCart}
+              className="btn-fill px-10 py-3.5 text-sm disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
             >
               {isMayorista ? `Agregar (${minQuantity} und.)` : 'Agregar'}
             </button>

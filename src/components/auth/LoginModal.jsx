@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { GoogleLogin } from '@react-oauth/google'
@@ -206,11 +207,11 @@ export default function LoginModal({ isOpen, onClose }) {
     setRegisterForm(emptyRegisterForm)
   }
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/50" onClick={() => { onClose(); reset() }} />
       <div
-        className={`relative max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-white p-8 shadow-2xl ${
+        className={`relative z-10 max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-8 shadow-2xl sm:max-h-[90vh] sm:rounded-2xl ${
           view === 'register' ? 'max-w-3xl' : 'max-w-md'
         }`}
       >
@@ -424,6 +425,7 @@ export default function LoginModal({ isOpen, onClose }) {
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

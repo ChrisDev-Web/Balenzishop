@@ -3,20 +3,24 @@ import { Link } from 'react-router-dom'
 import { ShoppingBag } from 'lucide-react'
 import { useCartStore } from '../../stores/cartStore'
 import { useUserPricing } from '../../hooks/useUserPricing'
-import { getDiscountPercent, formatDiscountLabel } from '../../utils/pricing'
+import { getDiscountPercent, formatDiscountLabel, getMaxCartQuantity } from '../../utils/pricing'
 import { productLink } from '../../utils/productUtils'
 
 function ProductCard({ perfume, priority = false }) {
   const addItem = useCartStore((s) => s.addItem)
-  const { getCatalogDisplayPrices, isMayorista, minQuantity } = useUserPricing()
+  const cartItem = useCartStore((s) => s.items.find((item) => item.id === perfume.id))
+  const { getCatalogDisplayPrices, isMayorista, minQuantity, role } = useUserPricing()
   const [imgError, setImgError] = useState(false)
   const { displayPrice, strikePrice } = getCatalogDisplayPrices(perfume)
   const discountPercent = isMayorista ? getDiscountPercent(displayPrice, strikePrice) : null
   const discountLabel = formatDiscountLabel(discountPercent)
+  const maxQuantity = getMaxCartQuantity(perfume.stock, role)
+  const canAddToCart = maxQuantity > 0 && (!cartItem || cartItem.quantity < maxQuantity)
 
   const handleAdd = (e) => {
     e.preventDefault()
     e.stopPropagation()
+    if (!canAddToCart) return
     addItem(perfume)
   }
 
@@ -92,7 +96,8 @@ function ProductCard({ perfume, priority = false }) {
           <button
             type="button"
             onClick={handleAdd}
-            className="btn-fill w-full min-w-0 gap-1 px-1.5 py-1.5 text-[9px] sm:gap-1.5 sm:px-2 sm:py-2 sm:text-[10px] md:px-3 md:py-2.5 md:text-xs"
+            disabled={!canAddToCart}
+            className="btn-fill w-full min-w-0 gap-1 px-1.5 py-1.5 text-[9px] disabled:cursor-not-allowed disabled:opacity-50 sm:gap-1.5 sm:px-2 sm:py-2 sm:text-[10px] md:px-3 md:py-2.5 md:text-xs"
             aria-label={isMayorista ? `Agregar ${minQuantity} unidades` : 'Agregar al carrito'}
           >
             <ShoppingBag className="h-3 w-3 shrink-0 md:h-3.5 md:w-3.5" />

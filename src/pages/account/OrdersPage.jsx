@@ -1,33 +1,34 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, ShoppingBag, Eye, Plus } from 'lucide-react'
+import { Search, ShoppingBag, Eye, Plus, Wallet } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useCartStore } from '../../stores/cartStore'
+import { fetchMyClientOrders } from '../../api/clientOrders'
+import { fetchActivePaymentMethods } from '../../api/paymentMethods'
+import { mapApiClientOrders, mapApiClientOrder } from '../../utils/clientOrderMapper'
+import { buildBalancePaymentWhatsAppMessage, formatOrderDate, openWhatsAppOrder } from '../../utils/orderMessage'
+import BalancePaymentModal from '../../components/account/BalancePaymentModal'
 import OrderDetailModal from '../../components/account/OrderDetailModal'
 import Pagination from '../../components/catalog/Pagination'
 import { paginate } from '../../utils/filterPerfumes'
 
-const ORDERS_PER_PAGE = 4
+const ORDERS_PER_PAGE = 5
 
 const tabs = [
   { key: 'all', label: 'Todos Mis Pedidos' },
-  { key: 'in_progress', label: 'Pedidos en Curso', statuses: ['pending', 'in_progress'] },
-  { key: 'delivered', label: 'Pedidos Entregados', statuses: ['delivered'] },
-  { key: 'cancelled', label: 'Pedidos Cancelados', statuses: ['cancelled'] },
+  { key: 'pending', label: 'Pendientes', statuses: ['Pendiente'] },
+  { key: 'process', label: 'En proceso', statuses: ['En Proceso'] },
+  { key: 'shipped', label: 'Enviados', statuses: ['Enviado'] },
+  { key: 'received', label: 'Recibidos', statuses: ['Recibido'] },
+  { key: 'cancelled', label: 'Cancelados', statuses: ['Cancelado'] },
 ]
 
-const STATUS_LABELS = {
-  pending: 'Pendiente',
-  in_progress: 'En curso',
-  delivered: 'Entregado',
-  cancelled: 'Cancelado',
-}
-
 const STATUS_STYLES = {
-  pending: 'bg-amber-100 text-amber-800',
-  in_progress: 'bg-blue-100 text-blue-800',
-  delivered: 'bg-green-100 text-green-800',
-  cancelled: 'bg-gray-100 text-gray-600',
+  Pendiente: 'bg-amber-100 text-amber-800',
+  'En Proceso': 'bg-blue-100 text-blue-800',
+  Enviado: 'bg-green-100 text-green-800',
+  Recibido: 'bg-gray-100 text-gray-800',
+  Cancelado: 'bg-gray-100 text-gray-600',
 }
 
 const periods = [
@@ -39,16 +40,63 @@ const periods = [
 
 export default function OrdersPage() {
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const { accessToken, user } = useAuthStore()
   const loadOrderForEditing = useCartStore((s) => s.loadOrderForEditing)
   const [activeTab, setActiveTab] = useState('all')
   const [search, setSearch] = useState('')
   const [period, setPeriod] = useState('3m')
   const [page, setPage] = useState(1)
   const [selectedOrder, setSelectedOrder] = useState(null)
+  const [balanceOrder, setBalanceOrder] = useState(null)
+  const [paymentMethods, setPaymentMethods] = useState([])
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
-  const orders = user?.orders || []
   const activeTabConfig = tabs.find((t) => t.key === activeTab)
+
+  function reloadOrders() {
+    if (!accessToken) return Promise.resolve()
+
+    return fetchMyClientOrders(accessToken, { page: 1, page_size: 50 })
+      .then((response) => {
+        setOrders(mapApiClientOrders(response.data?.items ?? []))
+      })
+  }
+
+  useEffect(() => {
+    fetchActivePaymentMethods()
+      .then((methods) => setPaymentMethods(methods ?? []))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!accessToken) {
+      setOrders([])
+      setLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setLoading(true)
+    setLoadError('')
+
+    fetchMyClientOrders(accessToken, { page: 1, page_size: 50 })
+      .then((response) => {
+        if (cancelled) return
+        setOrders(mapApiClientOrders(response.data?.items ?? []))
+      })
+      .catch((error) => {
+        if (!cancelled) setLoadError(error.message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
 
   const filtered = useMemo(() => orders.filter((o) => {
     if (activeTab !== 'all' && activeTabConfig?.statuses && !activeTabConfig.statuses.includes(o.status)) {
@@ -77,8 +125,25 @@ export default function OrdersPage() {
     navigate('/catalogo')
   }
 
+  async function handleBalancePaymentSubmitted(apiOrder, { payments }) {
+    const mapped = mapApiClientOrder(apiOrder)
+    const message = buildBalancePaymentWhatsAppMessage({
+      orderId: mapped.orderNumber,
+      date: formatOrderDate(new Date()),
+      total: mapped.total,
+      balanceDue: mapped.balanceDue,
+      amountPaid: mapped.amountPaid,
+      payments,
+      customer: user,
+    })
+
+    await openWhatsAppOrder(message)
+    await reloadOrders()
+    setBalanceOrder(null)
+  }
+
   return (
-    <div>
+    <div className="flex flex-1 flex-col">
       <h1 className="text-2xl font-bold text-gray-900">Mis pedidos</h1>
       <p className="mt-1 text-sm text-gray-600">
         Aquí podrás encontrar información sobre el estado, fechas de entrega y otros detalles de tus pedidos online.
@@ -90,10 +155,10 @@ export default function OrdersPage() {
             key={tab.key}
             type="button"
             onClick={() => setActiveTab(tab.key)}
-            className={`shrink-0 pb-3 text-sm font-medium transition ${
+            className={`shrink-0 -mb-px border-b-2 pb-3 text-sm font-medium transition ${
               activeTab === tab.key
-                ? 'border-b-2 border-black text-black'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'border-black text-black'
+                : 'border-transparent text-gray-600 hover:text-gray-900'
             }`}
           >
             {tab.label}
@@ -133,75 +198,121 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {totalItems === 0 ? (
-        <div className="mt-16 flex flex-col items-center text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
-            <ShoppingBag className="h-10 w-10 text-gray-300" />
-          </div>
-          <p className="mt-6 max-w-md text-sm text-gray-500">
-            No encontramos pedidos que cumplan con tus criterios de búsqueda, prueba usar otro número de pedido.
-          </p>
-        </div>
-      ) : (
-        <ul className="mt-6 space-y-3">
-          {paginatedOrders.map((order) => {
-            const itemCount = order.items?.reduce((sum, i) => sum + i.quantity, 0) || 0
-            const isPending = order.status === 'pending'
+      <section className="mt-6 flex flex-1 flex-col">
+        {loading ? (
+          <>
+            <p className="py-8 text-center text-sm text-gray-500">Cargando pedidos…</p>
+            <div className="min-h-[12rem] flex-1" aria-hidden="true" />
+          </>
+        ) : loadError ? (
+          <>
+            <p className="py-8 text-center text-sm text-red-600">{loadError}</p>
+            <div className="min-h-[12rem] flex-1" aria-hidden="true" />
+          </>
+        ) : totalItems === 0 ? (
+          <>
+            <div className="flex flex-col items-center py-8 text-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
+                <ShoppingBag className="h-10 w-10 text-gray-300" />
+              </div>
+              <p className="mt-6 max-w-md text-sm text-gray-500">
+                {orders.length === 0
+                  ? 'Aún no tienes ningún pedido registrado. Cuando reserves un pedido en el catálogo, aparecerá aquí.'
+                  : 'No encontramos pedidos que cumplan con tus criterios de búsqueda. Prueba con otro número de pedido o cambia el filtro.'}
+              </p>
+            </div>
+            <div className="min-h-[12rem] flex-1" aria-hidden="true" />
+          </>
+        ) : (
+          <>
+            <ul className="space-y-3">
+              {paginatedOrders.map((order) => {
+                const itemCount = order.items?.reduce((sum, i) => sum + i.quantity, 0) || 0
+                const isPending = order.status === 'Pendiente'
+                const canPayBalance = order.canSubmitBalancePayment
 
-            return (
-              <li
-                key={order.id}
-                className="rounded-lg border border-gray-200 bg-white p-4 sm:flex sm:items-center sm:justify-between sm:gap-4"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-gray-900">#{order.id}</span>
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[order.status] || 'bg-gray-100 text-gray-800'}`}>
-                      {STATUS_LABELS[order.status] || order.status}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-xs text-gray-500">{order.date}</p>
-                  <div className="mt-2 flex items-baseline justify-between gap-4 sm:hidden">
-                    <p className="text-xs text-gray-500">{itemCount} ítem{itemCount !== 1 ? 's' : ''}</p>
-                    <p className="text-sm font-bold text-gray-900">S/ {order.total?.toFixed(2)}</p>
-                  </div>
-                </div>
-
-                <div className="mt-3 flex flex-col gap-2 border-t border-gray-100 pt-3 sm:mt-0 sm:shrink-0 sm:flex-row sm:items-center sm:gap-3 sm:border-0 sm:pt-0">
-                  <div className="hidden text-right sm:block">
-                    <p className="text-xs text-gray-500">{itemCount} ítem{itemCount !== 1 ? 's' : ''}</p>
-                    <p className="text-sm font-bold text-gray-900">S/ {order.total?.toFixed(2)}</p>
-                  </div>
-                  {isPending && (
-                    <button
-                      type="button"
-                      onClick={() => handleAddProducts(order)}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-full bg-black px-3.5 py-2.5 text-xs font-semibold text-white hover:bg-gray-800 sm:w-auto sm:py-1.5"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Agregar productos
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedOrder(order)}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-full border border-black px-3.5 py-2.5 text-xs font-semibold text-black hover:bg-gray-50 sm:w-auto sm:py-1.5"
+                return (
+                  <li
+                    key={order.idClientOrder || order.id}
+                    className="rounded-lg border border-gray-200 bg-white p-4 sm:flex sm:items-center sm:justify-between sm:gap-4"
                   >
-                    <Eye className="h-3.5 w-3.5" />
-                    Ver pedido
-                  </button>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-gray-900">#{order.id}</span>
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[order.status] || 'bg-gray-100 text-gray-800'}`}>
+                          {order.status}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-gray-500">{order.date}</p>
+                      <div className="mt-2 flex items-baseline justify-between gap-4 sm:hidden">
+                        <p className="text-xs text-gray-500">{itemCount} ítem{itemCount !== 1 ? 's' : ''}</p>
+                        <p className="text-sm font-bold text-gray-900">S/ {order.total?.toFixed(2)}</p>
+                      </div>
+                    </div>
 
-      {totalItems > ORDERS_PER_PAGE && (
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setPage}
+                    <div className="mt-3 flex flex-col gap-2 border-t border-gray-100 pt-3 sm:mt-0 sm:shrink-0 sm:flex-row sm:items-center sm:gap-3 sm:border-0 sm:pt-0">
+                      <div className="hidden text-right sm:block">
+                        <p className="text-xs text-gray-500">{itemCount} ítem{itemCount !== 1 ? 's' : ''}</p>
+                        <p className="text-sm font-bold text-gray-900">S/ {order.total?.toFixed(2)}</p>
+                      </div>
+                      {canPayBalance && (
+                        <button
+                          type="button"
+                          onClick={() => setBalanceOrder(order)}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-full bg-black px-3.5 py-2.5 text-xs font-semibold text-white hover:bg-gray-800 sm:w-auto sm:py-1.5"
+                        >
+                          <Wallet className="h-3.5 w-3.5" />
+                          Pago restante
+                        </button>
+                      )}
+                      {isPending && (
+                        <button
+                          type="button"
+                          onClick={() => handleAddProducts(order)}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-full bg-black px-3.5 py-2.5 text-xs font-semibold text-white hover:bg-gray-800 sm:w-auto sm:py-1.5"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Agregar productos
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOrder(order)}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-full border border-black px-3.5 py-2.5 text-xs font-semibold text-black hover:bg-gray-50 sm:w-auto sm:py-1.5"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        Ver pedido
+                      </button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+
+            {totalItems > ORDERS_PER_PAGE && (
+              <div className="mt-3 shrink-0 [&_nav]:!mt-0">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                />
+              </div>
+            )}
+
+            <div className="min-h-[12rem] flex-1" aria-hidden="true" />
+          </>
+        )}
+      </section>
+
+      {balanceOrder && (
+        <BalancePaymentModal
+          open={Boolean(balanceOrder)}
+          onClose={() => setBalanceOrder(null)}
+          order={balanceOrder}
+          accessToken={accessToken}
+          paymentMethods={paymentMethods}
+          customer={user}
+          onSubmitted={handleBalancePaymentSubmitted}
         />
       )}
 

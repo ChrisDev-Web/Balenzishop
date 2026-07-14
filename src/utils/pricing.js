@@ -64,15 +64,38 @@ export function getOriginalPriceForRole(originalPrice, role) {
   return originalPrice
 }
 
+export function getMaxCartQuantity(stock, role) {
+  if (stock == null || stock === '') return Infinity
+
+  const available = Math.max(0, Number(stock) || 0)
+  const minQty = getMinQuantity(role)
+
+  if (available < minQty) return 0
+  return available
+}
+
+export function capQuantityByStock(quantity, stock, role) {
+  const maxQty = getMaxCartQuantity(stock, role)
+  if (maxQty === 0) return 0
+  if (maxQty === Infinity) return quantity
+  return Math.min(quantity, maxQty)
+}
+
 export function prepareCartItem(perfume, role, quantity = 1) {
   const minQty = getMinQuantity(role)
   const basePrice = perfume.basePrice ?? perfume.price
+  let finalQuantity = Math.max(quantity, minQty)
+  finalQuantity = capQuantityByStock(finalQuantity, perfume.stock, role)
+
+  if (finalQuantity < minQty) {
+    finalQuantity = 0
+  }
 
   return {
     ...perfume,
     basePrice,
     price: getProductPrice(basePrice, role),
-    quantity: Math.max(quantity, minQty),
+    quantity: finalQuantity,
   }
 }
 

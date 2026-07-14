@@ -23,11 +23,11 @@ export default function Layout() {
   }, [user?.role, syncWithUserRole])
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-dvh flex-1 flex-col">
       <ScrollToTop />
       <Navbar />
       <PendingOrderBanner />
-      <main className="relative z-0 flex-1">
+      <main className="relative z-0 flex flex-1 flex-col">
         <Outlet />
       </main>
       <Footer />

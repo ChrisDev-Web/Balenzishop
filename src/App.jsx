@@ -16,8 +16,9 @@ import RequireAuth from './components/auth/RequireAuth'
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
+    <div className="flex min-h-dvh flex-1 flex-col">
+      <BrowserRouter>
+        <Routes>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
           <Route path="mujeres" element={<WomenPage />} />
@@ -41,7 +42,8 @@ export default function App() {
             <Route path="pedidos" element={<OrdersPage />} />
           </Route>
         </Route>
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </div>
   )
 }

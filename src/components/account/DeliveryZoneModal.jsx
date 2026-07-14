@@ -1,14 +1,15 @@
+import { createPortal } from 'react-dom'
 import { X, MapPin } from 'lucide-react'
 
 export default function DeliveryZoneModal({ onSelect, onClose }) {
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="delivery-zone-title"
-        className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+        className="relative z-10 w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
       >
         <button
           type="button"
@@ -56,6 +57,7 @@ export default function DeliveryZoneModal({ onSelect, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

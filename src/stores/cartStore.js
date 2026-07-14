@@ -5,6 +5,7 @@ import { orderItemsToCartItems } from '../utils/orderUtils'
 import {
   prepareCartItem,
   getMinQuantity,
+  capQuantityByStock,
   USER_ROLES,
 } from '../utils/pricing'
 
@@ -48,34 +49,43 @@ export const useCartStore = create(
       syncWithUserRole: (role = getCurrentRole()) => {
         const minQty = getMinQuantity(role)
         set({
-          items: get().items.map((item) => {
-            const basePrice = item.basePrice ?? item.price
-            const quantity = Math.max(item.quantity, minQty)
-            return prepareCartItem({ ...item, price: basePrice, basePrice }, role, quantity)
-          }),
+          items: get()
+            .items.map((item) => {
+              const basePrice = item.basePrice ?? item.price
+              const quantity = capQuantityByStock(Math.max(item.quantity, minQty), item.stock, role)
+              if (quantity < minQty) return null
+              return prepareCartItem({ ...item, price: basePrice, basePrice }, role, quantity)
+            })
+            .filter(Boolean),
         })
       },
 
       addItem: (perfume, quantity = 1) => {
         const role = getCurrentRole()
+        const minQty = getMinQuantity(role)
         const { items } = get()
         const existing = items.find((i) => i.id === perfume.id)
+        const nextQuantity = existing ? existing.quantity + quantity : quantity
+        const mergedProduct = {
+          ...perfume,
+          basePrice: existing?.basePrice ?? perfume.basePrice ?? perfume.price,
+          stock: perfume.stock ?? existing?.stock,
+        }
+        const prepared = prepareCartItem(mergedProduct, role, nextQuantity)
+
+        if (prepared.quantity < minQty) return
 
         if (existing) {
+          if (prepared.quantity === existing.quantity) return
+
           set({
             items: items.map((i) =>
-              i.id === perfume.id
-                ? prepareCartItem(
-                    { ...perfume, basePrice: i.basePrice ?? perfume.price },
-                    role,
-                    i.quantity + quantity,
-                  )
-                : i,
+              i.id === perfume.id ? prepared : i,
             ),
           })
         } else {
           set({
-            items: [...items, prepareCartItem(perfume, role, quantity)],
+            items: [...items, prepared],
           })
         }
       },
@@ -87,15 +97,25 @@ export const useCartStore = create(
       updateQuantity: (id, quantity) => {
         const role = getCurrentRole()
         const minQty = getMinQuantity(role)
+        const item = get().items.find((i) => i.id === id)
+
+        if (!item) return
 
         if (quantity < minQty) {
           get().removeItem(id)
           return
         }
 
+        const cappedQuantity = capQuantityByStock(quantity, item.stock, role)
+
+        if (cappedQuantity < minQty) {
+          get().removeItem(id)
+          return
+        }
+
         set({
           items: get().items.map((i) =>
-            i.id === id ? { ...i, quantity } : i,
+            i.id === id ? { ...i, quantity: cappedQuantity } : i,
           ),
         })
       },

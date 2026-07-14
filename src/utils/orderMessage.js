@@ -17,6 +17,7 @@ const ICON = {
   equals: '=',
   abacus: String.fromCodePoint(0x1f9ee),
   ticket: String.fromCodePoint(0x1f39f, 0xfe0f),
+  card: String.fromCodePoint(0x1f4b3),
   truck: String.fromCodePoint(0x1f69a),
   check: String.fromCodePoint(0x2705),
   coins: String.fromCodePoint(0x1f4b0),
@@ -65,12 +66,19 @@ export function buildWhatsAppMessage({
   items,
   subtotal,
   discount,
+  discountCode,
   deliveryFee = 0,
   deliveryLabel,
   deliveryMode = DELIVERY_MODES.SHALON_FREE,
   total,
   customer,
   address,
+  paymentMode,
+  reservationAmount = 0,
+  amountPaid = 0,
+  balanceDue = 0,
+  payments = [],
+  status = 'Pendiente',
 }) {
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0)
   const lines = []
@@ -80,23 +88,43 @@ export function buildWhatsAppMessage({
   lines.push(`${ICON.clipboard} *Pedido:* ${orderId}`)
   lines.push(`${ICON.calendar} *Fecha:* ${date}`)
   lines.push(`${ICON.receipt} *Ítems:* ${totalItems}`)
+  lines.push(`${ICON.label} *Estado:* ${status}`)
   lines.push(SEP)
   lines.push(`${ICON.lotion} *PRODUCTOS*`)
 
   items.forEach((item, index) => {
     const lineTotal = item.price * item.quantity
+    const discountInfo = item.discountAmount > 0
+      ? ` (desc. -S/ ${item.discountAmount.toFixed(2)})`
+      : ''
     lines.push(`*${index + 1}.* ${item.name}`)
     lines.push(
-      `   ${ICON.package} ${item.quantity} ${ICON.multiply} S/ ${item.price.toFixed(2)} ${ICON.equals} S/ ${lineTotal.toFixed(2)}`,
+      `   ${ICON.package} ${item.quantity} ${ICON.multiply} S/ ${item.price.toFixed(2)} ${ICON.equals} S/ ${(item.discountedSubtotal ?? lineTotal).toFixed(2)}${discountInfo}`,
     )
   })
 
   lines.push(`${ICON.abacus} Subtotal: S/ ${subtotal.toFixed(2)}`)
   if (discount > 0) {
-    lines.push(`${ICON.ticket} Descuento: -S/ ${discount.toFixed(2)}`)
+    const codeSuffix = discountCode ? ` (${discountCode})` : ''
+    lines.push(`${ICON.ticket} Descuento${codeSuffix}: -S/ ${discount.toFixed(2)}`)
   }
   lines.push(formatShippingLine({ deliveryFee, deliveryLabel, deliveryMode }))
-  lines.push(`${ICON.coins} *Total: S/ ${total.toFixed(2)}*`)
+  lines.push(`${ICON.coins} *Total pedido: S/ ${total.toFixed(2)}*`)
+
+  if (paymentMode === 'reserva') {
+    lines.push(`${ICON.money} Reserva pagada: S/ ${amountPaid.toFixed(2)} (S/ ${reservationAmount.toFixed(2)} esperado)`)
+    lines.push(`${ICON.coins} Saldo pendiente: S/ ${balanceDue.toFixed(2)}`)
+  } else if (paymentMode === 'completo') {
+    lines.push(`${ICON.money} Pago completo registrado: S/ ${amountPaid.toFixed(2)}`)
+  }
+
+  if (payments.length > 0) {
+    lines.push(`${ICON.card} *Pagos registrados:*`)
+    payments.forEach((payment) => {
+      lines.push(`   • ${payment.methodName}: S/ ${Number(payment.amount).toFixed(2)}`)
+    })
+  }
+
   lines.push(SEP)
   lines.push(`${ICON.person} *CLIENTE*`)
 
@@ -126,7 +154,50 @@ export function buildWhatsAppMessage({
   }
 
   lines.push(SEP)
-  lines.push(`${ICON.check} Pedido listo para confirmar.`)
+  lines.push(`${ICON.check} Pedido registrado. Estado: ${status}.`)
+
+  return lines.join('\n')
+}
+
+export function buildBalancePaymentWhatsAppMessage({
+  orderId,
+  date,
+  total,
+  balanceDue,
+  amountPaid,
+  payments = [],
+  customer,
+}) {
+  const lines = []
+
+  lines.push(`${ICON.check} *PAGO RESTANTE COMPLETADO — ${STORE_NAME}*`)
+  lines.push(SEP)
+  lines.push(`${ICON.clipboard} *Pedido:* ${orderId}`)
+  lines.push(`${ICON.calendar} *Fecha:* ${date}`)
+  lines.push(`${ICON.coins} *Total pedido:* S/ ${Number(total).toFixed(2)}`)
+  lines.push(`${ICON.money} *Saldo pagado ahora:* S/ ${Number(balanceDue).toFixed(2)}`)
+  lines.push(`${ICON.abacus} *Total pagado acumulado:* S/ ${Number(amountPaid).toFixed(2)}`)
+  lines.push(SEP)
+
+  if (payments.length > 0) {
+    lines.push(`${ICON.card} *Pagos del saldo:*`)
+    payments.forEach((payment) => {
+      lines.push(`   • ${payment.methodName}: S/ ${Number(payment.amount).toFixed(2)}`)
+    })
+    lines.push(SEP)
+  }
+
+  const fullName = [customer?.firstName, customer?.lastNamePaternal, customer?.lastNameMaternal]
+    .filter(Boolean)
+    .join(' ')
+  lines.push(`${ICON.person} *CLIENTE:* ${fullName || 'Sin nombre'}`)
+  if (customer?.documentId) {
+    lines.push(`${ICON.id} ${customer.documentTypeName || 'Documento'}: ${customer.documentId}`)
+  }
+  if (customer?.phone) lines.push(`${ICON.phone} ${customer.phone}`)
+
+  lines.push(SEP)
+  lines.push(`${ICON.check} PAGO RESTANTE COMPLETADO`)
 
   return lines.join('\n')
 }

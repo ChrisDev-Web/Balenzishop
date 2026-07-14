@@ -17,8 +17,10 @@ if (localStorage.getItem(SESSIONS_RESET_KEY) !== SESSIONS_RESET_VERSION) {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <GoogleOAuthProvider clientId={googleClientId}>
-      <App />
-    </GoogleOAuthProvider>
+    <div className="flex min-h-dvh flex-1 flex-col">
+      <GoogleOAuthProvider clientId={googleClientId}>
+        <App />
+      </GoogleOAuthProvider>
+    </div>
   </StrictMode>,
 )

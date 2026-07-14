@@ -40,10 +40,10 @@ export default function AccountLayout() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 lg:px-6">
-      <div className="flex flex-col gap-8 lg:flex-row">
+    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-10 lg:px-6">
+      <div className="flex flex-1 flex-col gap-8 lg:flex-row">
         {isAuthenticated && <AccountSidebar />}
-        <div className="flex-1">
+        <div className="flex min-w-0 flex-1 flex-col">
           <Outlet />
         </div>
       </div>

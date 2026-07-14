@@ -89,6 +89,21 @@ export async function apiPost(path, body = {}, token = null, config = {}) {
   return response.data
 }
 
+export async function apiPostForm(path, formData, token = null, config = {}) {
+  const headers = {
+    Accept: 'application/json',
+    ...config.headers,
+  }
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const response = await http.post(path, formData, {
+    ...config,
+    headers,
+  })
+
+  return response.data
+}
+
 export async function apiPut(path, body = {}, token = null, config = {}) {
   const headers = {
     Accept: 'application/json',

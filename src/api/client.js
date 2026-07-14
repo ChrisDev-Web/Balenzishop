@@ -105,4 +105,16 @@ export async function apiPut(path, body = {}, token = null, config = {}) {
   return response.data
 }
 
+export async function apiDelete(path, token = null, config = {}) {
+  const headers = { ...config.headers }
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const response = await http.delete(path, {
+    ...config,
+    headers,
+  })
+
+  return response.data
+}
+
 export default http

@@ -1,5 +1,3 @@
-import { getDeliveryFeeForZone, getCoverageInfo } from '../data/rainauCoverage'
-
 export const DELIVERY_MODES = {
   DELIVERY: 'delivery',
   SHALON_PAID: 'shalon_paid',
@@ -15,29 +13,11 @@ export function getDeliveryFeeForAddress(address) {
     return { fee: 0, label: 'Recojo en Shalon (provincia)', zone: null, mode: DELIVERY_MODES.SHALON_FREE }
   }
 
-  const zone = address.coverageZone
-    || getCoverageInfo(address.district, address.geoLat, address.geoLng).zone
-  const fee = getDeliveryFeeForZone(zone)
-
-  if (zone === 'green') {
-    return { fee, label: 'Delivery Lima — zona regular (L–S)', zone, mode: DELIVERY_MODES.DELIVERY }
-  }
-  if (zone === 'green_dark') {
-    return { fee, label: 'Delivery Lima — zona extendida (L–S)', zone, mode: DELIVERY_MODES.DELIVERY }
-  }
-  if (zone === 'blue') {
-    return { fee, label: 'Delivery Lima — zona programada (M–J–S)', zone, mode: DELIVERY_MODES.DELIVERY }
-  }
-  if (zone === 'red') {
-    return {
-      fee: 0,
-      label: 'Recojo en Shalon (con cargo)',
-      zone,
-      mode: DELIVERY_MODES.SHALON_PAID,
-    }
+  if (address.deliveryScope === 'lima') {
+    return { fee: 0, label: 'Recojo en Shalon (Lima)', zone: null, mode: DELIVERY_MODES.SHALON_FREE }
   }
 
-  return { fee: 0, label: 'Recojo en Shalon', zone: zone || 'unknown', mode: DELIVERY_MODES.SHALON_FREE }
+  return { fee: 0, label: 'Recojo en Shalon', zone: null, mode: DELIVERY_MODES.SHALON_FREE }
 }
 
 export function computeOrderTotal(subtotal, discount, deliveryFee, deliveryMode) {

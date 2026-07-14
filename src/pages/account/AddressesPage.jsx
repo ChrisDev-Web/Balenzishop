@@ -1,80 +1,290 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Star, Trash2, MapPin, Eye, Pencil, Map } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
 import { AUTH_INTENT } from '../../utils/authFlow'
+import { LIMA_CITY } from '../../data/shalonLocations'
 import {
-  cities,
-  getDistrictsForCity,
-  getShalonsForDistrict,
-  getNearestShalon,
-  getCitiesForScope,
-  resolveLocationForScope,
-  sortDistrictsByDistance,
-} from '../../data/shalonLocations'
-import { getCoverageInfo, COVERAGE_MESSAGES, DELIVERY_FEES } from '../../data/rainauCoverage'
-import { getCurrentPosition, reverseGeocode } from '../../utils/geolocation'
+  listDistrictsPublic,
+  listProvincesPublic,
+  listRegionsPublic,
+  listShalonsPublic,
+} from '../../api/clientDirections'
+import {
+  buildShalonMapsUrl,
+  mapDistrictOption,
+  mapProvinceOption,
+  mapRegionOption,
+  mapShalonOption,
+} from '../../utils/addressMapper'
+import { resolveLimaProvinceIds } from '../../utils/addressFormHelpers'
+import SearchableCombobox from '../../components/ui/SearchableCombobox'
 import AddressModal from '../../components/account/AddressModal'
-import DeliveryZoneModal, { CoverageBanner, ZoneOverrideModal } from '../../components/account/DeliveryZoneModal'
+import DeliveryZoneModal from '../../components/account/DeliveryZoneModal'
 
 const emptyForm = {
+  idRegion: '',
+  region: '',
   city: '',
+  idProvince: '',
+  idDistrict: '',
+  idShalon: '',
   district: '',
+  shalonName: '',
   shalon: '',
   isPrimary: false,
-}
-
-const ZONE_STORAGE_KEY = 'balenzishop-delivery-zone'
-
-function shalonMapsUrl(shalonName, district, city) {
-  // shalonName format: "Shalon Foo - Av. Tal 123"
-  const parts = shalonName.split(' - ')
-  const address = parts.length > 1 ? parts.slice(1).join(' - ') : shalonName
-  const query = `${address}, ${district || ''}, ${city || ''}, Perú`
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
 }
 
 export default function AddressesPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const flujo = searchParams.get('flujo')
-  const { user, addAddress, updateAddress, deleteAddress } = useAuthStore()
+  const {
+    user,
+    addAddress,
+    updateAddress,
+    deleteAddress,
+    syncAddresses,
+  } = useAuthStore()
   const authIntent = useUiStore((s) => s.authIntent)
   const clearAuthIntent = useUiStore((s) => s.clearAuthIntent)
 
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false)
   const [modalAddress, setModalAddress] = useState(null)
   const [modalMode, setModalMode] = useState('view')
+  const [regionOptions, setRegionOptions] = useState([])
+  const [provinceOptions, setProvinceOptions] = useState([])
+  const [districtOptions, setDistrictOptions] = useState([])
+  const [shalonOptions, setShalonOptions] = useState([])
+  const [isLoadingRegions, setIsLoadingRegions] = useState(false)
+  const [isLoadingProvinces, setIsLoadingProvinces] = useState(false)
+  const [isLoadingDistricts, setIsLoadingDistricts] = useState(false)
+  const [isLoadingShalons, setIsLoadingShalons] = useState(false)
+  const [limaProvinceIds, setLimaProvinceIds] = useState([])
+  const [isResolvingLimaProvinces, setIsResolvingLimaProvinces] = useState(false)
 
   const [showZoneModal, setShowZoneModal] = useState(false)
-  const [zoneLoading, setZoneLoading] = useState(false)
-  const [zoneError, setZoneError] = useState('')
   const [deliveryScope, setDeliveryScope] = useState(null)
-  const [coverageInfo, setCoverageInfo] = useState(null)
-  const [userCoords, setUserCoords] = useState(null)
-  const [geoLabel, setGeoLabel] = useState('')
-  const [showOverrideModal, setShowOverrideModal] = useState(false)
 
   const addresses = user?.addresses || []
   const isSetupFlow = flujo === 'pedido' || flujo === 'onboarding'
+  const isProvinciaScope = deliveryScope === 'provincia'
+  const isLimaScope = deliveryScope === 'lima'
 
-  const availableCities = useMemo(
-    () => (deliveryScope ? getCitiesForScope(deliveryScope) : cities),
-    [deliveryScope],
+  const regions = useMemo(
+    () => [...regionOptions].sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    [regionOptions],
   )
 
-  const districts = useMemo(() => {
-    if (!form.city) return []
-    if (userCoords && deliveryScope) {
-      return sortDistrictsByDistance(form.city, userCoords.lat, userCoords.lng)
-    }
-    return [...getDistrictsForCity(form.city)].sort((a, b) => a.localeCompare(b, 'es'))
-  }, [form.city, userCoords, deliveryScope])
+  const provinces = useMemo(
+    () => [...provinceOptions].sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    [provinceOptions],
+  )
 
-  const shalons = useMemo(() => getShalonsForDistrict(form.district), [form.district])
+  const districts = useMemo(
+    () => [...districtOptions].sort((a, b) => a.name.localeCompare(b.name, 'es')),
+    [districtOptions],
+  )
+
+  const regionComboboxOptions = useMemo(
+    () => regions.map((region) => ({
+      value: region.idRegion,
+      label: region.label,
+      searchText: region.name,
+      raw: region,
+    })),
+    [regions],
+  )
+
+  const provinceComboboxOptions = useMemo(
+    () => provinces.map((province) => ({
+      value: province.idProvince,
+      label: province.label,
+      searchText: province.name,
+      raw: province,
+    })),
+    [provinces],
+  )
+
+  const districtComboboxOptions = useMemo(
+    () => districts.map((district) => ({
+      value: district.idDistrict,
+      label: district.name,
+      searchText: district.name,
+      raw: district,
+    })),
+    [districts],
+  )
+
+  const shalonComboboxOptions = useMemo(
+    () => shalonOptions.map((shalon) => ({
+      value: shalon.idShalon,
+      label: shalon.label,
+      searchText: shalon.label,
+      raw: shalon,
+    })),
+    [shalonOptions],
+  )
+
+  useEffect(() => {
+    let ignore = false
+    setIsLoadingAddresses(true)
+    syncAddresses()
+      .catch(() => {})
+      .finally(() => {
+        if (!ignore) setIsLoadingAddresses(false)
+      })
+    return () => {
+      ignore = true
+    }
+  }, [syncAddresses])
+
+  useEffect(() => {
+    if (!isProvinciaScope) {
+      setRegionOptions([])
+      return undefined
+    }
+
+    let ignore = false
+    setIsLoadingRegions(true)
+
+    listRegionsPublic({ page: 1, page_size: 100 })
+      .then((response) => {
+        if (ignore) return
+        setRegionOptions((response.data?.items ?? []).map(mapRegionOption))
+      })
+      .catch(() => {
+        if (!ignore) setRegionOptions([])
+      })
+      .finally(() => {
+        if (!ignore) setIsLoadingRegions(false)
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [isProvinciaScope])
+
+  useEffect(() => {
+    if (!isProvinciaScope || !form.idRegion) {
+      setProvinceOptions([])
+      return undefined
+    }
+
+    let ignore = false
+    setIsLoadingProvinces(true)
+
+    listProvincesPublic({ page: 1, page_size: 100, id_region: form.idRegion })
+      .then((response) => {
+        if (ignore) return
+        setProvinceOptions((response.data?.items ?? []).map(mapProvinceOption))
+      })
+      .catch(() => {
+        if (!ignore) setProvinceOptions([])
+      })
+      .finally(() => {
+        if (!ignore) setIsLoadingProvinces(false)
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [isProvinciaScope, form.idRegion])
+
+  useEffect(() => {
+    if (!isLimaScope) {
+      setLimaProvinceIds([])
+      return undefined
+    }
+
+    let ignore = false
+    setIsResolvingLimaProvinces(true)
+
+    resolveLimaProvinceIds()
+      .then((ids) => {
+        if (!ignore) setLimaProvinceIds(Array.isArray(ids) ? ids : [])
+      })
+      .catch(() => {
+        if (!ignore) setLimaProvinceIds([])
+      })
+      .finally(() => {
+        if (!ignore) setIsResolvingLimaProvinces(false)
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [isLimaScope])
+
+  useEffect(() => {
+    if (!deliveryScope) {
+      setDistrictOptions([])
+      return undefined
+    }
+
+    const canLoadDistricts = isProvinciaScope
+      ? Boolean(form.idProvince)
+      : limaProvinceIds.length > 0
+
+    if (!canLoadDistricts) {
+      setDistrictOptions([])
+      return undefined
+    }
+
+    let ignore = false
+    setIsLoadingDistricts(true)
+
+    const request = isProvinciaScope
+      ? listDistrictsPublic({ page: 1, page_size: 100, id_province: form.idProvince })
+      : listDistrictsPublic({ page: 1, page_size: 100, id_provinces: limaProvinceIds })
+
+    request
+      .then((response) => {
+        if (ignore) return
+        setDistrictOptions((response.data?.items ?? []).map(mapDistrictOption))
+      })
+      .catch(() => {
+        if (!ignore) setDistrictOptions([])
+      })
+      .finally(() => {
+        if (!ignore) setIsLoadingDistricts(false)
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [deliveryScope, isProvinciaScope, form.idProvince, limaProvinceIds])
+
+  useEffect(() => {
+    if (!form.idDistrict) {
+      setShalonOptions([])
+      return undefined
+    }
+
+    let ignore = false
+    setIsLoadingShalons(true)
+
+    listShalonsPublic({ page: 1, page_size: 100, id_district: form.idDistrict })
+      .then((response) => {
+        if (ignore) return
+        setShalonOptions((response.data?.items ?? []).map(mapShalonOption))
+      })
+      .catch(() => {
+        if (!ignore) setShalonOptions([])
+      })
+      .finally(() => {
+        if (!ignore) setIsLoadingShalons(false)
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [form.idDistrict])
 
   useEffect(() => {
     if (flujo === 'pedido' && addresses.length > 0) {
@@ -84,95 +294,100 @@ export default function AddressesPage() {
   }, [flujo, addresses.length, navigate, clearAuthIntent])
 
   useEffect(() => {
-    if (isSetupFlow && addresses.length === 0) {
+    if (isSetupFlow && addresses.length === 0 && !isLoadingAddresses) {
       setShowForm(true)
-      // Siempre borrar caché para re-validar cobertura con las coords reales
-      sessionStorage.removeItem(ZONE_STORAGE_KEY)
       setShowZoneModal(true)
     }
-  }, [isSetupFlow, addresses.length])
+  }, [isSetupFlow, addresses.length, isLoadingAddresses])
 
-  const applyLocation = useCallback(async (scope) => {
-    setZoneLoading(true)
-    setZoneError('')
-
-    try {
-      const coords = await getCurrentPosition()
-      setUserCoords(coords)
-
-      const geo = await reverseGeocode(coords.lat, coords.lng)
-      setGeoLabel(geo.displayName)
-
-      const resolved = resolveLocationForScope(scope, geo, coords.lat, coords.lng)
-      setForm({
-        city: resolved.city,
-        district: resolved.district,
-        shalon: resolved.shalon,
-        isPrimary: true,
-      })
-
-      setDeliveryScope(scope)
-
-      let coverage = null
-      if (scope === 'lima') {
-        coverage = getCoverageInfo(resolved.district, coords.lat, coords.lng)
-        setCoverageInfo(coverage)
-      } else {
-        setCoverageInfo(null)
-      }
-
-      sessionStorage.setItem(
-        ZONE_STORAGE_KEY,
-        JSON.stringify({
-          scope,
-          coverage,
-          coords,
-          geoLabel: geo.displayName,
-          form: {
-            city: resolved.city,
-            district: resolved.district,
-            shalon: resolved.shalon,
-          },
-        }),
-      )
-
-      setShowZoneModal(false)
-    } catch (err) {
-      setZoneError(err.message || 'No se pudo obtener ubicación')
-      setDeliveryScope(scope)
-      setCoverageInfo(null)
-      setShowZoneModal(false)
-    } finally {
-      setZoneLoading(false)
-    }
-  }, [])
+  const resetFormState = () => {
+    setForm(emptyForm)
+    setDeliveryScope(null)
+    setError('')
+  }
 
   const handleZoneSelect = (scope) => {
-    applyLocation(scope)
+    setDeliveryScope(scope)
+    setForm({
+      ...emptyForm,
+      city: scope === 'lima' ? LIMA_CITY : '',
+      isPrimary: addresses.length === 0,
+    })
+    setShowZoneModal(false)
   }
 
-  const handleOverrideZone = (zone) => {
-    const msg = COVERAGE_MESSAGES[zone]
-    if (msg) {
-      const fee = DELIVERY_FEES[zone] ?? 0
-      setCoverageInfo({ ...msg, zone, deliveryFee: fee })
+  const openAddressForm = () => {
+    if (showForm) {
+      setShowForm(false)
+      resetFormState()
+      return
     }
-    setShowOverrideModal(false)
-  }
 
-  const handleCityChange = (e) => {
-    setForm({ city: e.target.value, district: '', shalon: '', isPrimary: form.isPrimary })
-  }
-
-  const handleDistrictChange = (e) => {
-    const district = e.target.value
-    const shalonList = getShalonsForDistrict(district)
-    const shalon = shalonList[0] || getNearestShalon(district, userCoords?.lat, userCoords?.lng)
-    setForm((prev) => ({ ...prev, district, shalon }))
-
-    if (deliveryScope === 'lima' && district) {
-      setCoverageInfo(getCoverageInfo(district, userCoords?.lat, userCoords?.lng))
+    setShowForm(true)
+    if (!deliveryScope) {
+      setShowZoneModal(true)
     }
+  }
+
+  const handleRegionSelect = (value, option) => {
+    const selected = option?.raw
+      ?? regions.find((item) => String(item.idRegion) === String(value))
+
+    setForm((prev) => ({
+      ...prev,
+      idRegion: selected ? String(selected.idRegion) : '',
+      region: selected?.name || '',
+      city: '',
+      idProvince: '',
+      idDistrict: '',
+      district: '',
+      idShalon: '',
+      shalonName: '',
+      shalon: '',
+    }))
+  }
+
+  const handleProvinceSelect = (value, option) => {
+    const selected = option?.raw
+      ?? provinces.find((item) => String(item.idProvince) === String(value))
+
+    setForm((prev) => ({
+      ...prev,
+      idProvince: selected ? String(selected.idProvince) : '',
+      city: selected?.name || '',
+      idDistrict: '',
+      district: '',
+      idShalon: '',
+      shalonName: '',
+      shalon: '',
+    }))
+  }
+
+  const handleDistrictSelect = (value, option) => {
+    const selected = option?.raw
+      ?? districts.find((item) => String(item.idDistrict) === String(value))
+
+    setForm((prev) => ({
+      ...prev,
+      idProvince: selected ? String(selected.idProvince) : prev.idProvince,
+      idDistrict: selected ? String(selected.idDistrict) : '',
+      district: selected?.name || '',
+      idShalon: '',
+      shalonName: '',
+      shalon: '',
+    }))
+  }
+
+  const handleShalonSelect = (value, option) => {
+    const selected = option?.raw
+      ?? shalonOptions.find((item) => String(item.idShalon) === String(value))
+
+    setForm((prev) => ({
+      ...prev,
+      idShalon: selected ? String(selected.idShalon) : '',
+      shalonName: selected?.name || '',
+      shalon: selected?.label || '',
+    }))
   }
 
   const handleChange = (e) => {
@@ -180,32 +395,43 @@ export default function AddressesPage() {
     setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
 
-    if (!form.city || !form.district || !form.shalon) {
+    if (isProvinciaScope && !form.idRegion) {
+      setError('Selecciona una región')
+      return
+    }
+
+    if (!form.idProvince || !form.idDistrict || !form.idShalon) {
       setError('Completa ciudad, distrito y punto de recojo')
       return
     }
 
-    const coverage = deliveryScope === 'lima'
-      ? getCoverageInfo(form.district, userCoords?.lat, userCoords?.lng)
-      : null
+    if (!deliveryScope) {
+      setError('Elige si tu dirección es Lima o provincia')
+      setShowZoneModal(true)
+      return
+    }
 
-    addAddress({
-      ...form,
+    setIsSaving(true)
+    const result = await addAddress({
+      idProvince: form.idProvince,
+      idDistrict: form.idDistrict,
+      idShalon: form.idShalon,
       isPrimary: form.isPrimary || addresses.length === 0,
       deliveryScope,
-      coverageZone: coverage?.zone || null,
-      deliveryFee: coverage?.deliveryFee ?? 0,
-      geoLat: userCoords?.lat ?? null,
-      geoLng: userCoords?.lng ?? null,
     })
-    sessionStorage.removeItem(ZONE_STORAGE_KEY)
-    setForm(emptyForm)
+    setIsSaving(false)
+
+    if (!result.success) {
+      setError(result.error || 'No se pudo guardar la dirección')
+      return
+    }
+
     setShowForm(false)
-    setError('')
+    resetFormState()
 
     if (flujo === 'pedido' || authIntent === AUTH_INTENT.CHECKOUT) {
       clearAuthIntent()
@@ -218,8 +444,18 @@ export default function AddressesPage() {
     }
   }
 
-  const setPrimary = (id) => {
-    updateAddress(id, { isPrimary: true })
+  const setPrimary = async (id) => {
+    const result = await updateAddress(id, { isPrimary: true })
+    if (!result.success) {
+      setError(result.error || 'No se pudo actualizar la dirección principal')
+    }
+  }
+
+  const handleDelete = async (id) => {
+    const result = await deleteAddress(id)
+    if (!result.success) {
+      setError(result.error || 'No se pudo eliminar la dirección')
+    }
   }
 
   const openModal = (addr, mode) => {
@@ -231,7 +467,10 @@ export default function AddressesPage() {
     setModalAddress(null)
   }
 
-  const selectClass = 'mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none'
+  const readonlyClass = 'mt-1 w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700'
+  const districtsDisabled = isProvinciaScope
+    ? !form.idProvince || isLoadingDistricts
+    : !deliveryScope || isResolvingLimaProvinces || limaProvinceIds.length === 0 || isLoadingDistricts
 
   return (
     <div>
@@ -239,15 +478,6 @@ export default function AddressesPage() {
         <DeliveryZoneModal
           onSelect={handleZoneSelect}
           onClose={() => setShowZoneModal(false)}
-          loading={zoneLoading}
-          error={zoneError}
-        />
-      )}
-
-      {showOverrideModal && (
-        <ZoneOverrideModal
-          onSelect={handleOverrideZone}
-          onClose={() => setShowOverrideModal(false)}
         />
       )}
 
@@ -264,7 +494,7 @@ export default function AddressesPage() {
         {!isSetupFlow && (
           <button
             type="button"
-            onClick={() => setShowForm(!showForm)}
+            onClick={openAddressForm}
             className="flex w-full shrink-0 items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 sm:w-auto"
           >
             <Plus className="h-4 w-4" />
@@ -282,86 +512,113 @@ export default function AddressesPage() {
           {deliveryScope && (
             <p className="mt-1 text-xs text-gray-500">
               Modalidad: {deliveryScope === 'lima' ? 'Envíos Lima' : 'Provincia'}
-              {geoLabel && ` · ${geoLabel}`}
             </p>
           )}
 
-          {deliveryScope === 'lima' && coverageInfo && (
-            <CoverageBanner
-              coverage={coverageInfo}
-              onOverrideZone={() => setShowOverrideModal(true)}
-            />
-          )}
-
-          {zoneError && !showZoneModal && (
-            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{zoneError}</p>
-          )}
-
-          {!deliveryScope && isSetupFlow && (
+          {!deliveryScope && (
             <button
               type="button"
               onClick={() => setShowZoneModal(true)}
               className="mt-3 text-sm font-medium text-black hover:underline"
             >
-              Elegir Lima o provincia según su ubicación
+              Elegir Lima o provincia
             </button>
           )}
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm text-gray-600">Ciudad *</label>
-              <select
-                name="city"
-                value={form.city}
-                onChange={handleCityChange}
-                required
-                className={selectClass}
-              >
-                <option value="">Selecciona una ciudad</option>
-                {(deliveryScope ? availableCities : cities).map((city) => (
-                  <option key={city} value={city}>{city}</option>
-                ))}
-              </select>
-            </div>
+            {isProvinciaScope && (
+              <div>
+                <label className="block text-sm text-gray-600">Región *</label>
+                <SearchableCombobox
+                  value={form.idRegion}
+                  selectedLabel={form.region}
+                  placeholder="Selecciona una región"
+                  searchPlaceholder="Escribe para buscar región…"
+                  options={regionComboboxOptions}
+                  isLoading={isLoadingRegions}
+                  emptyMessage="No hay regiones disponibles."
+                  onChange={handleRegionSelect}
+                />
+              </div>
+            )}
 
             <div>
+              <label className="block text-sm text-gray-600">Ciudad *</label>
+              {isLimaScope ? (
+                <input
+                  type="text"
+                  value={LIMA_CITY}
+                  readOnly
+                  className={readonlyClass}
+                  aria-readonly="true"
+                />
+              ) : (
+                <SearchableCombobox
+                  value={form.idProvince}
+                  selectedLabel={form.city}
+                  placeholder="Selecciona una provincia"
+                  searchPlaceholder="Escribe para buscar provincia…"
+                  options={provinceComboboxOptions}
+                  isLoading={isLoadingProvinces}
+                  disabled={!form.idRegion}
+                  emptyMessage={
+                    form.idRegion
+                      ? 'No hay provincias en esta región.'
+                      : 'Primero elige una región.'
+                  }
+                  onChange={handleProvinceSelect}
+                />
+              )}
+            </div>
+
+            <div className={isProvinciaScope ? 'sm:col-span-2' : ''}>
               <label className="block text-sm text-gray-600">Distrito *</label>
-              <select
-                name="district"
-                value={form.district}
-                onChange={handleDistrictChange}
-                required
-                disabled={!form.city}
-                className={selectClass}
-              >
-                <option value="">Selecciona un distrito</option>
-                {districts.map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
+              <SearchableCombobox
+                value={form.idDistrict}
+                selectedLabel={form.district}
+                placeholder="Selecciona un distrito"
+                searchPlaceholder="Escribe para buscar distrito…"
+                options={districtComboboxOptions}
+                isLoading={isLoadingDistricts || isResolvingLimaProvinces}
+                disabled={districtsDisabled}
+                emptyMessage={
+                  isProvinciaScope && !form.idProvince
+                    ? 'Primero elige una provincia.'
+                    : 'No hay distritos disponibles.'
+                }
+                onChange={handleDistrictSelect}
+              />
             </div>
 
             <div className="sm:col-span-2">
               <label className="block text-sm text-gray-600">Recojo en Shalon *</label>
               <div className="flex items-center gap-2">
-                <select
-                  name="shalon"
-                  value={form.shalon}
-                  onChange={handleChange}
-                  required
-                  disabled={!form.district}
-                  className={`${selectClass} flex-1`}
-                >
-                  <option value="">
-                    {form.district ? 'Selecciona un Shalon cercano' : 'Primero elige ciudad y distrito'}
-                  </option>
-                  {shalons.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+                <div className="flex-1">
+                  <SearchableCombobox
+                    value={form.idShalon}
+                    selectedLabel={form.shalon}
+                    placeholder={
+                      form.idDistrict
+                        ? 'Selecciona un Shalon cercano'
+                        : 'Primero elige un distrito'
+                    }
+                    searchPlaceholder="Escribe para buscar Shalon…"
+                    options={shalonComboboxOptions}
+                    isLoading={isLoadingShalons}
+                    disabled={!form.idDistrict}
+                    emptyMessage="No hay Shalons disponibles en este distrito."
+                    onChange={handleShalonSelect}
+                  />
+                </div>
                 {form.shalon && (
                   <a
-                    href={shalonMapsUrl(form.shalon, form.district, form.city)}
+                    href={buildShalonMapsUrl({
+                      name: form.shalonName,
+                      district: form.district,
+                      city: form.city,
+                      region: form.region,
+                      shalonLabel: form.shalon,
+                    })}
                     target="_blank"
                     rel="noopener noreferrer"
                     title="Ver Shalon en Google Maps"
@@ -372,9 +629,6 @@ export default function AddressesPage() {
                   </a>
                 )}
               </div>
-              {form.district && shalons.length === 0 && (
-                <p className="mt-1 text-xs text-amber-600">No hay Shalons disponibles en este distrito.</p>
-              )}
             </div>
           </div>
 
@@ -392,13 +646,24 @@ export default function AddressesPage() {
           {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
 
           <div className="mt-4 flex gap-3">
-            <button type="submit" className="rounded-full bg-black px-6 py-2 text-sm font-semibold text-white hover:bg-gray-800">
-              {flujo === 'pedido' ? 'Guardar y continuar al pedido' : 'Guardar y continuar'}
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="rounded-full bg-black px-6 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-60"
+            >
+              {isSaving
+                ? 'Guardando…'
+                : flujo === 'pedido'
+                  ? 'Guardar y continuar al pedido'
+                  : 'Guardar y continuar'}
             </button>
             {!isSetupFlow && (
               <button
                 type="button"
-                onClick={() => { setShowForm(false); setForm(emptyForm); setError('') }}
+                onClick={() => {
+                  setShowForm(false)
+                  resetFormState()
+                }}
                 className="rounded-full border px-6 py-2 text-sm text-gray-600"
               >
                 Cancelar
@@ -409,7 +674,9 @@ export default function AddressesPage() {
       )}
 
       <div className="mt-8">
-        {addresses.length === 0 ? (
+        {isLoadingAddresses ? (
+          <p className="text-gray-600">Cargando direcciones…</p>
+        ) : addresses.length === 0 ? (
           <p className="text-gray-600">No tienes ninguna dirección registrada.</p>
         ) : (
           <ul className="space-y-3">
@@ -433,10 +700,19 @@ export default function AddressesPage() {
                         </span>
                       )}
                     </div>
+                    {addr.region && addr.deliveryScope === 'provincia' && (
+                      <p className="mt-0.5 text-xs text-gray-500">{addr.region}</p>
+                    )}
                     <p className="mt-1 text-xs leading-relaxed text-gray-500">{addr.shalon || addr.street}</p>
                     {addr.shalon && (
                       <a
-                        href={shalonMapsUrl(addr.shalon, addr.district, addr.city)}
+                        href={buildShalonMapsUrl({
+                          name: addr.shalonName,
+                          district: addr.district,
+                          city: addr.city,
+                          region: addr.region,
+                          shalonLabel: addr.shalon,
+                        })}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-black hover:underline"
@@ -478,7 +754,7 @@ export default function AddressesPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => deleteAddress(addr.id)}
+                    onClick={() => handleDelete(addr.id)}
                     className="flex items-center justify-center gap-1 rounded-lg py-2 text-xs font-medium text-gray-500 hover:bg-gray-50 hover:text-black sm:rounded-full sm:p-1.5"
                     aria-label="Eliminar dirección"
                   >

@@ -1,4 +1,5 @@
 import { USER_ROLES } from './pricing'
+import { mapDirectionToAddress } from './addressMapper'
 
 export function mapClientTypeToRole(clientTypeName) {
   return clientTypeName?.toLowerCase() === 'mayorista'
@@ -30,7 +31,7 @@ export function mapClientToUser(client, existingUser = null) {
     idClientType: client.id_client_type,
     role: mapClientTypeToRole(client.client_type_name),
     profileComplete: isProfileComplete(client),
-    addresses: existingUser?.addresses || [],
+    addresses: existingUser?.addresses || client.directions?.map?.(mapDirectionToAddress).filter(Boolean) || [],
     orders: existingUser?.orders || [],
     authProvider: existingUser?.authProvider || 'email',
   }

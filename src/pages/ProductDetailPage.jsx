@@ -65,7 +65,7 @@ export default function ProductDetailPage() {
           </h1>
 
           <p className="mt-4 text-sm leading-relaxed text-gray-600">
-            {product.description || product.fullDescription}
+            {product.description}
           </p>
 
           <div className="mt-8 border-t border-gray-200 pt-6">
@@ -85,6 +85,9 @@ export default function ProductDetailPage() {
                 <span className="ml-1 text-sm text-gray-500">x Und</span>
               </div>
             </div>
+            <p className={`mt-3 text-sm font-medium ${product.stock > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+              Stock disponible: {product.stock} unidades
+            </p>
           </div>
 
           <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -101,7 +104,7 @@ export default function ProductDetailPage() {
 
       <SimilarProducts products={product.similarProducts} categoryLink={categoryCatalogLink} />
 
-      <ProductSpecs specs={product.specRows} />
+      <ProductSpecs specs={product.specRows} description={product.fullDescription} />
     </div>
   )
 }

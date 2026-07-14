@@ -25,6 +25,8 @@ export function mapCatalogProduct(item) {
     categoryName: item.category_name ?? '',
     idBrand: item.id_brand,
     idCategory: item.id_category,
+    stock: Number(item.stock ?? 0),
+    totalStock: Number(item.total_stock ?? 0),
     raw: item,
   }
 }

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ShoppingBag } from 'lucide-react'
 import { useCartStore } from '../../stores/cartStore'
 import { useUserPricing } from '../../hooks/useUserPricing'
+import { getDiscountPercent, formatDiscountLabel } from '../../utils/pricing'
 import { productLink } from '../../utils/productUtils'
 
 function ProductCard({ perfume, priority = false }) {
@@ -10,6 +11,8 @@ function ProductCard({ perfume, priority = false }) {
   const { getCatalogDisplayPrices, isMayorista, minQuantity } = useUserPricing()
   const [imgError, setImgError] = useState(false)
   const { displayPrice, strikePrice } = getCatalogDisplayPrices(perfume)
+  const discountPercent = isMayorista ? getDiscountPercent(displayPrice, strikePrice) : null
+  const discountLabel = formatDiscountLabel(discountPercent)
 
   const handleAdd = (e) => {
     e.preventDefault()
@@ -40,15 +43,15 @@ function ProductCard({ perfume, priority = false }) {
             {perfume.name}
           </div>
         )}
-        {isMayorista && (
+        {discountLabel && (
           <span className="absolute left-1 top-1 rounded bg-gray-900 px-1 py-px text-[8px] font-bold leading-none text-white sm:left-1.5 sm:top-1.5 sm:px-1.5 sm:py-0.5 sm:text-[10px] md:text-xs">
-            -10%
+            {discountLabel}
           </span>
         )}
         {perfume.onSale && (
           <span
             className={`absolute left-1 rounded bg-black px-1 py-px text-[8px] font-bold leading-none text-white sm:left-1.5 sm:px-1.5 sm:py-0.5 sm:text-[10px] md:text-xs ${
-              isMayorista ? 'top-5 sm:top-7' : 'top-1 sm:top-1.5'
+              discountLabel ? 'top-5 sm:top-7' : 'top-1 sm:top-1.5'
             }`}
           >
             Oferta

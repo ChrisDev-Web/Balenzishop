@@ -31,6 +31,24 @@ export function getCatalogDisplayPrices(product, role) {
   return { displayPrice, strikePrice }
 }
 
+/** Porcentaje de descuento real entre precio tachado y precio actual (1 decimal). */
+export function getDiscountPercent(displayPrice, strikePrice) {
+  const current = Number(displayPrice)
+  const original = Number(strikePrice)
+  if (!Number.isFinite(current) || !Number.isFinite(original) || original <= 0 || current >= original) {
+    return null
+  }
+  const percent = Math.round(((original - current) / original) * 1000) / 10
+  return percent > 0 ? percent : null
+}
+
+/** Etiqueta de descuento: -10% o -6.3% (sin decimal si es entero). */
+export function formatDiscountLabel(percent) {
+  if (percent == null || percent <= 0) return null
+  const text = Number.isInteger(percent) ? String(percent) : percent.toFixed(1)
+  return `-${text}%`
+}
+
 export function getProductPrice(basePrice, role) {
   if (isMayorista(role)) {
     return Math.round(basePrice * (1 - WHOLESALE_DISCOUNT) * 100) / 100

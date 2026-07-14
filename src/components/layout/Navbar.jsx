@@ -22,7 +22,7 @@ const navLinkClass = (isActive) =>
   }`
 
 const sidebarLinkClass = (isActive) =>
-  `font-nav block border-b border-gray-100 px-5 py-4 text-sm font-semibold uppercase tracking-[0.16em] transition-colors ${
+  `block border-b border-gray-100 px-5 py-4 text-sm font-medium transition-colors ${
     isActive ? 'bg-gray-100 text-black' : 'text-gray-800 hover:bg-gray-50'
   }`
 
@@ -324,18 +324,18 @@ export default function Navbar() {
       {sidebarOpen && (
         <>
           <div
-            className="fixed inset-0 z-[60] bg-black/50 md:hidden"
+            className="fixed inset-0 z-[110] bg-black/50 md:hidden"
             onClick={() => setSidebarOpen(false)}
             aria-hidden="true"
           />
           <aside
-            className="fixed inset-y-0 left-0 z-[70] flex w-[min(85vw,300px)] flex-col bg-white shadow-2xl md:hidden"
+            className="fixed inset-y-0 left-0 z-[120] flex w-[min(85vw,300px)] flex-col bg-white shadow-2xl md:hidden"
             role="dialog"
             aria-modal="true"
             aria-label="Menú de navegación"
           >
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-              <span className="font-nav text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
+              <span className="text-sm font-medium text-gray-500">
                 Menú
               </span>
               <button

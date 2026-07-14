@@ -67,18 +67,33 @@ export const menSeriesGrid = [
 
 const PROMO_IMAGES = Array.from({ length: 10 }, (_, i) => `/Images/Promociones/Promocion${i + 1}.png`)
 
-/** Banners festivos — título por temática de cada imagen */
-export const promotionsSectionHeroes = [
-  { productId: 1001, backgroundImage: PROMO_IMAGES[0], title: 'Colección Verano' },
-  { productId: 1005, backgroundImage: PROMO_IMAGES[1], title: 'Día del Padre' },
-  { productId: 1002, backgroundImage: PROMO_IMAGES[2], title: 'Día de la Madre' },
-  { productId: 1006, backgroundImage: PROMO_IMAGES[3], title: 'Navidad' },
-  { productId: 1002, backgroundImage: PROMO_IMAGES[4], title: 'Fiestas Patrias' },
-  { productId: 1001, backgroundImage: PROMO_IMAGES[5], title: 'San Valentín' },
-  { productId: 1005, backgroundImage: PROMO_IMAGES[6], title: 'Black Friday' },
-  { productId: 1004, backgroundImage: PROMO_IMAGES[7], title: 'Fin de Año' },
-  { productId: 1003, backgroundImage: PROMO_IMAGES[8], title: 'Año Nuevo' },
-  { productId: 1006, backgroundImage: PROMO_IMAGES[9], title: 'Grandes Ofertas' },
+const PROMO_HERO_TITLES = [
+  'Colección Verano',
+  'Día del Padre',
+  'Día de la Madre',
+  'Navidad',
+  'Fiestas Patrias',
+  'San Valentín',
+  'Black Friday',
+  'Fin de Año',
+  'Año Nuevo',
+  'Grandes Ofertas',
+]
+
+/** Misma estructura que hombres/mujeres: 2 banners superiores + grid inferior */
+export const promotionsSectionHeroes = PROMO_IMAGES.map((backgroundImage, index) => ({
+  productId: 1001 + (index % 6),
+  backgroundImage,
+  title: PROMO_HERO_TITLES[index],
+}))
+
+export const promotionsTopSectionHeroes = promotionsSectionHeroes.slice(0, 2)
+
+export const promotionsSeriesGrid = [
+  { title: PROMO_HERO_TITLES[2], image: PROMO_IMAGES[2] },
+  { title: PROMO_HERO_TITLES[3], image: PROMO_IMAGES[3] },
+  { title: PROMO_HERO_TITLES[4], image: PROMO_IMAGES[4] },
+  { title: PROMO_HERO_TITLES[5], image: PROMO_IMAGES[5] },
 ]
 
 export const FEATURED_LATTafa_PRODUCTS = [

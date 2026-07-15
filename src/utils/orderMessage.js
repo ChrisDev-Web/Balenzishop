@@ -1,5 +1,6 @@
 import { getRoleLabel } from './pricing'
 import { DELIVERY_MODES } from './deliveryFee'
+import { formatAppDateTime } from './dateTime'
 
 const STORE_NAME = 'BALENZISHOP'
 const WHATSAPP_NUMBER = '51924341477'
@@ -50,14 +51,7 @@ export function generateOrderId() {
 }
 
 export function formatOrderDate(date = new Date()) {
-  return date.toLocaleString('es-PE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  })
+  return formatAppDateTime(date)
 }
 
 export function buildWhatsAppMessage({

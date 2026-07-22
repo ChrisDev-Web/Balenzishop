@@ -14,6 +14,7 @@ import {
 import { getDeliveryFeeForAddress, computeOrderTotal } from '../utils/deliveryFee'
 import { buildWhatsAppMessage, openWhatsAppOrder } from '../utils/orderMessage'
 import { mapApiClientOrder } from '../utils/clientOrderMapper'
+import { reserveCheckoutOrder } from '../api/clientOrders'
 import ReserveOrderModal from '../components/checkout/ReserveOrderModal'
 
 export default function CheckoutPage() {
@@ -27,6 +28,9 @@ export default function CheckoutPage() {
   const [codeError, setCodeError] = useState('')
   const [applyingCode, setApplyingCode] = useState(false)
   const [showReserveModal, setShowReserveModal] = useState(false)
+  const [draftOrderId, setDraftOrderId] = useState(null)
+  const [reserveError, setReserveError] = useState('')
+  const [reserving, setReserving] = useState(false)
 
   const [paymentMethods, setPaymentMethods] = useState([])
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(true)
@@ -151,6 +155,63 @@ export default function CheckoutPage() {
     setCodeError('')
   }
 
+  const handleOpenReserveModal = async () => {
+    if (!accessToken) {
+      openLoginModal(AUTH_INTENT.CHECKOUT)
+      return
+    }
+
+    setReserving(true)
+    setReserveError('')
+
+    try {
+      const response = await reserveCheckoutOrder(
+        {
+          items,
+          discountCode: appliedCode?.code || null,
+          delivery: {
+            id_client_direction: primaryAddress?.idClientDirection
+              ? Number(primaryAddress.idClientDirection)
+              : null,
+            delivery_fee: deliveryFee,
+            delivery_mode: delivery.mode,
+            delivery_label: delivery.label,
+            district: primaryAddress?.district || null,
+            city: primaryAddress?.city || null,
+            shalon: primaryAddress?.shalon || null,
+          },
+        },
+        accessToken,
+      )
+
+      if (!response.success) {
+        throw new Error(response.message || 'No se pudo reservar el stock del pedido')
+      }
+
+      const orderId = response.data?.id_client_order
+      if (!orderId) {
+        throw new Error('No se recibió la reserva del pedido')
+      }
+
+      setDraftOrderId(orderId)
+      setShowReserveModal(true)
+    } catch (error) {
+      setReserveError(error.message || 'No se pudo reservar el stock del pedido')
+    } finally {
+      setReserving(false)
+    }
+  }
+
+  const handleCloseReserveModal = () => {
+    setShowReserveModal(false)
+    setDraftOrderId(null)
+  }
+
+  const handleReservationCancelled = () => {
+    setDraftOrderId(null)
+    setReserveError('')
+  }
+
   const handleOrderCreated = async (apiOrder) => {
     const mapped = mapApiClientOrder(apiOrder)
 
@@ -177,6 +238,7 @@ export default function CheckoutPage() {
 
     clearCart()
     clearEditingOrder()
+    setDraftOrderId(null)
     await openWhatsAppOrder(message)
     navigate('/mi-cuenta/pedidos')
   }
@@ -383,13 +445,17 @@ export default function CheckoutPage() {
               <p className="mt-4 text-xs text-red-600">{paymentMethodsError}</p>
             )}
 
+            {reserveError && (
+              <p className="mt-4 text-xs text-red-600">{reserveError}</p>
+            )}
+
             <button
               type="button"
-              onClick={() => setShowReserveModal(true)}
-              disabled={loadingPaymentMethods || paymentMethods.length === 0}
+              onClick={handleOpenReserveModal}
+              disabled={loadingPaymentMethods || paymentMethods.length === 0 || reserving}
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-black py-3.5 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
             >
-              RESERVAR PEDIDO
+              {reserving ? 'Reservando stock…' : 'RESERVAR PEDIDO'}
             </button>
             <p className="mt-3 text-center text-xs text-gray-500">
               Podrás pagar con uno o más métodos y subir tus comprobantes antes de enviar por WhatsApp.
@@ -400,7 +466,9 @@ export default function CheckoutPage() {
 
       <ReserveOrderModal
         open={showReserveModal}
-        onClose={() => setShowReserveModal(false)}
+        draftOrderId={draftOrderId}
+        onClose={handleCloseReserveModal}
+        onCancelled={handleReservationCancelled}
         items={items}
         subtotal={subtotal}
         discount={discount}

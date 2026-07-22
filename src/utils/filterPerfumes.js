@@ -57,6 +57,7 @@ export function buildCatalogSearchParams(filters) {
   if (filters.minPrice != null) params.set('minPrice', String(filters.minPrice))
   if (filters.maxPrice != null) params.set('maxPrice', String(filters.maxPrice))
   if (filters.recommended) params.set('recommended', 'true')
+  if (filters.search) params.set('q', filters.search)
   return params
 }
 
@@ -71,5 +72,6 @@ export function parseCatalogFilters(searchParams) {
     minPrice: searchParams.get('minPrice') ? Number(searchParams.get('minPrice')) : null,
     maxPrice: searchParams.get('maxPrice') ? Number(searchParams.get('maxPrice')) : null,
     recommended: searchParams.get('recommended') === 'true' || null,
+    search: searchParams.get('q')?.trim() || null,
   }
 }

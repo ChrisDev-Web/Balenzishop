@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Sparkles, Truck, ShieldCheck, Award } from 'lucide-react'
 import HomeHero from '../components/home/HomeHero'
-import { FEATURED_LATTafa_PRODUCTS } from '../data/sectionHeroes'
-import { productLink } from '../utils/productUtils'
+import { useHomePageContent } from '../hooks/useHomePageContent'
 
 const FEATURES = [
   {
@@ -27,12 +26,12 @@ const FEATURES = [
   },
 ]
 
-const spotlightProduct = FEATURED_LATTafa_PRODUCTS.find((p) => p.id === 1002)
-
 export default function HomePage() {
+  const { heroImage, spotlight } = useHomePageContent()
+
   return (
     <div className="-mt-[var(--navbar-height)]">
-      <HomeHero />
+      <HomeHero backgroundImage={heroImage} />
 
       <section className="border-t border-gray-200 bg-stone-50 py-16 md:py-24">
         <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 lg:grid-cols-2 lg:gap-20 lg:px-8">
@@ -69,37 +68,41 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {spotlightProduct && (
-            <Link
-              to={productLink(spotlightProduct.id)}
-              className="group relative block overflow-hidden border border-gray-200 bg-white shadow-sm transition duration-500 hover:border-gray-900 hover:shadow-md"
-            >
-              <div className="relative aspect-[4/5] overflow-hidden bg-gradient-to-b from-stone-100 to-stone-50 sm:aspect-[5/6]">
+          {spotlight && (
+            <div className="group relative overflow-hidden border border-gray-200 bg-white shadow-sm transition duration-500 hover:border-gray-900 hover:shadow-md">
+              <Link
+                to={spotlight.imageLinkTo}
+                className="relative block aspect-[4/5] overflow-hidden bg-gradient-to-b from-stone-100 to-stone-50 sm:aspect-[5/6]"
+              >
                 <img
-                  src={spotlightProduct.image}
-                  alt={spotlightProduct.name}
+                  src={spotlight.image}
+                  alt={spotlight.title}
                   className="h-full w-full object-cover object-center transition duration-700 group-hover:scale-[1.03]"
                   loading="lazy"
+                  decoding="async"
                 />
                 <div
                   className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-80"
                   aria-hidden="true"
                 />
-              </div>
+              </Link>
               <div className="flex items-center justify-between gap-4 border-t border-gray-200 px-6 py-5">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-400">
                     Destacado
                   </p>
                   <p className="font-nav mt-1 text-sm uppercase tracking-[0.1em] text-gray-900 sm:text-base">
-                    {spotlightProduct.name}
+                    {spotlight.title}
                   </p>
                 </div>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-900 transition group-hover:underline sm:text-xs">
-                  Ver producto
-                </span>
+                <Link
+                  to={spotlight.catalogLinkTo}
+                  className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-900 transition hover:underline sm:text-xs"
+                >
+                  Ver catálogo
+                </Link>
               </div>
-            </Link>
+            </div>
           )}
         </div>
       </section>

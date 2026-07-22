@@ -1,3 +1,5 @@
+import { normalizeMediaUrl } from './mediaUrl'
+
 function parseMoney(value) {
   if (value == null || value === '') return null
   const amount = Number(value)
@@ -13,7 +15,7 @@ export function mapCatalogProduct(item) {
     idProduct: item.id_product,
     name: item.name,
     brand: item.brand_name ?? '',
-    image: item.photo || '',
+    image: normalizeMediaUrl(item.photo || ''),
     price,
     referencePrice,
     basePrice: price,
@@ -37,7 +39,8 @@ export function mapCatalogProductDetail(item) {
 
   return {
     ...product,
-    description: item.brief_description || product.description,
+    shortDescription: item.brief_description ?? '',
+    description: item.brief_description ?? '',
     fullDescription: item.description ?? '',
     specifications: specs,
     specRows: mapSpecificationsToRows(specs),

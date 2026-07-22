@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom'
-import { X, MapPin, Package, Plus } from 'lucide-react'
+import { X, MapPin, Package } from 'lucide-react'
 
 const STATUS_STYLES = {
   Pendiente: 'bg-amber-100 text-amber-800',
@@ -15,16 +15,10 @@ function formatPaymentMode(mode) {
   return mode || '—'
 }
 
-export default function OrderDetailModal({ order, onClose, onAddProducts }) {
+export default function OrderDetailModal({ order, onClose }) {
   if (!order) return null
 
   const totalItems = order.items?.reduce((sum, i) => sum + i.quantity, 0) || 0
-  const isPending = order.status === 'Pendiente'
-
-  const handleAddProducts = () => {
-    onAddProducts?.(order)
-    onClose()
-  }
 
   return createPortal(
     <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4">
@@ -156,23 +150,11 @@ export default function OrderDetailModal({ order, onClose, onAddProducts }) {
           )}
         </div>
 
-        <div className="flex flex-col gap-2 border-t px-4 py-3 sm:flex-row sm:px-5 sm:py-4">
-          {isPending && onAddProducts && (
-            <button
-              type="button"
-              onClick={handleAddProducts}
-              className="flex w-full items-center justify-center gap-1.5 rounded-full bg-black px-4 py-2.5 text-xs font-semibold text-white hover:bg-gray-800 sm:flex-1 sm:py-2.5 sm:text-sm"
-            >
-              <Plus className="h-4 w-4 shrink-0" />
-              Agregar productos
-            </button>
-          )}
+        <div className="border-t px-4 py-3 sm:px-5 sm:py-4">
           <button
             type="button"
             onClick={onClose}
-            className={`w-full rounded-full border border-gray-300 px-4 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 sm:py-2.5 sm:text-sm ${
-              isPending && onAddProducts ? 'sm:flex-1' : ''
-            }`}
+            className="w-full rounded-full border border-gray-300 px-4 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 sm:py-2.5 sm:text-sm"
           >
             Cerrar
           </button>

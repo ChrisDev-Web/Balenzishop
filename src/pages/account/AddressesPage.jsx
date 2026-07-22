@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Star, Trash2, MapPin, Eye, Pencil, Map } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
-import { AUTH_INTENT } from '../../utils/authFlow'
+import { AUTH_INTENT, getRouteAfterAddress } from '../../utils/authFlow'
 import { LIMA_CITY } from '../../data/shalonLocations'
 import {
   listDistrictsPublic,
@@ -32,6 +32,8 @@ const emptyForm = {
   idShalon: '',
   district: '',
   shalonName: '',
+  shalonLat: null,
+  shalonLng: null,
   shalon: '',
   isPrimary: false,
 }
@@ -48,7 +50,8 @@ export default function AddressesPage() {
     syncAddresses,
   } = useAuthStore()
   const authIntent = useUiStore((s) => s.authIntent)
-  const clearAuthIntent = useUiStore((s) => s.clearAuthIntent)
+  const authReturnTo = useUiStore((s) => s.authReturnTo)
+  const finishAuthFlow = useUiStore((s) => s.finishAuthFlow)
 
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -287,11 +290,20 @@ export default function AddressesPage() {
   }, [form.idDistrict])
 
   useEffect(() => {
-    if (flujo === 'pedido' && addresses.length > 0) {
-      clearAuthIntent()
-      navigate('/pedido', { replace: true })
-    }
-  }, [flujo, addresses.length, navigate, clearAuthIntent])
+    if (!isSetupFlow || isLoadingAddresses || addresses.length === 0) return
+
+    const next = getRouteAfterAddress(authIntent, authReturnTo)
+    finishAuthFlow()
+    navigate(next, { replace: true })
+  }, [
+    isSetupFlow,
+    isLoadingAddresses,
+    addresses.length,
+    authIntent,
+    authReturnTo,
+    navigate,
+    finishAuthFlow,
+  ])
 
   useEffect(() => {
     if (isSetupFlow && addresses.length === 0 && !isLoadingAddresses) {
@@ -343,6 +355,8 @@ export default function AddressesPage() {
       district: '',
       idShalon: '',
       shalonName: '',
+      shalonLat: null,
+      shalonLng: null,
       shalon: '',
     }))
   }
@@ -359,6 +373,8 @@ export default function AddressesPage() {
       district: '',
       idShalon: '',
       shalonName: '',
+      shalonLat: null,
+      shalonLng: null,
       shalon: '',
     }))
   }
@@ -374,6 +390,8 @@ export default function AddressesPage() {
       district: selected?.name || '',
       idShalon: '',
       shalonName: '',
+      shalonLat: null,
+      shalonLng: null,
       shalon: '',
     }))
   }
@@ -386,6 +404,8 @@ export default function AddressesPage() {
       ...prev,
       idShalon: selected ? String(selected.idShalon) : '',
       shalonName: selected?.name || '',
+      shalonLat: selected?.latitude ?? null,
+      shalonLng: selected?.longitude ?? null,
       shalon: selected?.label || '',
     }))
   }
@@ -433,14 +453,11 @@ export default function AddressesPage() {
     setShowForm(false)
     resetFormState()
 
-    if (flujo === 'pedido' || authIntent === AUTH_INTENT.CHECKOUT) {
-      clearAuthIntent()
-      navigate('/pedido')
+    if (isSetupFlow) {
+      const next = getRouteAfterAddress(authIntent, authReturnTo)
+      finishAuthFlow()
+      navigate(next)
       return
-    }
-    if (flujo === 'onboarding' || authIntent === AUTH_INTENT.ONBOARDING) {
-      clearAuthIntent()
-      navigate('/mi-cuenta')
     }
   }
 
@@ -618,6 +635,8 @@ export default function AddressesPage() {
                       city: form.city,
                       region: form.region,
                       shalonLabel: form.shalon,
+                      geoLat: form.shalonLat,
+                      geoLng: form.shalonLng,
                     })}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -712,6 +731,8 @@ export default function AddressesPage() {
                           city: addr.city,
                           region: addr.region,
                           shalonLabel: addr.shalon,
+                          geoLat: addr.shalonLat,
+                          geoLng: addr.shalonLng,
                         })}
                         target="_blank"
                         rel="noopener noreferrer"

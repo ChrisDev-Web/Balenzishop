@@ -58,47 +58,49 @@ export default function ProductDetailPage() {
         <span className="line-clamp-1 text-gray-700">{product.name}</span>
       </nav>
 
-      <div className="grid gap-10 lg:grid-cols-2 lg:gap-12">
-        <ProductGallery images={gallery} name={product.name} />
+      <div className="product-detail__hero grid gap-8 md:items-start">
+        <div className="product-detail__media">
+          <ProductGallery images={gallery} name={product.name} />
+        </div>
 
-        <div>
-          <p className="text-sm font-bold uppercase tracking-wider text-gray-500">{product.brand}</p>
-          <h1 className="mt-2 text-2xl font-bold leading-tight text-gray-900 sm:text-3xl">
+        <div className="product-detail__summary flex flex-col">
+          <p className="product-detail__brand text-sm font-bold uppercase tracking-wider text-gray-500">
+            {product.brand || '\u00A0'}
+          </p>
+          <h1 className="product-detail__title mt-2 text-2xl font-bold leading-tight text-gray-900 sm:text-3xl">
             {product.name}
           </h1>
 
-          <p className="mt-4 text-sm leading-relaxed text-gray-600">
-            {product.description}
+          <p className="product-detail__subtitle mt-4 line-clamp-2 text-sm leading-relaxed text-gray-600">
+            {product.shortDescription || product.description || '\u00A0'}
           </p>
 
-          <div className="mt-8 border-t border-gray-200 pt-6">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-900">
-                {isMayorista ? 'Precio mayorista' : 'Precio Online'}
-              </span>
-              <div className="text-right">
-                {strikePrice != null && (
-                  <span className="mr-2 text-sm text-gray-400 line-through">
-                    S/ {strikePrice.toFixed(2)}
-                  </span>
-                )}
-                <span className="text-2xl font-bold text-gray-900 sm:text-3xl">
-                  S/ {displayPrice.toFixed(2)}
+          <div className="product-detail__pricing mt-8 space-y-4 border-t border-gray-200 pt-6">
+            <p className="text-sm font-semibold text-gray-900">
+              {isMayorista ? 'Precio mayorista' : 'Precio Online'}
+            </p>
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              {strikePrice != null && (
+                <span className="text-sm text-gray-400 line-through">
+                  S/ {strikePrice.toFixed(2)}
                 </span>
-                <span className="ml-1 text-sm text-gray-500">x Und</span>
-              </div>
+              )}
+              <span className="text-2xl font-bold text-gray-900 sm:text-3xl">
+                S/ {displayPrice.toFixed(2)}
+              </span>
+              <span className="text-sm text-gray-500">x Und</span>
             </div>
-            <p className={`mt-3 text-sm font-medium ${product.stock > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+            <p className={`text-sm font-medium ${product.stock > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
               Stock disponible: {product.stock} unidades
             </p>
           </div>
 
-          <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="product-detail__actions mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
             <button
               type="button"
               onClick={() => canAddToCart && addItem(product)}
               disabled={!canAddToCart}
-              className="btn-fill px-10 py-3.5 text-sm disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
+              className="btn-fill px-10 py-3.5 text-sm uppercase disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
             >
               {isMayorista ? `Agregar (${minQuantity} und.)` : 'Agregar'}
             </button>

@@ -15,6 +15,7 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
   const { items, removeItem, updateQuantity, totalPrice } = useCartStore()
   const { isAuthenticated, user } = useAuthStore()
   const openLoginModal = useUiStore((s) => s.openLoginModal)
+  const authReturnTo = useUiStore((s) => s.authReturnTo)
   const { isMayorista, minQuantity, role } = useUserPricing()
 
   useEffect(() => {
@@ -65,7 +66,7 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
       return
     }
 
-    navigate(getRouteAfterLogin(user, AUTH_INTENT.CHECKOUT))
+    navigate(getRouteAfterLogin(user, AUTH_INTENT.CHECKOUT, authReturnTo))
   }
 
   return (

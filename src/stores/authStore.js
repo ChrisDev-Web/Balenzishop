@@ -118,14 +118,13 @@ export const useAuthStore = create(
           })
           return { success: true, needsProfile: !user.profileComplete }
         } catch (err) {
-          return { success: false, error: err.message || 'No se pudo registrar la cuenta' }
+          return {
+            success: false,
+            error: err.message || 'No se pudo registrar la cuenta',
+            fieldErrors: err.fieldErrors ?? {},
+          }
         }
       },
-
-      loginWithGoogle: async () => ({
-        success: false,
-        error: 'El inicio de sesión con Google estará disponible próximamente',
-      }),
 
       completeProfile: async (data) => {
         const { user, accessToken } = get()

@@ -3,7 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
 import { useDocumentTypes } from '../../hooks/useDocumentTypes'
-import { getRouteAfterLogin, getRouteAfterProfile } from '../../utils/authFlow'
+import { getRouteAfterLogin, getRouteAfterProfile, isAuthSetupRoute } from '../../utils/authFlow'
 import {
   formatDocumentInputById,
   getDocumentDigits,
@@ -26,6 +26,8 @@ export default function CompleteProfilePage() {
   const navigate = useNavigate()
   const { user, completeProfile } = useAuthStore()
   const authIntent = useUiStore((s) => s.authIntent)
+  const authReturnTo = useUiStore((s) => s.authReturnTo)
+  const finishAuthFlow = useUiStore((s) => s.finishAuthFlow)
   const { documentTypes, loading: documentTypesLoading } = useDocumentTypes()
   const [form, setForm] = useState({
     firstName: '',
@@ -60,8 +62,16 @@ export default function CompleteProfilePage() {
     }
   }, [documentTypes, form.idDocumentType])
 
+  useEffect(() => {
+    if (!user?.profileComplete) return
+    const next = getRouteAfterLogin(user, authIntent, authReturnTo)
+    if (!isAuthSetupRoute(next)) {
+      finishAuthFlow()
+    }
+  }, [user, authIntent, authReturnTo, finishAuthFlow])
+
   if (user?.profileComplete) {
-    return <Navigate to={getRouteAfterLogin(user, authIntent)} replace />
+    return <Navigate to={getRouteAfterLogin(user, authIntent, authReturnTo)} replace />
   }
 
   const selectedDocumentType = documentTypes.find(
@@ -119,7 +129,12 @@ export default function CompleteProfilePage() {
     setLoading(false)
 
     if (result.success) {
-      navigate(getRouteAfterProfile(authIntent))
+      const updatedUser = useAuthStore.getState().user
+      const next = getRouteAfterProfile(updatedUser, authIntent, authReturnTo)
+      if (!isAuthSetupRoute(next)) {
+        finishAuthFlow()
+      }
+      navigate(next)
     } else {
       setError(result.error)
     }

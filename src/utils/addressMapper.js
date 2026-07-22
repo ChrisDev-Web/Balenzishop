@@ -78,6 +78,8 @@ export function mapDirectionToAddress(item) {
     district: item.district || item.district_name || '',
     shalonName: item.shalon_name || parseShalonLabelParts(item.shalon || '').name,
     shalonAddress: item.shalon_address || parseShalonLabelParts(item.shalon || '').address,
+    shalonLat: item.shalon_latitude ?? null,
+    shalonLng: item.shalon_longitude ?? null,
     shalon: item.shalon || formatShalonLabel(item.shalon_name, item.shalon_address),
     isPrimary: Boolean(item.is_primary),
     deliveryScope: item.delivery_scope || null,
@@ -135,6 +137,8 @@ export function mapShalonOption(item) {
     idDistrict: item.id_district,
     name: item.name,
     address: item.address,
+    latitude: item.latitude ?? null,
+    longitude: item.longitude ?? null,
     label: formatShalonLabel(item.name, item.address),
   }
 }

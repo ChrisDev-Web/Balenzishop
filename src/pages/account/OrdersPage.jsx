@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Search, ShoppingBag, Eye, Plus, Wallet } from 'lucide-react'
+import { Search, ShoppingBag, Eye, Wallet } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
-import { useCartStore } from '../../stores/cartStore'
 import { fetchMyClientOrders } from '../../api/clientOrders'
 import { fetchActivePaymentMethods } from '../../api/paymentMethods'
 import { mapApiClientOrders, mapApiClientOrder } from '../../utils/clientOrderMapper'
@@ -39,9 +37,7 @@ const periods = [
 ]
 
 export default function OrdersPage() {
-  const navigate = useNavigate()
   const { accessToken, user } = useAuthStore()
-  const loadOrderForEditing = useCartStore((s) => s.loadOrderForEditing)
   const [activeTab, setActiveTab] = useState('all')
   const [search, setSearch] = useState('')
   const [period, setPeriod] = useState('3m')
@@ -119,11 +115,6 @@ export default function OrdersPage() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [page])
-
-  const handleAddProducts = (order) => {
-    loadOrderForEditing(order)
-    navigate('/catalogo')
-  }
 
   async function handleBalancePaymentSubmitted(apiOrder, { payments }) {
     const mapped = mapApiClientOrder(apiOrder)
@@ -228,7 +219,6 @@ export default function OrdersPage() {
             <ul className="space-y-3">
               {paginatedOrders.map((order) => {
                 const itemCount = order.items?.reduce((sum, i) => sum + i.quantity, 0) || 0
-                const isPending = order.status === 'Pendiente'
                 const canPayBalance = order.canSubmitBalancePayment
 
                 return (
@@ -263,16 +253,6 @@ export default function OrdersPage() {
                         >
                           <Wallet className="h-3.5 w-3.5" />
                           Pago restante
-                        </button>
-                      )}
-                      {isPending && (
-                        <button
-                          type="button"
-                          onClick={() => handleAddProducts(order)}
-                          className="flex w-full items-center justify-center gap-1.5 rounded-full bg-black px-3.5 py-2.5 text-xs font-semibold text-white hover:bg-gray-800 sm:w-auto sm:py-1.5"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          Agregar productos
                         </button>
                       )}
                       <button
@@ -320,7 +300,6 @@ export default function OrdersPage() {
         <OrderDetailModal
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
-          onAddProducts={handleAddProducts}
         />
       )}
     </div>

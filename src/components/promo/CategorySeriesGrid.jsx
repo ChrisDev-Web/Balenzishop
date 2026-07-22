@@ -7,7 +7,7 @@ export default function CategorySeriesGrid({ items }) {
     <section className="grid grid-cols-2">
       {items.map((item) => (
         <Link
-          key={item.title}
+          key={item.id ?? item.title}
           to={item.linkTo}
           className="group relative block max-sm:h-[46vh] overflow-hidden sm:aspect-[2/1]"
         >

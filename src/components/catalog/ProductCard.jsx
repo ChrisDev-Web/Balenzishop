@@ -75,7 +75,7 @@ function ProductCard({ perfume, priority = false }) {
         </h3>
         <p className="mt-0.5 hidden line-clamp-1 text-xs text-gray-400 md:block">{perfume.aroma}</p>
         <p className={`mt-0.5 text-[10px] sm:text-xs ${perfume.stock > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-          Stock: {perfume.stock} und.
+          Disponible: {perfume.stock} und.
         </p>
 
         <div className="mt-auto space-y-1.5 pt-1.5 sm:space-y-2 sm:pt-2 md:space-y-2.5 md:pt-4">

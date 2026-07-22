@@ -23,7 +23,10 @@ export function buildCatalogApiParams(filters = {}, page = 1, pageSize = 20) {
   const descriptionTerms = [
     ...(filters.aromas ?? []),
     ...(filters.aroma ? [filters.aroma] : []),
-  ].map((term) => term.trim()).filter(Boolean)
+    ...(filters.search ? [filters.search] : []),
+  ]
+    .map((term) => term.trim())
+    .filter(Boolean)
 
   if (descriptionTerms.length) {
     params.description_terms = [...new Set(descriptionTerms)]

@@ -74,7 +74,7 @@ export default function SimilarProducts({ products, categoryLink }) {
               <span className="text-base font-bold text-gray-900">S/ {displayPrice.toFixed(2)}</span>
             </div>
             <p className={`mt-1 text-[10px] ${p.stock > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-              Stock: {p.stock} und.
+              Disponible: {p.stock} und.
             </p>
             <button
               type="button"

@@ -1,22 +1,31 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { GoogleLogin } from '@react-oauth/google'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
 import { useCartStore } from '../../stores/cartStore'
 import { useDocumentTypes } from '../../hooks/useDocumentTypes'
-import { getRouteAfterLogin, AUTH_INTENT } from '../../utils/authFlow'
+import { getRouteAfterLogin, AUTH_INTENT, isAuthSetupRoute } from '../../utils/authFlow'
 import {
   formatDocumentInputById,
   getDocumentDigits,
   validateDocumentById,
 } from '../../utils/documentValidation'
 import PasswordInput from '../ui/PasswordInput'
+import { mapRegisterApiFieldErrors } from '../../utils/registerValidation'
 
 const inputClass =
   'mt-1 w-full rounded-lg border border-gray-300 px-4 py-2.5 text-base md:text-sm focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900'
+
+function fieldInputClass(hasError) {
+  return `${inputClass}${hasError ? ' border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`
+}
+
+function FieldError({ message }) {
+  if (!message) return null
+  return <p className="mt-1 text-xs text-red-600">{message}</p>
+}
 
 const emptyRegisterForm = {
   firstName: '',
@@ -30,51 +39,20 @@ const emptyRegisterForm = {
   passwordConfirm: '',
 }
 
-function GoogleLoginButton({ onSuccess, onError }) {
-  const containerRef = useRef(null)
-  const [width, setWidth] = useState(320)
-
-  useEffect(() => {
-    const node = containerRef.current
-    if (!node) return undefined
-
-    const updateWidth = () => {
-      setWidth(Math.max(200, Math.floor(node.getBoundingClientRect().width)))
-    }
-
-    updateWidth()
-    const observer = new ResizeObserver(updateWidth)
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-
-  return (
-    <div ref={containerRef} className="w-full [&>div]:!w-full [&>div>div]:!w-full [& iframe]:!w-full">
-      <GoogleLogin
-        onSuccess={onSuccess}
-        onError={onError}
-        theme="outline"
-        size="large"
-        text="signin_with"
-        shape="pill"
-        width={width}
-      />
-    </div>
-  )
-}
-
 export default function LoginModal({ isOpen, onClose }) {
   const [view, setView] = useState('options')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [registerForm, setRegisterForm] = useState(emptyRegisterForm)
+  const [registerErrors, setRegisterErrors] = useState({})
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const { loginWithEmail, registerWithEmail, loginWithGoogle } = useAuthStore()
+  const { loginWithEmail, registerWithEmail } = useAuthStore()
   const { documentTypes, loading: documentTypesLoading } = useDocumentTypes({ enabled: isOpen })
   const authIntent = useUiStore((s) => s.authIntent)
-  const clearAuthIntent = useUiStore((s) => s.clearAuthIntent)
+  const authReturnTo = useUiStore((s) => s.authReturnTo)
+  const finishAuthFlow = useUiStore((s) => s.finishAuthFlow)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -105,10 +83,10 @@ export default function LoginModal({ isOpen, onClose }) {
     const currentUser = useAuthStore.getState().user
     useCartStore.getState().syncWithUserRole(currentUser?.role)
 
-    const nextRoute = getRouteAfterLogin(currentUser, authIntent)
+    const nextRoute = getRouteAfterLogin(currentUser, authIntent, authReturnTo)
 
-    if (nextRoute === '/pedido' || nextRoute === '/mi-cuenta' || nextRoute === '/mi-cuenta/pedidos') {
-      clearAuthIntent()
+    if (!isAuthSetupRoute(nextRoute)) {
+      finishAuthFlow()
     }
 
     navigate(nextRoute)
@@ -129,6 +107,13 @@ export default function LoginModal({ isOpen, onClose }) {
 
   const handleRegisterChange = (e) => {
     const { name, value } = e.target
+
+    setRegisterErrors((prev) => {
+      if (!prev[name]) return prev
+      const next = { ...prev }
+      delete next[name]
+      return next
+    })
 
     if (name === 'documentId') {
       setRegisterForm((prev) => ({
@@ -153,10 +138,16 @@ export default function LoginModal({ isOpen, onClose }) {
   const handleRegister = async (e) => {
     e.preventDefault()
     setError('')
+    setRegisterErrors({})
+
+    const clientErrors = {}
 
     if (!registerForm.firstName.trim()) {
-      setError('El nombre es obligatorio')
-      return
+      clientErrors.firstName = 'El nombre es obligatorio'
+    }
+
+    if (!registerForm.lastNamePaternal.trim()) {
+      clientErrors.lastNamePaternal = 'El apellido paterno es obligatorio'
     }
 
     const docError = validateDocumentById(
@@ -165,17 +156,23 @@ export default function LoginModal({ isOpen, onClose }) {
       registerForm.documentId,
     )
     if (docError) {
-      setError(docError)
-      return
+      clientErrors.documentId = docError
+    }
+
+    if (!registerForm.email.trim()) {
+      clientErrors.email = 'El correo electrónico es obligatorio'
     }
 
     if (registerForm.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres')
-      return
+      clientErrors.password = 'La contraseña debe tener al menos 6 caracteres'
     }
 
     if (registerForm.password !== registerForm.passwordConfirm) {
-      setError('Las contraseñas no coinciden')
+      clientErrors.passwordConfirm = 'Las contraseñas no coinciden'
+    }
+
+    if (Object.keys(clientErrors).length > 0) {
+      setRegisterErrors(clientErrors)
       return
     }
 
@@ -185,15 +182,8 @@ export default function LoginModal({ isOpen, onClose }) {
 
     if (result.success) {
       handleSuccess(result.needsProfile)
-    } else {
-      setError(result.error)
-    }
-  }
-
-  const handleGoogleSuccess = async () => {
-    const result = await loginWithGoogle()
-    if (result.success) {
-      handleSuccess(result.needsProfile)
+    } else if (result.fieldErrors && Object.keys(result.fieldErrors).length > 0) {
+      setRegisterErrors(mapRegisterApiFieldErrors(result.fieldErrors))
     } else {
       setError(result.error)
     }
@@ -202,6 +192,7 @@ export default function LoginModal({ isOpen, onClose }) {
   const reset = () => {
     setView('options')
     setError('')
+    setRegisterErrors({})
     setEmail('')
     setPassword('')
     setRegisterForm(emptyRegisterForm)
@@ -231,10 +222,10 @@ export default function LoginModal({ isOpen, onClose }) {
                 ? 'Inicia sesión para continuar con tu pedido'
                 : authIntent === AUTH_INTENT.ORDERS
                   ? 'Inicia sesión para ver el historial de tus pedidos'
-                  : 'Elige una de las opciones para iniciar sesión'}
+                  : 'Inicia sesión con tu correo y contraseña'}
             </p>
 
-            <div className="mt-8 space-y-3">
+            <div className="mt-8">
               <button
                 type="button"
                 onClick={() => setView('login')}
@@ -242,11 +233,6 @@ export default function LoginModal({ isOpen, onClose }) {
               >
                 Ingresar con correo y contraseña
               </button>
-
-              <GoogleLoginButton
-                onSuccess={handleGoogleSuccess}
-                onError={() => setError('Error al conectar con Google')}
-              />
             </div>
 
             {error && <p className="mt-4 text-center text-sm text-red-600">{error}</p>}
@@ -313,8 +299,33 @@ export default function LoginModal({ isOpen, onClose }) {
                   required
                   value={registerForm.firstName}
                   onChange={handleRegisterChange}
-                  className={inputClass}
+                  className={fieldInputClass(registerErrors.firstName)}
+                  aria-invalid={Boolean(registerErrors.firstName)}
                 />
+                <FieldError message={registerErrors.firstName} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Apellido paterno *</label>
+                <input
+                  name="lastNamePaternal"
+                  required
+                  value={registerForm.lastNamePaternal}
+                  onChange={handleRegisterChange}
+                  className={fieldInputClass(registerErrors.lastNamePaternal)}
+                  aria-invalid={Boolean(registerErrors.lastNamePaternal)}
+                />
+                <FieldError message={registerErrors.lastNamePaternal} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Apellido materno</label>
+                <input
+                  name="lastNameMaternal"
+                  value={registerForm.lastNameMaternal}
+                  onChange={handleRegisterChange}
+                  className={fieldInputClass(registerErrors.lastNameMaternal)}
+                  aria-invalid={Boolean(registerErrors.lastNameMaternal)}
+                />
+                <FieldError message={registerErrors.lastNameMaternal} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Teléfono</label>
@@ -323,26 +334,10 @@ export default function LoginModal({ isOpen, onClose }) {
                   type="tel"
                   value={registerForm.phone}
                   onChange={handleRegisterChange}
-                  className={inputClass}
+                  className={fieldInputClass(registerErrors.phone)}
+                  aria-invalid={Boolean(registerErrors.phone)}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Apellido paterno</label>
-                <input
-                  name="lastNamePaternal"
-                  value={registerForm.lastNamePaternal}
-                  onChange={handleRegisterChange}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Apellido materno</label>
-                <input
-                  name="lastNameMaternal"
-                  value={registerForm.lastNameMaternal}
-                  onChange={handleRegisterChange}
-                  className={inputClass}
-                />
+                <FieldError message={registerErrors.phone} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Tipo de documento *</label>
@@ -352,7 +347,8 @@ export default function LoginModal({ isOpen, onClose }) {
                   value={registerForm.idDocumentType}
                   onChange={handleRegisterChange}
                   disabled={documentTypesLoading || documentTypes.length === 0}
-                  className={inputClass}
+                  className={fieldInputClass(registerErrors.idDocumentType)}
+                  aria-invalid={Boolean(registerErrors.idDocumentType)}
                 >
                   {documentTypes.length === 0 ? (
                     <option value="">Cargando...</option>
@@ -362,6 +358,7 @@ export default function LoginModal({ isOpen, onClose }) {
                     ))
                   )}
                 </select>
+                <FieldError message={registerErrors.idDocumentType} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
@@ -376,8 +373,10 @@ export default function LoginModal({ isOpen, onClose }) {
                   value={registerForm.documentId}
                   onChange={handleRegisterChange}
                   inputMode="numeric"
-                  className={inputClass}
+                  className={fieldInputClass(registerErrors.documentId)}
+                  aria-invalid={Boolean(registerErrors.documentId)}
                 />
+                <FieldError message={registerErrors.documentId} />
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700">Correo electrónico *</label>
@@ -387,8 +386,10 @@ export default function LoginModal({ isOpen, onClose }) {
                   required
                   value={registerForm.email}
                   onChange={handleRegisterChange}
-                  className={inputClass}
+                  className={fieldInputClass(registerErrors.email)}
+                  aria-invalid={Boolean(registerErrors.email)}
                 />
+                <FieldError message={registerErrors.email} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Contraseña *</label>
@@ -397,8 +398,10 @@ export default function LoginModal({ isOpen, onClose }) {
                   required
                   value={registerForm.password}
                   onChange={handleRegisterChange}
-                  className={inputClass}
+                  className={fieldInputClass(registerErrors.password)}
+                  aria-invalid={Boolean(registerErrors.password)}
                 />
+                <FieldError message={registerErrors.password} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Confirmar contraseña *</label>
@@ -407,8 +410,10 @@ export default function LoginModal({ isOpen, onClose }) {
                   required
                   value={registerForm.passwordConfirm}
                   onChange={handleRegisterChange}
-                  className={inputClass}
+                  className={fieldInputClass(registerErrors.passwordConfirm)}
+                  aria-invalid={Boolean(registerErrors.passwordConfirm)}
                 />
+                <FieldError message={registerErrors.passwordConfirm} />
               </div>
               {error && <p className="text-sm text-red-600 sm:col-span-2">{error}</p>}
               <button

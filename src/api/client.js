@@ -1,6 +1,17 @@
 import axios from 'axios'
 import { API_BASE_URL } from './config'
 
+export function parseApiFieldErrors(data) {
+  if (!data?.errors || typeof data.errors !== 'object') return {}
+
+  return Object.fromEntries(
+    Object.entries(data.errors).map(([key, messages]) => {
+      const value = Array.isArray(messages) ? messages[0] : messages
+      return [key, value ? String(value) : '']
+    }).filter(([, message]) => message),
+  )
+}
+
 export function parseApiError(data, fallback = 'Error en la solicitud') {
   if (!data) return fallback
   if (data.errors) {
@@ -8,6 +19,13 @@ export function parseApiError(data, fallback = 'Error en la solicitud') {
     if (messages.length) return messages.join(', ')
   }
   return data.message || fallback
+}
+
+function createRequestError(data, fallback) {
+  const message = parseApiError(data, fallback)
+  const error = new Error(message)
+  error.fieldErrors = parseApiFieldErrors(data)
+  return error
 }
 
 function serializeParams(params) {
@@ -44,7 +62,7 @@ const http = axios.create({
 http.interceptors.response.use(
   (response) => {
     if (response.data?.success === false) {
-      return Promise.reject(new Error(parseApiError(response.data)))
+      return Promise.reject(createRequestError(response.data))
     }
 
     return response
@@ -55,8 +73,9 @@ http.interceptors.response.use(
     }
 
     const data = error.response?.data
-    const message = parseApiError(data, error.message || 'Error en la solicitud')
-    return Promise.reject(new Error(message))
+    return Promise.reject(
+      createRequestError(data, error.message || 'Error en la solicitud'),
+    )
   },
 )
 

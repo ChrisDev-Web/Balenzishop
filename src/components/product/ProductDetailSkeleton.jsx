@@ -11,28 +11,27 @@ export default function ProductDetailSkeleton() {
         <div className="h-4 w-40 animate-pulse rounded bg-gray-100" />
       </nav>
 
-      <div className="grid gap-10 lg:grid-cols-2 lg:gap-12">
-        <div className="aspect-square animate-pulse rounded-lg bg-gray-100 sm:aspect-[4/5] lg:aspect-square" />
-
-        <div className="flex flex-col gap-4">
-          <div className="h-4 w-24 animate-pulse rounded bg-gray-100" />
-          <div className="h-8 w-full max-w-md animate-pulse rounded bg-gray-100" />
-          <div className="h-8 w-3/4 max-w-sm animate-pulse rounded bg-gray-100" />
-
-          <div className="mt-2 space-y-2">
-            <div className="h-4 w-full animate-pulse rounded bg-gray-100" />
-            <div className="h-4 w-full animate-pulse rounded bg-gray-100" />
-            <div className="h-4 w-2/3 animate-pulse rounded bg-gray-100" />
-          </div>
-
-          <div className="mt-8 border-t border-gray-200 pt-6">
-            <div className="flex items-center justify-between">
-              <div className="h-4 w-28 animate-pulse rounded bg-gray-100" />
-              <div className="h-8 w-32 animate-pulse rounded bg-gray-100" />
+      <div className="product-detail__hero grid gap-8 md:items-start">
+        <div className="product-detail__media">
+          <div className="product-gallery__stage animate-pulse" aria-hidden>
+            <div className="product-gallery__frame">
+              <div className="product-gallery__image product-gallery__image--empty" />
             </div>
           </div>
+        </div>
 
-          <div className="mt-6 h-12 w-40 animate-pulse rounded-lg bg-gray-100" />
+        <div className="product-detail__summary flex flex-col gap-4">
+          <div className="product-detail__brand h-5 w-24 animate-pulse rounded bg-gray-100" />
+          <div className="product-detail__title h-16 w-full max-w-md animate-pulse rounded bg-gray-100 sm:h-[4.5rem]" />
+          <div className="product-detail__subtitle h-10 w-full max-w-sm animate-pulse rounded bg-gray-100" />
+
+          <div className="product-detail__pricing mt-4 space-y-4 border-t border-gray-200 pt-6">
+            <div className="h-4 w-28 animate-pulse rounded bg-gray-100" />
+            <div className="h-8 w-36 animate-pulse rounded bg-gray-100" />
+            <div className="h-4 w-44 animate-pulse rounded bg-gray-100" />
+          </div>
+
+          <div className="product-detail__actions h-14 w-40 animate-pulse rounded-lg bg-gray-100" />
         </div>
       </div>
 

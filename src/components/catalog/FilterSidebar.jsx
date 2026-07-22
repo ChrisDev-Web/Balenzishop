@@ -75,13 +75,13 @@ export default function FilterSidebar({
 
   const filterPanel = (
     <>
-      {(selectedCategories.length > 0 || selectedBrands.length > 0) && (
+      {selectedCategories.length > 0 || selectedBrands.length > 0 ? (
         <p className="mb-3 text-xs text-gray-500">
           {selectedCategories.length > 0 && `${selectedCategories.length} categoría(s)`}
           {selectedCategories.length > 0 && selectedBrands.length > 0 && ' · '}
           {selectedBrands.length > 0 && `${selectedBrands.length} marca(s)`}
         </p>
-      )}
+      ) : null}
 
       {sections.map(({ key, label }) => (
         <div key={key} className="border-b border-gray-100 py-3 last:border-0">
@@ -243,7 +243,7 @@ export default function FilterSidebar({
   )
 
   return (
-    <aside className="w-full shrink-0 lg:w-64">
+    <aside className="mx-auto w-full max-w-md shrink-0 lg:mx-0 lg:max-w-none">
       <button
         type="button"
         onClick={() => setMobileOpen((v) => !v)}

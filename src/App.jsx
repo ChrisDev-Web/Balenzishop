@@ -13,11 +13,13 @@ import ProfilePage from './pages/account/ProfilePage'
 import AddressesPage from './pages/account/AddressesPage'
 import OrdersPage from './pages/account/OrdersPage'
 import RequireAuth from './components/auth/RequireAuth'
+import PresenceTracker from './hooks/usePresenceHeartbeat'
 
 export default function App() {
   return (
     <div className="flex min-h-dvh flex-1 flex-col">
       <BrowserRouter>
+        <PresenceTracker />
         <Routes>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />

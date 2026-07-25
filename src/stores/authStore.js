@@ -21,6 +21,7 @@ import {
 } from '../utils/clientMapper'
 import { mapAddressFormToPayload, mapDirectionToAddress } from '../utils/addressMapper'
 import { USER_ROLES } from '../utils/pricing'
+import { clearCheckoutDraftSession } from './checkoutDraftStore'
 
 let bootstrapSessionPromise = null
 let bootstrapSessionToken = null
@@ -342,6 +343,7 @@ export const useAuthStore = create(
         }
 
         resetBootstrapSession()
+        clearCheckoutDraftSession()
 
         set({
           user: null,

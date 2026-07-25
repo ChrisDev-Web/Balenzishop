@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Plus, Trash2, Upload, MessageCircle } from 'lucide-react'
-import { submitCheckoutOrder, cancelCheckoutReservation } from '../../api/clientOrders'
+import { submitCheckoutOrder } from '../../api/clientOrders'
 import { calculateReservationAmount } from '../../utils/reservation'
+import { findPaymentMethodById } from '../../utils/paymentMethods'
+import PaymentMethodCheckoutInfo from './PaymentMethodCheckoutInfo'
+import CancelCheckoutConfirmModal, {
+  cancelActiveCheckoutDraft,
+} from './CancelCheckoutConfirmModal'
 
 const PAYMENT_MODE_RESERVATION = 'reserva'
 const PAYMENT_MODE_FULL = 'completo'
@@ -158,10 +163,7 @@ export default function ReserveOrderModal({
     setError('')
 
     try {
-      const response = await cancelCheckoutReservation(draftOrderId, accessToken)
-      if (!response.success) {
-        throw new Error(response.message || 'No se pudo cancelar la reserva')
-      }
+      await cancelActiveCheckoutDraft(draftOrderId, accessToken)
       setShowCancelConfirm(false)
       onCancelled?.()
       onClose()
@@ -292,7 +294,10 @@ export default function ReserveOrderModal({
             </div>
 
             <div className="space-y-4">
-              {paymentRows.map((row, index) => (
+              {paymentRows.map((row, index) => {
+                const selectedMethod = findPaymentMethodById(paymentMethods, row.id_payment_method)
+
+                return (
                 <div key={row.key} className="min-w-0 rounded-lg border border-gray-200 p-3 sm:p-4">
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <p className="text-sm font-bold text-gray-900">Pago {index + 1}</p>
@@ -341,6 +346,8 @@ export default function ReserveOrderModal({
                     </label>
                   </div>
 
+                  <PaymentMethodCheckoutInfo method={selectedMethod} />
+
                   <div className="mt-3 min-w-0">
                     <p className="mb-1 text-sm text-gray-700">Comprobante(s)</p>
                     <label className="inline-flex w-full max-w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto sm:justify-start">
@@ -363,7 +370,8 @@ export default function ReserveOrderModal({
                     )}
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 
@@ -406,39 +414,16 @@ export default function ReserveOrderModal({
       </div>
 
       {showCancelConfirm && (
-        <div className="fixed inset-0 z-[210] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60" aria-hidden="true" />
-          <div
-            role="alertdialog"
-            aria-labelledby="cancel-reservation-title"
-            className="relative z-10 w-full max-w-md rounded-xl bg-white p-6 text-center shadow-2xl"
-          >
-            <h3 id="cancel-reservation-title" className="text-lg font-bold text-gray-900">
-              ¿Seguro que deseas cancelar la reserva?
-            </h3>
-            <p className="mt-2 text-sm text-gray-600">
-              Liberaremos el stock reservado y podrás volver a armar tu pedido cuando quieras.
-            </p>
-            <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
-              <button
-                type="button"
-                onClick={() => setShowCancelConfirm(false)}
-                disabled={cancelling}
-                className="rounded-full border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50"
-              >
-                Seguir con mi reserva
-              </button>
-              <button
-                type="button"
-                onClick={confirmCancelReservation}
-                disabled={cancelling}
-                className="rounded-full bg-black px-5 py-2.5 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
-              >
-                {cancelling ? 'Cancelando…' : 'Sí, cancelar reserva'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <CancelCheckoutConfirmModal
+          open={showCancelConfirm}
+          isProcessing={cancelling}
+          error={error}
+          onContinue={() => {
+            setShowCancelConfirm(false)
+            setError('')
+          }}
+          onConfirmCancel={confirmCancelReservation}
+        />
       )}
     </div>,
     document.body,

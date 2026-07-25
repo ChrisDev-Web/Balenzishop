@@ -101,6 +101,10 @@ export async function cancelCheckoutReservation(orderId, token) {
   return apiPostForm(`client_orders/cancel_checkout/${orderId}`, new FormData(), token)
 }
 
+export async function fetchCheckoutDraft(token) {
+  return apiGet('client_orders/checkout_draft', {}, token)
+}
+
 export async function fetchMyClientOrders(token, params = {}) {
   return apiGet('client_orders/list_mine', params, token)
 }

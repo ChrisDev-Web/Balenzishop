@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Layout from './components/layout/Layout'
+import CheckoutReservationGuard from './components/checkout/CheckoutReservationGuard'
 import HomePage from './pages/HomePage'
 import WomenPage from './pages/WomenPage'
 import MenPage from './pages/MenPage'
@@ -20,6 +21,7 @@ export default function App() {
     <div className="flex min-h-dvh flex-1 flex-col">
       <BrowserRouter>
         <PresenceTracker />
+        <CheckoutReservationGuard />
         <Routes>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Tag, MapPin, User, Plus } from 'lucide-react'
 import { useCartStore } from '../stores/cartStore'
 import { useAuthStore } from '../stores/authStore'
+import { useCheckoutDraftStore } from '../stores/checkoutDraftStore'
 import { useUiStore } from '../stores/uiStore'
 import { AUTH_INTENT } from '../utils/authFlow'
 import { fetchActivePaymentMethods } from '../api/paymentMethods'
@@ -15,6 +16,10 @@ import { getDeliveryFeeForAddress, computeOrderTotal } from '../utils/deliveryFe
 import { buildWhatsAppMessage, openWhatsAppOrder } from '../utils/orderMessage'
 import { mapApiClientOrder } from '../utils/clientOrderMapper'
 import { reserveCheckoutOrder } from '../api/clientOrders'
+import {
+  clearPendingCheckoutDraft,
+  savePendingCheckoutDraft,
+} from '../utils/checkoutReservationStorage'
 import ReserveOrderModal from '../components/checkout/ReserveOrderModal'
 
 export default function CheckoutPage() {
@@ -28,7 +33,10 @@ export default function CheckoutPage() {
   const [codeError, setCodeError] = useState('')
   const [applyingCode, setApplyingCode] = useState(false)
   const [showReserveModal, setShowReserveModal] = useState(false)
-  const [draftOrderId, setDraftOrderId] = useState(null)
+  const draftOrderId = useCheckoutDraftStore((state) => state.draftOrderId)
+  const promptCancelOnOpen = useCheckoutDraftStore((state) => state.promptCancelOnOpen)
+  const setActiveDraft = useCheckoutDraftStore((state) => state.setActiveDraft)
+  const clearActiveDraft = useCheckoutDraftStore((state) => state.clearActiveDraft)
   const [reserveError, setReserveError] = useState('')
   const [reserving, setReserving] = useState(false)
 
@@ -116,6 +124,12 @@ export default function CheckoutPage() {
     }
   }, [editingDiscountCode, accessToken, items])
 
+  useEffect(() => {
+    if (draftOrderId && !promptCancelOnOpen) {
+      setShowReserveModal(true)
+    }
+  }, [draftOrderId, promptCancelOnOpen])
+
   const handleApplyCode = async () => {
     if (!accessToken) {
       setCodeError('Inicia sesión para aplicar cupones')
@@ -193,7 +207,11 @@ export default function CheckoutPage() {
         throw new Error('No se recibió la reserva del pedido')
       }
 
-      setDraftOrderId(orderId)
+      setActiveDraft(orderId)
+      savePendingCheckoutDraft({
+        orderId,
+        clientId: user.id,
+      })
       setShowReserveModal(true)
     } catch (error) {
       setReserveError(error.message || 'No se pudo reservar el stock del pedido')
@@ -204,11 +222,12 @@ export default function CheckoutPage() {
 
   const handleCloseReserveModal = () => {
     setShowReserveModal(false)
-    setDraftOrderId(null)
   }
 
   const handleReservationCancelled = () => {
-    setDraftOrderId(null)
+    clearActiveDraft()
+    clearPendingCheckoutDraft()
+    setShowReserveModal(false)
     setReserveError('')
   }
 
@@ -238,17 +257,22 @@ export default function CheckoutPage() {
 
     clearCart()
     clearEditingOrder()
-    setDraftOrderId(null)
+    clearActiveDraft()
+    clearPendingCheckoutDraft()
+    setShowReserveModal(false)
     await openWhatsAppOrder(message)
     navigate('/mi-cuenta/pedidos')
   }
 
-  if (items.length === 0 && !showReserveModal) {
+  if (items.length === 0 && !showReserveModal && !draftOrderId) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
         <h1 className="text-2xl font-bold text-gray-900">Tu carrito está vacío</h1>
         <p className="mt-2 text-gray-600">Agrega productos antes de hacer un pedido.</p>
-        <Link to="/catalogo" className="mt-6 inline-block rounded-full bg-brand px-6 py-2.5 text-sm font-semibold text-white">
+        <Link
+          to="/catalogo"
+          className="mt-6 inline-block rounded-full bg-black px-6 py-2.5 text-sm font-semibold text-white hover:bg-gray-800"
+        >
           Ir al catálogo
         </Link>
       </div>

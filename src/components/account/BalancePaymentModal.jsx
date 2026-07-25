@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Plus, Trash2, Upload, MessageCircle } from 'lucide-react'
 import { submitBalancePayment } from '../../api/clientOrders'
+import { findPaymentMethodById } from '../../utils/paymentMethods'
+import PaymentMethodCheckoutInfo from '../checkout/PaymentMethodCheckoutInfo'
 
 function createPaymentRow(balanceDue) {
   return {
@@ -149,7 +151,10 @@ export default function BalancePaymentModal({
           </div>
 
           <div className="space-y-4">
-            {paymentRows.map((row, index) => (
+            {paymentRows.map((row, index) => {
+              const selectedMethod = findPaymentMethodById(paymentMethods, row.id_payment_method)
+
+              return (
               <div key={row.key} className="rounded-lg border border-gray-200 p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-sm font-semibold text-gray-900">Pago {index + 1}</p>
@@ -195,6 +200,8 @@ export default function BalancePaymentModal({
                   </label>
                 </div>
 
+                <PaymentMethodCheckoutInfo method={selectedMethod} />
+
                 <label className="mt-3 block text-sm">
                   <span className="mb-1 block text-gray-700">Comprobante(s)</span>
                   <div className="flex items-center gap-2">
@@ -215,7 +222,8 @@ export default function BalancePaymentModal({
                   </div>
                 </label>
               </div>
-            ))}
+              )
+            })}
           </div>
 
           <button

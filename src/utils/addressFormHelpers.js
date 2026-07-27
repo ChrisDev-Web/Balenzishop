@@ -43,6 +43,28 @@ export async function resolveProvinceIdByName(name) {
   return exact?.id_province ?? items[0]?.id_province ?? null
 }
 
+export function buildFormFromAddress(address) {
+  return {
+    idRegion: address.idRegion ? String(address.idRegion) : '',
+    region: address.region || '',
+    city: address.city || '',
+    idProvince: address.idProvince ? String(address.idProvince) : '',
+    idDistrict: address.idDistrict ? String(address.idDistrict) : '',
+    idShalon: address.idShalon ? String(address.idShalon) : '',
+    district: address.district || '',
+    shalonName: address.shalonName || '',
+    shalonLat: address.shalonLat ?? null,
+    shalonLng: address.shalonLng ?? null,
+    shalon: address.shalon || '',
+    deliveryType: address.deliveryType || 'shalon',
+    fullAddress: address.fullAddress || '',
+    googleMapsLink: address.googleMapsLink || '',
+    geoLat: address.geoLat ?? null,
+    geoLng: address.geoLng ?? null,
+    isPrimary: address.isPrimary || false,
+  }
+}
+
 export function filterOptionsByPrefix(options, query) {
   const normalizedQuery = normalizeSearchText(query)
   if (!normalizedQuery) return options

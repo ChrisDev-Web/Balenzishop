@@ -15,33 +15,14 @@ import {
   mapRegionOption,
   mapShalonOption,
 } from '../../utils/addressMapper'
-import { resolveLimaProvinceIds } from '../../utils/addressFormHelpers'
+import { buildFormFromAddress, resolveLimaProvinceIds } from '../../utils/addressFormHelpers'
 import SearchableCombobox from '../ui/SearchableCombobox'
 import DeliveryLocationPicker from './DeliveryLocationPicker'
 
 const readonlyClass =
   'mt-1 w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700'
 
-function buildFormFromAddress(address) {
-  return {
-    idRegion: address.idRegion ? String(address.idRegion) : '',
-    region: address.region || '',
-    city: address.city || '',
-    idProvince: address.idProvince ? String(address.idProvince) : '',
-    idDistrict: address.idDistrict ? String(address.idDistrict) : '',
-    idShalon: address.idShalon ? String(address.idShalon) : '',
-    district: address.district || '',
-    shalon: address.shalon || '',
-    deliveryType: address.deliveryType || 'shalon',
-    fullAddress: address.fullAddress || '',
-    googleMapsLink: address.googleMapsLink || '',
-    geoLat: address.geoLat ?? null,
-    geoLng: address.geoLng ?? null,
-    isPrimary: address.isPrimary || false,
-  }
-}
-
-export default function AddressModal({ address, initialMode = 'view', onClose }) {
+export default function AddressModal({ address, initialMode = 'view', onClose, onEdit }) {
   const { updateAddress } = useAuthStore()
   const [editing, setEditing] = useState(initialMode === 'edit')
   const [form, setForm] = useState(buildFormFromAddress(address))
@@ -620,7 +601,10 @@ export default function AddressModal({ address, initialMode = 'view', onClose })
             <>
               <button
                 type="button"
-                onClick={() => setEditing(true)}
+                onClick={() => {
+                  onClose()
+                  onEdit?.(address)
+                }}
                 className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-black py-2.5 text-sm font-semibold text-white hover:bg-gray-800"
               >
                 <Pencil className="h-4 w-4" />

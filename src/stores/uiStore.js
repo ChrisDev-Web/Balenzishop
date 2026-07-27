@@ -23,6 +23,12 @@ export const useUiStore = create(
 
       clearAuthIntent: () =>
         set({ authIntent: AUTH_INTENT.ONBOARDING, authReturnTo: null }),
+
+      setAuthIntent: (intent, returnTo = null) =>
+        set({
+          authIntent: intent,
+          authReturnTo: returnTo ?? captureAuthReturnTo(),
+        }),
     }),
     {
       name: 'balenzi-ui',

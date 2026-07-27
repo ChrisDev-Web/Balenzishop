@@ -6,7 +6,12 @@ import { useCartStore } from '../../stores/cartStore'
 import LoginModal from '../auth/LoginModal'
 import CartDropdown from '../cart/CartDropdown'
 import { useUiStore } from '../../stores/uiStore'
+import { useCompanyStore } from '../../stores/companyStore'
 import { AUTH_INTENT } from '../../utils/authFlow'
+import {
+  DEFAULT_COMPANY_NAME,
+  DEFAULT_NAVBAR_LOGO,
+} from '../../utils/companyBranding'
 
 const navLinks = [
   { to: '/', label: 'Inicio' },
@@ -164,7 +169,10 @@ export default function Navbar() {
   const { isAuthenticated, user, logout } = useAuthStore()
   const { totalItems, isOpen, toggleCart, closeCart } = useCartStore()
   const { loginModalOpen, openLoginModal, closeLoginModal } = useUiStore()
+  const company = useCompanyStore((s) => s.company)
   const count = totalItems()
+  const logoUrl = company?.logo || DEFAULT_NAVBAR_LOGO
+  const logoAlt = company?.name || DEFAULT_COMPANY_NAME
 
   useEffect(() => {
     if (!accountOpen) return undefined
@@ -309,8 +317,8 @@ export default function Navbar() {
             className="pointer-events-auto absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
           >
             <img
-              src="/Logo/Balenzi - Logo.png"
-              alt="BalenziShop"
+              src={logoUrl}
+              alt={logoAlt}
               className="navbar-logo h-10 w-auto object-contain min-[400px]:h-12"
             />
           </Link>
@@ -333,8 +341,8 @@ export default function Navbar() {
         <div className="hidden h-16 w-full items-center justify-between gap-4 pl-8 pr-6 md:flex">
           <Link to="/" className="shrink-0">
             <img
-              src="/Logo/Balenzi - Logo.png"
-              alt="BalenziShop"
+              src={logoUrl}
+              alt={logoAlt}
               className="navbar-logo h-14 w-auto object-contain"
             />
           </Link>

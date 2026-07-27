@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Tag, MapPin, User, Plus } from 'lucide-react'
 import { useCartStore } from '../stores/cartStore'
@@ -21,12 +21,17 @@ import {
   savePendingCheckoutDraft,
 } from '../utils/checkoutReservationStorage'
 import ReserveOrderModal from '../components/checkout/ReserveOrderModal'
+import CheckoutAddressConfirmModal, {
+  formatCheckoutAddressLine,
+  getScopeLabel,
+} from '../components/checkout/CheckoutAddressConfirmModal'
 
 export default function CheckoutPage() {
   const navigate = useNavigate()
   const { items, totalPrice, clearCart, clearEditingOrder, editingOrderId, editingDiscountCode } = useCartStore()
-  const { user, isAuthenticated, accessToken } = useAuthStore()
+  const { user, isAuthenticated, accessToken, updateAddress, syncAddresses } = useAuthStore()
   const openLoginModal = useUiStore((s) => s.openLoginModal)
+  const setAuthIntent = useUiStore((s) => s.setAuthIntent)
 
   const [codeInput, setCodeInput] = useState('')
   const [appliedCode, setAppliedCode] = useState(null)
@@ -44,8 +49,16 @@ export default function CheckoutPage() {
   const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(true)
   const [paymentMethodsError, setPaymentMethodsError] = useState('')
 
+  const [showAddressConfirmModal, setShowAddressConfirmModal] = useState(false)
+  const [addressConfirmed, setAddressConfirmed] = useState(false)
+  const [selectedAddressId, setSelectedAddressId] = useState(null)
+  const [addressConfirmError, setAddressConfirmError] = useState('')
+  const [isConfirmingAddress, setIsConfirmingAddress] = useState(false)
+  const hasPromptedAddressRef = useRef(false)
+
   const isEditing = !!editingOrderId
-  const primaryAddress = user?.addresses?.find((a) => a.isPrimary) || user?.addresses?.[0]
+  const addresses = user?.addresses || []
+  const primaryAddress = addresses.find((a) => a.isPrimary) || addresses[0]
   const subtotal = totalPrice()
   const discount = appliedCode?.discount || 0
   const delivery = getDeliveryFeeForAddress(primaryAddress)
@@ -72,6 +85,28 @@ export default function CheckoutPage() {
       navigate('/mi-cuenta/direcciones?flujo=pedido', { replace: true })
     }
   }, [isAuthenticated, user, navigate, openLoginModal])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    syncAddresses().catch(() => {})
+  }, [isAuthenticated, syncAddresses])
+
+  useEffect(() => {
+    if (!user?.profileComplete || addresses.length === 0) return
+
+    if (draftOrderId && !promptCancelOnOpen) {
+      setAddressConfirmed(true)
+      return
+    }
+
+    if (hasPromptedAddressRef.current) return
+
+    hasPromptedAddressRef.current = true
+    setSelectedAddressId(primaryAddress?.id || null)
+    setShowAddressConfirmModal(true)
+    setAddressConfirmed(false)
+  }, [user?.profileComplete, addresses.length, primaryAddress?.id, draftOrderId, promptCancelOnOpen])
 
   useEffect(() => {
     let cancelled = false
@@ -167,6 +202,48 @@ export default function CheckoutPage() {
     setAppliedCode(null)
     setCodeInput('')
     setCodeError('')
+  }
+
+  const handleConfirmAddress = async () => {
+    if (!selectedAddressId) return
+
+    setIsConfirmingAddress(true)
+    setAddressConfirmError('')
+
+    try {
+      const selected = addresses.find((item) => String(item.id) === String(selectedAddressId))
+
+      if (!selected) {
+        setAddressConfirmError('Selecciona una dirección válida')
+        return
+      }
+
+      if (!selected.isPrimary) {
+        const result = await updateAddress(selected.id, { isPrimary: true })
+
+        if (!result.success) {
+          setAddressConfirmError(result.error || 'No se pudo actualizar la dirección principal')
+          return
+        }
+      }
+
+      setAddressConfirmed(true)
+      setShowAddressConfirmModal(false)
+    } finally {
+      setIsConfirmingAddress(false)
+    }
+  }
+
+  const handleAddNewAddress = () => {
+    setAuthIntent(AUTH_INTENT.CHECKOUT, '/pedido')
+    navigate('/mi-cuenta/direcciones?flujo=pedido&nueva=1')
+  }
+
+  const handleOpenAddressConfirmModal = () => {
+    setSelectedAddressId(primaryAddress?.id || null)
+    setAddressConfirmError('')
+    setAddressConfirmed(false)
+    setShowAddressConfirmModal(true)
   }
 
   const handleOpenReserveModal = async () => {
@@ -385,14 +462,25 @@ export default function CheckoutPage() {
               </ul>
             </div>
             <div className="rounded-xl border border-gray-200 bg-white p-5">
-              <div className="flex items-center gap-2 text-gray-900">
-                <MapPin className="h-5 w-5 text-brand" />
-                <h3 className="font-semibold">Entrega</h3>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2 text-gray-900">
+                  <MapPin className="h-5 w-5 text-brand" />
+                  <h3 className="font-semibold">Entrega</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenAddressConfirmModal}
+                  className="shrink-0 text-xs font-semibold text-black hover:underline"
+                >
+                  Cambiar
+                </button>
               </div>
               <ul className="mt-3 space-y-1 text-sm text-gray-600">
-                <li className="font-medium text-gray-900">Ubicación principal</li>
-                <li>{primaryAddress.district}, {primaryAddress.city}</li>
-                <li>{primaryAddress.shalon}</li>
+                <li className="font-medium text-gray-900">
+                  {primaryAddress.district}, {primaryAddress.city}
+                </li>
+                <li className="text-xs text-gray-500">{getScopeLabel(primaryAddress)}</li>
+                <li>{formatCheckoutAddressLine(primaryAddress)}</li>
               </ul>
             </div>
           </div>
@@ -465,6 +553,12 @@ export default function CheckoutPage() {
               </div>
             </div>
 
+            {!addressConfirmed && (
+              <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Confirma tu dirección de entrega antes de reservar el pedido.
+              </p>
+            )}
+
             {paymentMethodsError && (
               <p className="mt-4 text-xs text-red-600">{paymentMethodsError}</p>
             )}
@@ -476,7 +570,12 @@ export default function CheckoutPage() {
             <button
               type="button"
               onClick={handleOpenReserveModal}
-              disabled={loadingPaymentMethods || paymentMethods.length === 0 || reserving}
+              disabled={
+                loadingPaymentMethods
+                || paymentMethods.length === 0
+                || reserving
+                || !addressConfirmed
+              }
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-black py-3.5 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
             >
               {reserving ? 'Reservando stock…' : 'RESERVAR PEDIDO'}
@@ -487,6 +586,17 @@ export default function CheckoutPage() {
           </div>
         </div>
       </div>
+
+      <CheckoutAddressConfirmModal
+        open={showAddressConfirmModal}
+        addresses={addresses}
+        selectedAddressId={selectedAddressId}
+        onSelectAddress={setSelectedAddressId}
+        onConfirm={handleConfirmAddress}
+        onAddNew={handleAddNewAddress}
+        isConfirming={isConfirmingAddress}
+        error={addressConfirmError}
+      />
 
       <ReserveOrderModal
         open={showReserveModal}

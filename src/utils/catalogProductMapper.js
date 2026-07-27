@@ -9,6 +9,9 @@ function parseMoney(value) {
 export function mapCatalogProduct(item) {
   const price = parseMoney(item.price?.sale_price) ?? 0
   const referencePrice = parseMoney(item.reference_price?.sale_price)
+  const liveOriginalPrice = item.price?.is_live
+    ? parseMoney(item.price?.normal_sale_price)
+    : null
 
   return {
     id: item.id_product,
@@ -19,7 +22,8 @@ export function mapCatalogProduct(item) {
     price,
     referencePrice,
     basePrice: price,
-    originalPrice: referencePrice,
+    originalPrice: liveOriginalPrice ?? referencePrice,
+    isLivePrice: Boolean(item.price?.is_live),
     aroma: item.scent ?? '',
     description: item.brief_description || item.description || '',
     fullDescription: item.description ?? '',

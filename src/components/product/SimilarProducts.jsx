@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCartStore } from '../../stores/cartStore'
 import { useUserPricing } from '../../hooks/useUserPricing'
+import { getLiveDiscountLabel } from '../../utils/pricing'
+import LiveDiscountBadge from './LiveDiscountBadge'
 import { productLink } from '../../utils/productUtils'
 
 export default function SimilarProducts({ products, categoryLink }) {
   const scrollRef = useRef(null)
   const addItem = useCartStore((s) => s.addItem)
-  const { getCatalogDisplayPrices, isMayorista, minQuantity } = useUserPricing()
+  const { getCatalogDisplayPrices, isMayorista, minQuantity, role } = useUserPricing()
 
   if (!products.length) return null
 
@@ -54,6 +56,7 @@ export default function SimilarProducts({ products, categoryLink }) {
       >
         {products.map((p) => {
           const { displayPrice, strikePrice } = getCatalogDisplayPrices(p)
+          const liveDiscountLabel = getLiveDiscountLabel(p, role)
 
           return (
           <article
@@ -61,7 +64,10 @@ export default function SimilarProducts({ products, categoryLink }) {
             className="w-[200px] shrink-0 rounded-xl border border-gray-200 bg-white p-3 sm:w-[220px]"
           >
             <Link to={productLink(p.id)} className="block">
-              <div className="flex h-40 items-center justify-center rounded-lg bg-stone-50 p-2">
+              <div className="relative flex h-40 items-center justify-center rounded-lg bg-stone-50 p-2">
+                {liveDiscountLabel && (
+                  <LiveDiscountBadge label={liveDiscountLabel} className="absolute left-2 top-2" />
+                )}
                 <img src={p.image} alt={p.name} className="max-h-full max-w-full object-contain" />
               </div>
               <p className="mt-2 text-xs font-bold uppercase text-gray-500">{p.brand}</p>

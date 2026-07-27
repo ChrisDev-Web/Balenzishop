@@ -7,15 +7,21 @@ import PendingOrderBanner from '../order/PendingOrderBanner'
 import ShippingCutoffNotice from './ShippingCutoffNotice'
 import { useAuthStore } from '../../stores/authStore'
 import { useCartStore } from '../../stores/cartStore'
+import { useCompanyStore } from '../../stores/companyStore'
 
 export default function Layout() {
   const user = useAuthStore((s) => s.user)
   const bootstrapSession = useAuthStore((s) => s.bootstrapSession)
   const syncWithUserRole = useCartStore((s) => s.syncWithUserRole)
+  const bootstrapCompany = useCompanyStore((s) => s.bootstrapCompany)
 
   useEffect(() => {
     bootstrapSession()
   }, [bootstrapSession])
+
+  useEffect(() => {
+    bootstrapCompany()
+  }, [bootstrapCompany])
 
   useEffect(() => {
     if (user?.role) {

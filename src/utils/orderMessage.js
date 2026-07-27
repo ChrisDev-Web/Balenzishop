@@ -1,9 +1,9 @@
 import { getRoleLabel } from './pricing'
 import { DELIVERY_MODES } from './deliveryFee'
 import { formatAppDateTime } from './dateTime'
+import { getActiveWhatsAppDigits } from '../stores/companyStore'
 
 const STORE_NAME = 'BALENZISHOP'
-const WHATSAPP_NUMBER = '51924341477'
 
 /** Emojis via code points — evita corrupción al compilar el bundle */
 const ICON = {
@@ -198,8 +198,9 @@ export function buildBalancePaymentWhatsAppMessage({
 
 function buildWhatsAppUrl(message) {
   const encoded = encodeURIComponent(message)
+  const whatsappNumber = getActiveWhatsAppDigits()
   // wa.me corrompe emojis al redirigir; api.whatsapp.com preserva UTF-8
-  return `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${encoded}`
+  return `https://api.whatsapp.com/send?phone=${whatsappNumber}&text=${encoded}`
 }
 
 async function copyMessageToClipboard(message) {
@@ -240,5 +241,5 @@ export async function openWhatsAppOrder(message) {
 }
 
 export function getWhatsAppNumber() {
-  return WHATSAPP_NUMBER
+  return getActiveWhatsAppDigits()
 }

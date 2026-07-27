@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { ShoppingBag } from 'lucide-react'
 import { useCartStore } from '../../stores/cartStore'
 import { useUserPricing } from '../../hooks/useUserPricing'
-import { getDiscountPercent, formatDiscountLabel, getMaxCartQuantity } from '../../utils/pricing'
+import { getDiscountPercent, formatDiscountLabel, getLiveDiscountLabel, getMaxCartQuantity } from '../../utils/pricing'
+import LiveDiscountBadge from '../product/LiveDiscountBadge'
 import { productLink } from '../../utils/productUtils'
 
 function ProductCard({ perfume, priority = false }) {
@@ -14,6 +15,7 @@ function ProductCard({ perfume, priority = false }) {
   const { displayPrice, strikePrice } = getCatalogDisplayPrices(perfume)
   const discountPercent = isMayorista ? getDiscountPercent(displayPrice, strikePrice) : null
   const discountLabel = formatDiscountLabel(discountPercent)
+  const liveDiscountLabel = getLiveDiscountLabel(perfume, role)
   const maxQuantity = getMaxCartQuantity(perfume.stock, role)
   const canAddToCart = maxQuantity > 0 && (!cartItem || cartItem.quantity < maxQuantity)
 
@@ -52,10 +54,18 @@ function ProductCard({ perfume, priority = false }) {
             {discountLabel}
           </span>
         )}
+        {liveDiscountLabel && (
+          <LiveDiscountBadge
+            label={liveDiscountLabel}
+            className={`absolute left-1 sm:left-1.5 ${
+              discountLabel ? 'top-5 sm:top-7' : 'top-1 sm:top-1.5'
+            }`}
+          />
+        )}
         {perfume.onSale && (
           <span
             className={`absolute left-1 rounded bg-black px-1 py-px text-[8px] font-bold leading-none text-white sm:left-1.5 sm:px-1.5 sm:py-0.5 sm:text-[10px] md:text-xs ${
-              discountLabel ? 'top-5 sm:top-7' : 'top-1 sm:top-1.5'
+              discountLabel || liveDiscountLabel ? 'top-5 sm:top-7' : 'top-1 sm:top-1.5'
             }`}
           >
             Oferta

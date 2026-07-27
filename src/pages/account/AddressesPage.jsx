@@ -18,7 +18,7 @@ import {
   mapRegionOption,
   mapShalonOption,
 } from '../../utils/addressMapper'
-import { resolveLimaProvinceIds } from '../../utils/addressFormHelpers'
+import { buildFormFromAddress, resolveLimaProvinceIds } from '../../utils/addressFormHelpers'
 import SearchableCombobox from '../../components/ui/SearchableCombobox'
 import AddressModal from '../../components/account/AddressModal'
 import DeliveryZoneModal from '../../components/account/DeliveryZoneModal'
@@ -49,6 +49,7 @@ export default function AddressesPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const flujo = searchParams.get('flujo')
+  const isAddingNew = searchParams.get('nueva') === '1'
   const {
     user,
     addAddress,
@@ -61,6 +62,7 @@ export default function AddressesPage() {
   const finishAuthFlow = useUiStore((s) => s.finishAuthFlow)
 
   const [showForm, setShowForm] = useState(false)
+  const [editingAddressId, setEditingAddressId] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -301,15 +303,19 @@ export default function AddressesPage() {
   }, [form.idDistrict])
 
   useEffect(() => {
-    if (!isSetupFlow || isLoadingAddresses || addresses.length === 0) return
+    if (!isSetupFlow || isLoadingAddresses || addresses.length === 0 || isAddingNew) return
 
-    const next = getRouteAfterAddress(authIntent, authReturnTo)
+    const next = flujo === 'pedido'
+      ? '/pedido'
+      : getRouteAfterAddress(authIntent, authReturnTo)
     finishAuthFlow()
     navigate(next, { replace: true })
   }, [
     isSetupFlow,
     isLoadingAddresses,
     addresses.length,
+    isAddingNew,
+    flujo,
     authIntent,
     authReturnTo,
     navigate,
@@ -323,11 +329,48 @@ export default function AddressesPage() {
     }
   }, [isSetupFlow, addresses.length, isLoadingAddresses])
 
+  useEffect(() => {
+    if (!isSetupFlow || !isAddingNew || isLoadingAddresses) return
+
+    setShowForm(true)
+    setShowZoneModal(true)
+  }, [isSetupFlow, isAddingNew, isLoadingAddresses])
+
   const resetFormState = () => {
     setForm(emptyForm)
     setDeliveryScope(null)
     setLimaDeliveryType(null)
+    setEditingAddressId(null)
     setError('')
+  }
+
+  const resolveDeliveryTypeFromAddress = (address) => {
+    if (address.deliveryScope === 'lima') {
+      return address.deliveryType === 'delivery' ? 'delivery' : 'shalon'
+    }
+
+    if (address.deliveryScope === 'provincia') {
+      return 'shalon'
+    }
+
+    return null
+  }
+
+  const openEditForm = (address) => {
+    const scrollY = window.scrollY
+
+    setEditingAddressId(address.id)
+    setDeliveryScope(address.deliveryScope || null)
+    setLimaDeliveryType(resolveDeliveryTypeFromAddress(address))
+    setForm(buildFormFromAddress(address))
+    setError('')
+    setShowForm(true)
+    setShowZoneModal(false)
+    setShowLimaTypeModal(false)
+
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY)
+    })
   }
 
   const handleZoneSelect = (scope) => {
@@ -366,16 +409,15 @@ export default function AddressesPage() {
   }
 
   const openAddressForm = () => {
-    if (showForm) {
+    if (showForm && !editingAddressId) {
       setShowForm(false)
       resetFormState()
       return
     }
 
+    resetFormState()
     setShowForm(true)
-    if (!deliveryScope) {
-      setShowZoneModal(true)
-    }
+    setShowZoneModal(true)
   }
 
   const handleRegionSelect = (value, option) => {
@@ -506,30 +548,41 @@ export default function AddressesPage() {
     }
 
     setIsSaving(true)
-    const result = await addAddress({
+    const payload = {
       idProvince: form.idProvince,
       idDistrict: form.idDistrict,
       idShalon: form.idShalon,
-      isPrimary: form.isPrimary || addresses.length === 0,
+      isPrimary: editingAddressId ? form.isPrimary : (form.isPrimary || addresses.length === 0),
       deliveryScope,
       deliveryType: isLimaDelivery ? 'delivery' : 'shalon',
       fullAddress: form.fullAddress,
       googleMapsLink: form.googleMapsLink,
       geoLat: form.geoLat,
       geoLng: form.geoLng,
-    })
+    }
+
+    const result = editingAddressId
+      ? await updateAddress(editingAddressId, payload)
+      : await addAddress(payload)
     setIsSaving(false)
 
     if (!result.success) {
-      setError(result.error || 'No se pudo guardar la dirección')
+      setError(
+        result.error
+          || (editingAddressId
+            ? 'No se pudo actualizar la dirección'
+            : 'No se pudo guardar la dirección'),
+      )
       return
     }
 
     setShowForm(false)
     resetFormState()
 
-    if (isSetupFlow) {
-      const next = getRouteAfterAddress(authIntent, authReturnTo)
+    if (!editingAddressId && isSetupFlow) {
+      const next = flujo === 'pedido'
+        ? '/pedido'
+        : getRouteAfterAddress(authIntent, authReturnTo)
       finishAuthFlow()
       navigate(next)
       return
@@ -603,9 +656,17 @@ export default function AddressesPage() {
       </div>
 
       {showForm && (
-        <form onSubmit={handleSubmit} className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <form
+          id="address-form"
+          onSubmit={handleSubmit}
+          className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+        >
           <h2 className="font-semibold text-gray-900">
-            {isSetupFlow ? 'Tu dirección de entrega' : 'Nueva dirección de entrega'}
+            {editingAddressId
+              ? 'Editar dirección de entrega'
+              : isSetupFlow
+                ? 'Tu dirección de entrega'
+                : 'Nueva dirección de entrega'}
           </h2>
 
           {deliveryScope && (
@@ -796,9 +857,11 @@ export default function AddressesPage() {
             >
               {isSaving
                 ? 'Guardando…'
-                : flujo === 'pedido'
-                  ? 'Guardar y continuar al pedido'
-                  : 'Guardar y continuar'}
+                : editingAddressId
+                  ? 'Guardar cambios'
+                  : flujo === 'pedido'
+                    ? 'Guardar y continuar al pedido'
+                    : 'Guardar y continuar'}
             </button>
             {!isSetupFlow && (
               <button
@@ -905,7 +968,7 @@ export default function AddressesPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => openModal(addr, 'edit')}
+                      onClick={() => openEditForm(addr)}
                       className="flex items-center justify-center gap-1 rounded-full border border-black px-3 py-2 text-xs font-medium text-black hover:bg-gray-50 sm:py-1"
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -933,6 +996,7 @@ export default function AddressesPage() {
           address={modalAddress}
           initialMode={modalMode}
           onClose={closeModal}
+          onEdit={openEditForm}
         />
       )}
     </div>

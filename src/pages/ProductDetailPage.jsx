@@ -9,7 +9,8 @@ import SimilarProducts from '../components/product/SimilarProducts'
 import ProductSpecs from '../components/product/ProductSpecs'
 import { getCategoryBreadcrumbFromProduct } from '../utils/catalogProductMapper'
 import { catalogLink } from '../utils/catalogLinks'
-import { getCatalogDisplayPrices, getMaxCartQuantity } from '../utils/pricing'
+import { getCatalogDisplayPrices, getLiveDiscountLabel, getMaxCartQuantity } from '../utils/pricing'
+import LiveDiscountBadge from '../components/product/LiveDiscountBadge'
 
 export default function ProductDetailPage() {
   const { id } = useParams()
@@ -37,6 +38,7 @@ export default function ProductDetailPage() {
   const breadcrumb = getCategoryBreadcrumbFromProduct(product)
   const categoryCatalogLink = catalogLink({ categories: [product.category] })
   const { displayPrice, strikePrice } = getCatalogDisplayPrices(product, role)
+  const liveDiscountLabel = getLiveDiscountLabel(product, role)
   const maxQuantity = getMaxCartQuantity(product.stock, role)
   const canAddToCart = maxQuantity > 0 && (!cartItem || cartItem.quantity < maxQuantity)
 
@@ -59,7 +61,10 @@ export default function ProductDetailPage() {
       </nav>
 
       <div className="product-detail__hero grid gap-8 md:items-start">
-        <div className="product-detail__media">
+        <div className="product-detail__media relative">
+          {liveDiscountLabel && (
+            <LiveDiscountBadge label={liveDiscountLabel} className="absolute left-4 top-4 z-10" />
+          )}
           <ProductGallery images={gallery} name={product.name} />
         </div>
 
@@ -76,9 +81,12 @@ export default function ProductDetailPage() {
           </p>
 
           <div className="product-detail__pricing mt-8 space-y-4 border-t border-gray-200 pt-6">
-            <p className="text-sm font-semibold text-gray-900">
-              {isMayorista ? 'Precio mayorista' : 'Precio Online'}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-gray-900">
+                {isMayorista ? 'Precio mayorista' : 'Precio Online'}
+              </p>
+              {liveDiscountLabel && <LiveDiscountBadge label={liveDiscountLabel} />}
+            </div>
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               {strikePrice != null && (
                 <span className="text-sm text-gray-400 line-through">

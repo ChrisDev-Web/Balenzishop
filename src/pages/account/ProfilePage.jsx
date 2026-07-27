@@ -6,6 +6,7 @@ import {
   getDocumentDigits,
   validateDocumentById,
 } from '../../utils/documentValidation'
+import { USER_ROLES } from '../../utils/pricing'
 
 export default function ProfilePage() {
   const { user, updateProfile } = useAuthStore()
@@ -112,7 +113,7 @@ export default function ProfilePage() {
     }
   }
 
-  const isMayoristaClient = user?.idClientType === 2
+  const isMayoristaClient = user?.role === USER_ROLES.MAYORISTA
 
   const readOnlyFields = [
     { name: 'firstName', label: 'Nombre' },

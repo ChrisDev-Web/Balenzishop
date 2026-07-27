@@ -49,6 +49,16 @@ export function formatDiscountLabel(percent) {
   return `-${text}%`
 }
 
+export function getLiveDiscountLabel(product, role) {
+  if (isMayorista(role) || !product?.isLivePrice) return null
+
+  const { displayPrice, strikePrice } = getCatalogDisplayPrices(product, role)
+  const percent = getDiscountPercent(displayPrice, strikePrice)
+  const discountText = formatDiscountLabel(percent)
+
+  return discountText ? `Live ${discountText}` : 'Live'
+}
+
 export function getProductPrice(basePrice, role) {
   if (isMayorista(role)) {
     return Math.round(basePrice * (1 - WHOLESALE_DISCOUNT) * 100) / 100

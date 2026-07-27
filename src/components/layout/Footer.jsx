@@ -1,43 +1,35 @@
 import { MessageCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { getWhatsAppNumber } from '../../utils/orderMessage'
+import { useCompanyStore } from '../../stores/companyStore'
+import {
+  DEFAULT_COMPANY_NAME,
+  DEFAULT_NAVBAR_LOGO,
+  buildWhatsAppUrl,
+  extractSocialHandle,
+  formatWhatsAppDisplay,
+} from '../../utils/companyBranding'
 
-const SOCIAL_LINKS = {
+const STORE_LINKS = [
+  { label: 'Inicio', to: '/' },
+  { label: 'Mujeres', to: '/mujeres' },
+  { label: 'Hombres', to: '/hombres' },
+  { label: 'Promociones', to: '/promociones' },
+  { label: 'Catálogo', to: '/catalogo' },
+]
+
+const ACCOUNT_LINKS = [
+  { label: 'Mi cuenta', to: '/mi-cuenta' },
+  { label: 'Mis pedidos', to: '/mi-cuenta/pedidos' },
+  { label: 'Mis direcciones', to: '/mi-cuenta/direcciones' },
+  { label: 'Finalizar compra', to: '/pedido' },
+]
+
+const FALLBACK_SOCIAL = {
   instagram: 'https://www.instagram.com/balenzi_perfumes?igsh=MWd2b3pub3RhZmdheA%3D%3D&utm_source=qr',
   tiktok: 'https://www.tiktok.com/@balenzishop?_r=1&_t=ZS-97VorcZVhVh',
-  whatsappCommunity: 'https://chat.whatsapp.com/Egl2f1pw2arBH9FY6DztwD?mode=gi_t',
+  communityWhatsapp: 'https://chat.whatsapp.com/Egl2f1pw2arBH9FY6DztwD?mode=gi_t',
+  whatsappDisplay: '924 341 477',
 }
-
-const FOOTER_SECTIONS = [
-  {
-    title: 'Tienda',
-    links: [
-      { label: 'Inicio', to: '/' },
-      { label: 'Mujeres', to: '/mujeres' },
-      { label: 'Hombres', to: '/hombres' },
-      { label: 'Promociones', to: '/promociones' },
-      { label: 'Catálogo', to: '/catalogo' },
-    ],
-  },
-  {
-    title: 'Mi cuenta',
-    links: [
-      { label: 'Mi cuenta', to: '/mi-cuenta' },
-      { label: 'Mis pedidos', to: '/mi-cuenta/pedidos' },
-      { label: 'Mis direcciones', to: '/mi-cuenta/direcciones' },
-      { label: 'Finalizar compra', to: '/pedido' },
-    ],
-  },
-  {
-    title: 'Contacto',
-    links: [
-      { label: 'WhatsApp · 924 341 477', href: `https://api.whatsapp.com/send?phone=${getWhatsAppNumber()}` },
-      { label: 'Comunidad Balenzishop', href: SOCIAL_LINKS.whatsappCommunity },
-      { label: 'Instagram · @balenzi_perfumes', href: SOCIAL_LINKS.instagram },
-      { label: 'TikTok · @balenzishop', href: SOCIAL_LINKS.tiktok },
-    ],
-  },
-]
 
 function InstagramIcon({ className }) {
   return (
@@ -92,6 +84,8 @@ function FooterLink({ link }) {
 }
 
 function SocialButton({ href, label, children }) {
+  if (!href) return null
+
   return (
     <a
       href={href}
@@ -105,8 +99,50 @@ function SocialButton({ href, label, children }) {
   )
 }
 
+function buildContactLinks(company) {
+  const whatsappDisplay = formatWhatsAppDisplay(company?.whatsapp) ?? FALLBACK_SOCIAL.whatsappDisplay
+  const whatsappUrl = buildWhatsAppUrl(company?.whatsapp)
+  const instagramUrl = company?.instagram || FALLBACK_SOCIAL.instagram
+  const tiktokUrl = company?.tiktok || FALLBACK_SOCIAL.tiktok
+  const communityUrl = company?.community_whatsapp || FALLBACK_SOCIAL.communityWhatsapp
+
+  const links = [
+    { label: `WhatsApp · ${whatsappDisplay}`, href: whatsappUrl },
+  ]
+
+  if (communityUrl) {
+    links.push({ label: 'Comunidad Balenzishop', href: communityUrl })
+  }
+
+  if (instagramUrl) {
+    links.push({
+      label: `Instagram · ${extractSocialHandle(instagramUrl, '@balenzi_perfumes')}`,
+      href: instagramUrl,
+    })
+  }
+
+  if (tiktokUrl) {
+    links.push({
+      label: `TikTok · ${extractSocialHandle(tiktokUrl, '@balenzishop')}`,
+      href: tiktokUrl,
+    })
+  }
+
+  return links
+}
+
 export default function Footer() {
-  const whatsappUrl = `https://api.whatsapp.com/send?phone=${getWhatsAppNumber()}`
+  const company = useCompanyStore((s) => s.company)
+  const logoUrl = company?.logo || DEFAULT_NAVBAR_LOGO
+  const companyName = company?.name || DEFAULT_COMPANY_NAME
+  const whatsappUrl = buildWhatsAppUrl(company?.whatsapp)
+  const contactLinks = buildContactLinks(company)
+
+  const footerSections = [
+    { title: 'Tienda', links: STORE_LINKS },
+    { title: 'Mi cuenta', links: ACCOUNT_LINKS },
+    { title: 'Contacto', links: contactLinks },
+  ]
 
   return (
     <footer className="mt-auto bg-[#0a0a0a] text-white">
@@ -116,8 +152,8 @@ export default function Footer() {
             <div className="flex flex-col items-center text-center lg:max-w-xs lg:items-start lg:text-left">
               <Link to="/" className="-my-1 inline-block">
                 <img
-                  src="/Logo/Balenzi - Logo.png"
-                  alt="BalenziShop"
+                  src={logoUrl}
+                  alt={companyName}
                   className="navbar-logo h-[4.75rem] w-auto object-contain md:h-[5.5rem]"
                 />
               </Link>
@@ -126,10 +162,16 @@ export default function Footer() {
                 casas del mundo, con envío en Lima y todo el Perú.
               </p>
               <div className="mt-3.5 flex items-center gap-3">
-                <SocialButton href={SOCIAL_LINKS.instagram} label="Instagram de Balenzi">
+                <SocialButton
+                  href={company?.instagram || FALLBACK_SOCIAL.instagram}
+                  label="Instagram de Balenzi"
+                >
                   <InstagramIcon className="h-4 w-4" />
                 </SocialButton>
-                <SocialButton href={SOCIAL_LINKS.tiktok} label="TikTok de Balenzi">
+                <SocialButton
+                  href={company?.tiktok || FALLBACK_SOCIAL.tiktok}
+                  label="TikTok de Balenzi"
+                >
                   <TikTokIcon className="h-3.5 w-3.5" />
                 </SocialButton>
                 <SocialButton href={whatsappUrl} label="WhatsApp de Balenzi">
@@ -139,7 +181,7 @@ export default function Footer() {
             </div>
 
             <div className="grid w-full gap-10 sm:grid-cols-2 lg:w-auto lg:grid-cols-3 lg:gap-14">
-              {FOOTER_SECTIONS.map((section) => (
+              {footerSections.map((section) => (
                 <div key={section.title} className="text-center sm:text-left">
                   <h3 className="font-nav text-xs font-semibold uppercase tracking-[0.22em] text-white">
                     {section.title}
@@ -175,7 +217,7 @@ export default function Footer() {
       </div>
 
       <div className="mx-auto flex max-w-7xl flex-col items-center gap-2 px-6 py-6 text-center text-[11px] text-white/35 sm:flex-row sm:justify-between lg:px-8">
-        <p>© {new Date().getFullYear()} Balenzi Perfumes. Todos los derechos reservados.</p>
+        <p>© {new Date().getFullYear()} {companyName}. Todos los derechos reservados.</p>
         <p className="tracking-wide">Lima, Perú · Envíos a todo el país</p>
       </div>
     </footer>

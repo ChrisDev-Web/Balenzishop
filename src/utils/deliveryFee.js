@@ -14,6 +14,15 @@ export function getDeliveryFeeForAddress(address) {
   }
 
   if (address.deliveryScope === 'lima') {
+    if (address.deliveryType === 'delivery') {
+      return {
+        fee: Number(address.deliveryFee || 0),
+        label: 'Delivery (Lima)',
+        zone: address.coverageZone || null,
+        mode: DELIVERY_MODES.DELIVERY,
+      }
+    }
+
     return { fee: 0, label: 'Recojo en Shalon (Lima)', zone: null, mode: DELIVERY_MODES.SHALON_FREE }
   }
 

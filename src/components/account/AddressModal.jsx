@@ -17,6 +17,7 @@ import {
 } from '../../utils/addressMapper'
 import { resolveLimaProvinceIds } from '../../utils/addressFormHelpers'
 import SearchableCombobox from '../ui/SearchableCombobox'
+import DeliveryLocationPicker from './DeliveryLocationPicker'
 
 const readonlyClass =
   'mt-1 w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700'
@@ -31,6 +32,11 @@ function buildFormFromAddress(address) {
     idShalon: address.idShalon ? String(address.idShalon) : '',
     district: address.district || '',
     shalon: address.shalon || '',
+    deliveryType: address.deliveryType || 'shalon',
+    fullAddress: address.fullAddress || '',
+    googleMapsLink: address.googleMapsLink || '',
+    geoLat: address.geoLat ?? null,
+    geoLng: address.geoLng ?? null,
     isPrimary: address.isPrimary || false,
   }
 }
@@ -55,6 +61,8 @@ export default function AddressModal({ address, initialMode = 'view', onClose })
   const deliveryScope = address.deliveryScope || null
   const isLimaScope = deliveryScope === 'lima'
   const isProvinciaScope = deliveryScope === 'provincia'
+  const isLimaDelivery = isLimaScope && (form.deliveryType === 'delivery' || address.deliveryType === 'delivery')
+  const isShalonPickup = isProvinciaScope || !isLimaDelivery
 
   const regions = useMemo(
     () => [...regionOptions].sort((a, b) => a.name.localeCompare(b.name, 'es')),
@@ -105,7 +113,7 @@ export default function AddressModal({ address, initialMode = 'view', onClose })
     () => shalonOptions.map((shalon) => ({
       value: shalon.idShalon,
       label: shalon.label,
-      searchText: shalon.label,
+      searchText: shalon.searchText || shalon.label,
       raw: shalon,
     })),
     [shalonOptions],
@@ -316,6 +324,16 @@ export default function AddressModal({ address, initialMode = 'view', onClose })
     }))
   }
 
+  const handleDeliveryLocationChange = ({ geoLat, geoLng, googleMapsLink, fullAddress }) => {
+    setForm((prev) => ({
+      ...prev,
+      geoLat,
+      geoLng,
+      googleMapsLink,
+      fullAddress,
+    }))
+  }
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
     setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
@@ -330,8 +348,23 @@ export default function AddressModal({ address, initialMode = 'view', onClose })
       return
     }
 
-    if (!form.idProvince || !form.idDistrict || !form.idShalon) {
-      setError('Completa ciudad, distrito y punto de recojo')
+    if (!form.idProvince || !form.idDistrict) {
+      setError('Completa ciudad y distrito')
+      return
+    }
+
+    if (isLimaDelivery) {
+      if (form.geoLat == null || form.geoLng == null) {
+        setError('Indica la ubicación exacta en el mapa')
+        return
+      }
+
+      if (!form.fullAddress?.trim()) {
+        setError('Indica la dirección completa')
+        return
+      }
+    } else if (!form.idShalon) {
+      setError('Selecciona la sede Shalon')
       return
     }
 
@@ -342,6 +375,11 @@ export default function AddressModal({ address, initialMode = 'view', onClose })
       idShalon: form.idShalon,
       isPrimary: form.isPrimary,
       deliveryScope: address.deliveryScope,
+      deliveryType: isLimaDelivery ? 'delivery' : 'shalon',
+      fullAddress: form.fullAddress,
+      googleMapsLink: form.googleMapsLink,
+      geoLat: form.geoLat,
+      geoLng: form.geoLng,
     })
     setIsSaving(false)
 
@@ -423,9 +461,39 @@ export default function AddressModal({ address, initialMode = 'view', onClose })
                   <dd className="mt-0.5 text-gray-900">{address.district}</dd>
                 </div>
                 <div>
-                  <dt className="font-medium text-gray-500">Punto de recojo Shalon</dt>
-                  <dd className="mt-0.5 text-gray-900">{address.shalon || '—'}</dd>
+                  <dt className="font-medium text-gray-500">Tipo de entrega</dt>
+                  <dd className="mt-0.5 text-gray-900">
+                    {address.deliveryType === 'delivery' ? 'Delivery a domicilio' : 'Recojo en Shalon'}
+                  </dd>
                 </div>
+                {address.deliveryType === 'delivery' ? (
+                  <>
+                    <div>
+                      <dt className="font-medium text-gray-500">Dirección completa</dt>
+                      <dd className="mt-0.5 text-gray-900">{address.fullAddress || '—'}</dd>
+                    </div>
+                    {address.googleMapsLink && (
+                      <div>
+                        <dt className="font-medium text-gray-500">Ubicación en mapa</dt>
+                        <dd className="mt-0.5">
+                          <a
+                            href={address.googleMapsLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium text-black hover:underline"
+                          >
+                            Ver en Google Maps
+                          </a>
+                        </dd>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div>
+                    <dt className="font-medium text-gray-500">Punto de recojo Shalon</dt>
+                    <dd className="mt-0.5 text-gray-900">{address.shalon || '—'}</dd>
+                  </div>
+                )}
                 <div>
                   <dt className="font-medium text-gray-500">Tipo</dt>
                   <dd className="mt-0.5 text-gray-900">
@@ -500,24 +568,36 @@ export default function AddressModal({ address, initialMode = 'view', onClose })
                 />
               </div>
 
-              <div>
-                <label className="block text-sm text-gray-600">Recojo en Shalon *</label>
-                <SearchableCombobox
-                  value={form.idShalon}
-                  selectedLabel={form.shalon}
-                  placeholder={
-                    form.idDistrict
-                      ? 'Selecciona un Shalon cercano'
-                      : 'Primero elige un distrito'
-                  }
-                  searchPlaceholder="Escribe para buscar Shalon…"
-                  options={shalonComboboxOptions}
-                  isLoading={isLoadingShalons}
-                  disabled={!form.idDistrict}
-                  emptyMessage="No hay Shalons disponibles en este distrito."
-                  onChange={handleShalonSelect}
+              {isShalonPickup && (
+                <div>
+                  <label className="block text-sm text-gray-600">Sede Shalon *</label>
+                  <SearchableCombobox
+                    value={form.idShalon}
+                    selectedLabel={form.shalon}
+                    placeholder={
+                      form.idDistrict
+                        ? 'Escribe para buscar sede Shalon'
+                        : 'Primero elige un distrito'
+                    }
+                    searchPlaceholder="Busca por nombre o dirección…"
+                    options={shalonComboboxOptions}
+                    isLoading={isLoadingShalons}
+                    disabled={!form.idDistrict}
+                    searchMode="contains"
+                    emptyMessage="No hay Shalons que coincidan en este distrito."
+                    onChange={handleShalonSelect}
+                  />
+                </div>
+              )}
+
+              {isLimaDelivery && form.idDistrict && (
+                <DeliveryLocationPicker
+                  value={{ lat: form.geoLat, lng: form.geoLng }}
+                  googleMapsLink={form.googleMapsLink}
+                  fullAddress={form.fullAddress}
+                  onChange={handleDeliveryLocationChange}
                 />
-              </div>
+              )}
 
               <label className="flex items-center gap-2 text-sm text-gray-600">
                 <input

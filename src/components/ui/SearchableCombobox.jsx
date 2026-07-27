@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ChevronDown, X } from 'lucide-react'
-import { matchesSearchPrefix } from '../../utils/searchText'
+import { matchesSearchContains, matchesSearchPrefix } from '../../utils/searchText'
 
 function getOptionSearchText(option) {
   return option.searchText ?? option.label ?? ''
@@ -15,6 +15,7 @@ export default function SearchableCombobox({
   isLoading = false,
   disabled = false,
   emptyMessage = 'No hay opciones disponibles.',
+  searchMode = 'prefix',
   onChange,
 }) {
   const listboxId = useId()
@@ -29,10 +30,11 @@ export default function SearchableCombobox({
 
   const filteredOptions = useMemo(() => {
     if (!trimmedQuery) return options
+    const matcher = searchMode === 'contains' ? matchesSearchContains : matchesSearchPrefix
     return options.filter((option) =>
-      matchesSearchPrefix(getOptionSearchText(option), trimmedQuery),
+      matcher(getOptionSearchText(option), trimmedQuery),
     )
-  }, [options, trimmedQuery])
+  }, [options, trimmedQuery, searchMode])
 
   const displayValue = isOpen || !hasSelection ? query : selectedLabel
 

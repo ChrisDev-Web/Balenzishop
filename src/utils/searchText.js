@@ -11,3 +11,9 @@ export function matchesSearchPrefix(label, query) {
   if (!normalizedQuery) return true
   return normalizeSearchText(label).startsWith(normalizedQuery)
 }
+
+export function matchesSearchContains(label, query) {
+  const normalizedQuery = normalizeSearchText(query)
+  if (!normalizedQuery) return true
+  return normalizeSearchText(label).includes(normalizedQuery)
+}

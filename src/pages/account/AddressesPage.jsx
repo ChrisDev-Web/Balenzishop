@@ -22,6 +22,8 @@ import { resolveLimaProvinceIds } from '../../utils/addressFormHelpers'
 import SearchableCombobox from '../../components/ui/SearchableCombobox'
 import AddressModal from '../../components/account/AddressModal'
 import DeliveryZoneModal from '../../components/account/DeliveryZoneModal'
+import LimaDeliveryTypeModal from '../../components/account/LimaDeliveryTypeModal'
+import DeliveryLocationPicker from '../../components/account/DeliveryLocationPicker'
 
 const emptyForm = {
   idRegion: '',
@@ -35,6 +37,11 @@ const emptyForm = {
   shalonLat: null,
   shalonLng: null,
   shalon: '',
+  deliveryType: 'shalon',
+  fullAddress: '',
+  googleMapsLink: '',
+  geoLat: null,
+  geoLng: null,
   isPrimary: false,
 }
 
@@ -72,12 +79,16 @@ export default function AddressesPage() {
   const [isResolvingLimaProvinces, setIsResolvingLimaProvinces] = useState(false)
 
   const [showZoneModal, setShowZoneModal] = useState(false)
+  const [showLimaTypeModal, setShowLimaTypeModal] = useState(false)
   const [deliveryScope, setDeliveryScope] = useState(null)
+  const [limaDeliveryType, setLimaDeliveryType] = useState(null)
 
   const addresses = user?.addresses || []
   const isSetupFlow = flujo === 'pedido' || flujo === 'onboarding'
   const isProvinciaScope = deliveryScope === 'provincia'
   const isLimaScope = deliveryScope === 'lima'
+  const isLimaDelivery = isLimaScope && limaDeliveryType === 'delivery'
+  const isShalonPickup = isProvinciaScope || (isLimaScope && limaDeliveryType === 'shalon')
 
   const regions = useMemo(
     () => [...regionOptions].sort((a, b) => a.name.localeCompare(b.name, 'es')),
@@ -128,7 +139,7 @@ export default function AddressesPage() {
     () => shalonOptions.map((shalon) => ({
       value: shalon.idShalon,
       label: shalon.label,
-      searchText: shalon.label,
+      searchText: shalon.searchText || shalon.label,
       raw: shalon,
     })),
     [shalonOptions],
@@ -315,6 +326,7 @@ export default function AddressesPage() {
   const resetFormState = () => {
     setForm(emptyForm)
     setDeliveryScope(null)
+    setLimaDeliveryType(null)
     setError('')
   }
 
@@ -326,6 +338,31 @@ export default function AddressesPage() {
       isPrimary: addresses.length === 0,
     })
     setShowZoneModal(false)
+
+    if (scope === 'lima') {
+      setShowLimaTypeModal(true)
+      return
+    }
+
+    setLimaDeliveryType('shalon')
+  }
+
+  const handleLimaDeliveryTypeSelect = (type) => {
+    setLimaDeliveryType(type)
+    setForm((prev) => ({
+      ...prev,
+      deliveryType: type,
+      idShalon: '',
+      shalonName: '',
+      shalonLat: null,
+      shalonLng: null,
+      shalon: '',
+      fullAddress: '',
+      googleMapsLink: '',
+      geoLat: null,
+      geoLng: null,
+    }))
+    setShowLimaTypeModal(false)
   }
 
   const openAddressForm = () => {
@@ -393,6 +430,20 @@ export default function AddressesPage() {
       shalonLat: null,
       shalonLng: null,
       shalon: '',
+      fullAddress: '',
+      googleMapsLink: '',
+      geoLat: null,
+      geoLng: null,
+    }))
+  }
+
+  const handleDeliveryLocationChange = ({ geoLat, geoLng, googleMapsLink, fullAddress }) => {
+    setForm((prev) => ({
+      ...prev,
+      geoLat,
+      geoLng,
+      googleMapsLink,
+      fullAddress,
     }))
   }
 
@@ -424,14 +475,33 @@ export default function AddressesPage() {
       return
     }
 
-    if (!form.idProvince || !form.idDistrict || !form.idShalon) {
-      setError('Completa ciudad, distrito y punto de recojo')
+    if (!form.idProvince || !form.idDistrict) {
+      setError('Completa ciudad y distrito')
       return
     }
 
-    if (!deliveryScope) {
-      setError('Elige si tu dirección es Lima o provincia')
-      setShowZoneModal(true)
+    if (isLimaDelivery) {
+      if (form.geoLat == null || form.geoLng == null) {
+        setError('Indica la ubicación exacta en el mapa')
+        return
+      }
+
+      if (!form.fullAddress?.trim()) {
+        setError('Indica la dirección completa')
+        return
+      }
+    } else if (!form.idShalon) {
+      setError('Selecciona la sede Shalon')
+      return
+    }
+
+    if (!deliveryScope || (isLimaScope && !limaDeliveryType)) {
+      setError('Elige la modalidad de entrega')
+      if (isLimaScope && !limaDeliveryType) {
+        setShowLimaTypeModal(true)
+      } else {
+        setShowZoneModal(true)
+      }
       return
     }
 
@@ -442,6 +512,11 @@ export default function AddressesPage() {
       idShalon: form.idShalon,
       isPrimary: form.isPrimary || addresses.length === 0,
       deliveryScope,
+      deliveryType: isLimaDelivery ? 'delivery' : 'shalon',
+      fullAddress: form.fullAddress,
+      googleMapsLink: form.googleMapsLink,
+      geoLat: form.geoLat,
+      geoLng: form.geoLng,
     })
     setIsSaving(false)
 
@@ -498,14 +573,21 @@ export default function AddressesPage() {
         />
       )}
 
+      {showLimaTypeModal && (
+        <LimaDeliveryTypeModal
+          onSelect={handleLimaDeliveryTypeSelect}
+          onClose={() => setShowLimaTypeModal(false)}
+        />
+      )}
+
       <div className="flex flex-col gap-3 border-b border-gray-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Direcciones</h1>
           {flujo === 'pedido' && (
-            <p className="mt-1 text-sm text-amber-700">Agrega tu dirección de recojo para continuar con tu pedido.</p>
+            <p className="mt-1 text-sm text-amber-700">Agrega tu dirección de entrega para continuar con tu pedido.</p>
           )}
           {flujo === 'onboarding' && (
-            <p className="mt-1 text-sm text-gray-600">Agrega tu dirección de recojo para completar tu cuenta.</p>
+            <p className="mt-1 text-sm text-gray-600">Agrega tu dirección de entrega para completar tu cuenta.</p>
           )}
         </div>
         {!isSetupFlow && (
@@ -523,12 +605,30 @@ export default function AddressesPage() {
       {showForm && (
         <form onSubmit={handleSubmit} className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <h2 className="font-semibold text-gray-900">
-            {isSetupFlow ? 'Tu dirección de recojo' : 'Nueva dirección de recojo'}
+            {isSetupFlow ? 'Tu dirección de entrega' : 'Nueva dirección de entrega'}
           </h2>
 
           {deliveryScope && (
             <p className="mt-1 text-xs text-gray-500">
-              Modalidad: {deliveryScope === 'lima' ? 'Envíos Lima' : 'Provincia'}
+              Modalidad:{' '}
+              {deliveryScope === 'lima'
+                ? isLimaDelivery
+                  ? 'Delivery en Lima'
+                  : 'Recojo en Shalon (Lima)'
+                : 'Provincia — Recojo en Shalon'}
+              {isLimaScope && (
+                <>
+                  {' '}
+                  ·{' '}
+                  <button
+                    type="button"
+                    onClick={() => setShowLimaTypeModal(true)}
+                    className="font-medium text-black hover:underline"
+                  >
+                    Cambiar
+                  </button>
+                </>
+              )}
             </p>
           )}
 
@@ -539,6 +639,16 @@ export default function AddressesPage() {
               className="mt-3 text-sm font-medium text-black hover:underline"
             >
               Elegir Lima o provincia
+            </button>
+          )}
+
+          {isLimaScope && !limaDeliveryType && (
+            <button
+              type="button"
+              onClick={() => setShowLimaTypeModal(true)}
+              className="mt-3 text-sm font-medium text-black hover:underline"
+            >
+              Elegir delivery o recojo en Shalon
             </button>
           )}
 
@@ -607,48 +717,62 @@ export default function AddressesPage() {
               />
             </div>
 
-            <div className="sm:col-span-2">
-              <label className="block text-sm text-gray-600">Recojo en Shalon *</label>
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <SearchableCombobox
-                    value={form.idShalon}
-                    selectedLabel={form.shalon}
-                    placeholder={
-                      form.idDistrict
-                        ? 'Selecciona un Shalon cercano'
-                        : 'Primero elige un distrito'
-                    }
-                    searchPlaceholder="Escribe para buscar Shalon…"
-                    options={shalonComboboxOptions}
-                    isLoading={isLoadingShalons}
-                    disabled={!form.idDistrict}
-                    emptyMessage="No hay Shalons disponibles en este distrito."
-                    onChange={handleShalonSelect}
-                  />
+            {isShalonPickup && (
+              <div className="sm:col-span-2">
+                <label className="block text-sm text-gray-600">Sede Shalon *</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <SearchableCombobox
+                      value={form.idShalon}
+                      selectedLabel={form.shalon}
+                      placeholder={
+                        form.idDistrict
+                          ? 'Escribe para buscar sede Shalon'
+                          : 'Primero elige un distrito'
+                      }
+                      searchPlaceholder="Busca por nombre o dirección (ej. PRO, Los Olivos)…"
+                      options={shalonComboboxOptions}
+                      isLoading={isLoadingShalons}
+                      disabled={!form.idDistrict}
+                      searchMode="contains"
+                      emptyMessage="No hay Shalons que coincidan en este distrito."
+                      onChange={handleShalonSelect}
+                    />
+                  </div>
+                  {form.shalon && (
+                    <a
+                      href={buildShalonMapsUrl({
+                        name: form.shalonName,
+                        district: form.district,
+                        city: form.city,
+                        region: form.region,
+                        shalonLabel: form.shalon,
+                        geoLat: form.shalonLat,
+                        geoLng: form.shalonLng,
+                      })}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Ver Shalon en Google Maps"
+                      className="mt-1 flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:border-black hover:bg-gray-50 hover:text-black"
+                    >
+                      <Map className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Ver en mapa</span>
+                    </a>
+                  )}
                 </div>
-                {form.shalon && (
-                  <a
-                    href={buildShalonMapsUrl({
-                      name: form.shalonName,
-                      district: form.district,
-                      city: form.city,
-                      region: form.region,
-                      shalonLabel: form.shalon,
-                      geoLat: form.shalonLat,
-                      geoLng: form.shalonLng,
-                    })}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Ver Shalon en Google Maps"
-                    className="mt-1 flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:border-black hover:bg-gray-50 hover:text-black"
-                  >
-                    <Map className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Ver en mapa</span>
-                  </a>
-                )}
               </div>
-            </div>
+            )}
+
+            {isLimaDelivery && form.idDistrict && (
+              <div className="sm:col-span-2">
+                <DeliveryLocationPicker
+                  value={{ lat: form.geoLat, lng: form.geoLng }}
+                  googleMapsLink={form.googleMapsLink}
+                  fullAddress={form.fullAddress}
+                  onChange={handleDeliveryLocationChange}
+                />
+              </div>
+            )}
           </div>
 
           <label className="mt-4 flex items-center gap-2 text-sm text-gray-600">
@@ -722,8 +846,23 @@ export default function AddressesPage() {
                     {addr.region && addr.deliveryScope === 'provincia' && (
                       <p className="mt-0.5 text-xs text-gray-500">{addr.region}</p>
                     )}
-                    <p className="mt-1 text-xs leading-relaxed text-gray-500">{addr.shalon || addr.street}</p>
-                    {addr.shalon && (
+                    <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                      {addr.deliveryType === 'delivery'
+                        ? addr.fullAddress
+                        : addr.shalon || addr.street}
+                    </p>
+                    {addr.deliveryType === 'delivery' && addr.googleMapsLink && (
+                      <a
+                        href={addr.googleMapsLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-black hover:underline"
+                      >
+                        <Map className="h-3 w-3" />
+                        Ver ubicación en mapa
+                      </a>
+                    )}
+                    {addr.shalon && addr.deliveryType !== 'delivery' && (
                       <a
                         href={buildShalonMapsUrl({
                           name: addr.shalonName,

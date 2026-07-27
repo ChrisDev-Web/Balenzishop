@@ -81,19 +81,39 @@ export function mapDirectionToAddress(item) {
     shalonLat: item.shalon_latitude ?? null,
     shalonLng: item.shalon_longitude ?? null,
     shalon: item.shalon || formatShalonLabel(item.shalon_name, item.shalon_address),
+    deliveryType: item.delivery_type || 'shalon',
+    fullAddress: item.full_address || '',
+    googleMapsLink: item.google_maps_link || '',
+    geoLat: item.geo_lat ?? null,
+    geoLng: item.geo_lng ?? null,
+    coverageZone: item.coverage_zone || null,
+    deliveryFee: item.delivery_fee ?? 0,
     isPrimary: Boolean(item.is_primary),
     deliveryScope: item.delivery_scope || null,
   }
 }
 
 export function mapAddressFormToPayload(form) {
-  return {
+  const isDelivery = form.deliveryType === 'delivery'
+
+  const payload = {
     id_province: Number(form.idProvince),
     id_district: Number(form.idDistrict),
-    id_shalon: Number(form.idShalon),
     is_primary: Boolean(form.isPrimary),
     delivery_scope: form.deliveryScope || null,
+    delivery_type: form.deliveryType || 'shalon',
   }
+
+  if (isDelivery) {
+    payload.full_address = form.fullAddress?.trim() || ''
+    payload.google_maps_link = form.googleMapsLink?.trim() || null
+    payload.geo_lat = form.geoLat != null ? Number(form.geoLat) : null
+    payload.geo_lng = form.geoLng != null ? Number(form.geoLng) : null
+  } else {
+    payload.id_shalon = Number(form.idShalon)
+  }
+
+  return payload
 }
 
 export function mapRegionOption(item) {
@@ -132,6 +152,8 @@ export function mapDistrictOption(item) {
 }
 
 export function mapShalonOption(item) {
+  const label = formatShalonLabel(item.name, item.address)
+
   return {
     idShalon: item.id_shalon,
     idDistrict: item.id_district,
@@ -139,6 +161,7 @@ export function mapShalonOption(item) {
     address: item.address,
     latitude: item.latitude ?? null,
     longitude: item.longitude ?? null,
-    label: formatShalonLabel(item.name, item.address),
+    label,
+    searchText: [item.name, item.address, label].filter(Boolean).join(' '),
   }
 }

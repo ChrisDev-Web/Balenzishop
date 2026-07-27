@@ -1,5 +1,11 @@
 import axios from 'axios'
 import { API_BASE_URL } from './config'
+import {
+  handleClientSessionExpired,
+  isAuthExemptRequest,
+  isSessionExpiredError,
+  markSessionExpiredError,
+} from '../utils/sessionExpiry'
 
 export function parseApiFieldErrors(data) {
   if (!data?.errors || typeof data.errors !== 'object') return {}
@@ -26,6 +32,10 @@ function createRequestError(data, fallback) {
   const error = new Error(message)
   error.fieldErrors = parseApiFieldErrors(data)
   return error
+}
+
+function shouldRejectAsSessionExpired(error) {
+  return isSessionExpiredError(error) && !isAuthExemptRequest(error.config?.url)
 }
 
 function serializeParams(params) {
@@ -70,6 +80,11 @@ http.interceptors.response.use(
   (error) => {
     if (axios.isCancel(error)) {
       return Promise.reject(error)
+    }
+
+    if (shouldRejectAsSessionExpired(error)) {
+      handleClientSessionExpired()
+      return Promise.reject(markSessionExpiredError(error))
     }
 
     const data = error.response?.data

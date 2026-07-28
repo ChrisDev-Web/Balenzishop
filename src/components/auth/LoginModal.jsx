@@ -163,6 +163,10 @@ export default function LoginModal({ isOpen, onClose }) {
       clientErrors.email = 'El correo electrónico es obligatorio'
     }
 
+    if (!registerForm.phone.trim()) {
+      clientErrors.phone = 'El teléfono es obligatorio'
+    }
+
     if (registerForm.password.length < 6) {
       clientErrors.password = 'La contraseña debe tener al menos 6 caracteres'
     }
@@ -328,10 +332,11 @@ export default function LoginModal({ isOpen, onClose }) {
                 <FieldError message={registerErrors.lastNameMaternal} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Teléfono</label>
+                <label className="block text-sm font-medium text-gray-700">Teléfono *</label>
                 <input
                   name="phone"
                   type="tel"
+                  required
                   value={registerForm.phone}
                   onChange={handleRegisterChange}
                   className={fieldInputClass(registerErrors.phone)}

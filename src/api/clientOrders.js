@@ -113,6 +113,10 @@ export async function fetchClientOrderDetail(id, token) {
   return apiGet(`client_orders/detail/${id}`, {}, token)
 }
 
+export async function fetchShalomTracking(orderId, token) {
+  return apiGet(`client_orders/shalom_tracking/${orderId}`, {}, token)
+}
+
 export function buildBalancePaymentFormData({ payments, paymentProofs }) {
   const formData = new FormData()
 

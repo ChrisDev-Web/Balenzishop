@@ -110,6 +110,11 @@ export default function CompleteProfilePage() {
       return
     }
 
+    if (!form.phone.trim()) {
+      setError('El teléfono es obligatorio')
+      return
+    }
+
     const docError = validateDocumentById(documentTypes, form.idDocumentType, form.documentId)
     if (docError) {
       setError(docError)
@@ -192,7 +197,7 @@ export default function CompleteProfilePage() {
               className={fieldClass}
             />
           </Field>
-          <Field label="Teléfono">
+          <Field label="Teléfono *">
             <input
               name="phone"
               type="tel"
@@ -200,6 +205,7 @@ export default function CompleteProfilePage() {
               onChange={handleChange}
               autoComplete="tel"
               inputMode="tel"
+              required
               className={fieldClass}
             />
           </Field>

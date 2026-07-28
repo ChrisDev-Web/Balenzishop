@@ -46,7 +46,7 @@ export default function OrderDetailModal({ order, onClose }) {
         </div>
 
         <div className="overflow-y-auto px-5 py-4">
-          <div className="mb-4 flex items-center gap-2">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS_STYLES[order.status] || 'bg-gray-100 text-gray-800'}`}>
               {order.status}
             </span>
@@ -145,6 +145,34 @@ export default function OrderDetailModal({ order, onClose }) {
               </p>
               {order.address.shalon && (
                 <p className="mt-1 text-sm text-gray-500">{order.address.shalon}</p>
+              )}
+                {order.shalom?.guideNumber && (
+                  <p className="mt-2 text-sm text-gray-700">
+                    Guía Shalom: <span className="font-semibold">{order.shalom.guideNumber}</span>
+                    {order.shalom.guideCode ? (
+                      <>
+                        {' · '}
+                        Código: <span className="font-semibold">{order.shalom.guideCode}</span>
+                      </>
+                    ) : null}
+                  </p>
+                )}
+              {order.shalom?.receiptUrl && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold text-gray-900">Boleta Shalom</p>
+                  <a
+                    href={order.shalom.receiptUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-block"
+                  >
+                    <img
+                      src={order.shalom.receiptUrl}
+                      alt="Boleta Shalom"
+                      className="max-h-48 rounded-lg border border-gray-200 object-contain"
+                    />
+                  </a>
+                </div>
               )}
             </div>
           )}

@@ -498,3 +498,23 @@ html {
     min-height: 32rem;
   }
 }
+
+.image-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+.image-zoom-slider::-moz-range-thumb {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+}

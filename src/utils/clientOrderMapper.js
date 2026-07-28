@@ -69,6 +69,17 @@ export function mapApiClientOrder(order) {
       : null,
     source: 'api',
     canSubmitBalancePayment: Boolean(order.can_submit_balance_payment),
+    shalom: order.shalom
+      ? {
+          guideNumber: order.shalom.guide_number,
+          guideCode: order.shalom.guide_code,
+          receiptUrl: order.shalom.receipt_url,
+          receiptName: order.shalom.receipt_name,
+          hasGuide: Boolean(order.shalom.has_guide),
+          canViewTracking: Boolean(order.shalom.can_view_tracking),
+        }
+      : null,
+    isShalonDelivery: Boolean(order.is_shalon_delivery),
   }
 }
 

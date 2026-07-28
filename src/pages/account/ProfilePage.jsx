@@ -88,6 +88,11 @@ export default function ProfilePage() {
       return
     }
 
+    if (!form.phone.trim()) {
+      setMessage('El teléfono es obligatorio')
+      return
+    }
+
     const docError = validateDocumentById(documentTypes, form.idDocumentType, form.documentId)
     if (docError) {
       setMessage(docError)
@@ -223,11 +228,14 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Teléfono</label>
+                  <label className="block text-sm font-medium text-gray-700">Teléfono *</label>
                   <input
                     name="phone"
                     value={form.phone}
                     onChange={handleChange}
+                    required
+                    type="tel"
+                    inputMode="tel"
                     className={inputClass}
                   />
                 </div>

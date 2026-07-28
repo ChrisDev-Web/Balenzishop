@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Search, ShoppingBag, Eye, Wallet } from 'lucide-react'
+import { Search, ShoppingBag, Eye, Wallet, Truck } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
-import { fetchMyClientOrders } from '../../api/clientOrders'
+import { fetchMyClientOrders, fetchClientOrderDetail, fetchShalomTracking } from '../../api/clientOrders'
 import { fetchActivePaymentMethods } from '../../api/paymentMethods'
 import { mapApiClientOrders, mapApiClientOrder } from '../../utils/clientOrderMapper'
 import { buildBalancePaymentWhatsAppMessage, formatOrderDate, openWhatsAppOrder } from '../../utils/orderMessage'
 import BalancePaymentModal from '../../components/account/BalancePaymentModal'
 import OrderDetailModal from '../../components/account/OrderDetailModal'
+import ShalomTrackingModal from '../../components/account/ShalomTrackingModal'
 import Pagination from '../../components/catalog/Pagination'
 import { paginate } from '../../utils/filterPerfumes'
 
@@ -43,6 +44,11 @@ export default function OrdersPage() {
   const [period, setPeriod] = useState('3m')
   const [page, setPage] = useState(1)
   const [selectedOrder, setSelectedOrder] = useState(null)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [trackingOrder, setTrackingOrder] = useState(null)
+  const [trackingLoading, setTrackingLoading] = useState(false)
+  const [trackingError, setTrackingError] = useState('')
+  const [trackingTimeline, setTrackingTimeline] = useState([])
   const [balanceOrder, setBalanceOrder] = useState(null)
   const [paymentMethods, setPaymentMethods] = useState([])
   const [orders, setOrders] = useState([])
@@ -133,6 +139,58 @@ export default function OrdersPage() {
     setBalanceOrder(null)
   }
 
+  async function handleViewOrder(order) {
+    setSelectedOrder(order)
+    setIsDetailLoading(true)
+
+    try {
+      const response = await fetchClientOrderDetail(order.idClientOrder, accessToken)
+      if (response?.success) {
+        setSelectedOrder(mapApiClientOrder(response.data))
+      }
+    } catch {
+      // Keep list snapshot if detail fails.
+    } finally {
+      setIsDetailLoading(false)
+    }
+  }
+
+  async function handleViewTracking(order) {
+    setTrackingOrder(order)
+    setTrackingLoading(true)
+    setTrackingError('')
+    setTrackingTimeline([])
+
+    try {
+      const [trackingResponse, detailResponse] = await Promise.all([
+        fetchShalomTracking(order.idClientOrder, accessToken),
+        fetchClientOrderDetail(order.idClientOrder, accessToken),
+      ])
+
+      if (detailResponse?.success) {
+        setTrackingOrder(mapApiClientOrder(detailResponse.data))
+      }
+
+      if (trackingResponse?.success) {
+        setTrackingTimeline(trackingResponse.data?.timeline ?? [])
+        return
+      }
+
+      setTrackingError(trackingResponse?.message ?? 'No se pudo consultar el estado del envío.')
+    } catch (error) {
+      setTrackingError(error?.message ?? 'No se pudo consultar el estado del envío.')
+    } finally {
+      setTrackingLoading(false)
+    }
+  }
+
+  function handleCloseTracking() {
+    setTrackingOrder(null)
+    setTrackingError('')
+    setTrackingTimeline([])
+    setTrackingLoading(false)
+  }
+
   return (
     <div className="flex flex-1 flex-col">
       <h1 className="text-2xl font-bold text-gray-900">Mis pedidos</h1>
@@ -220,6 +278,7 @@ export default function OrdersPage() {
               {paginatedOrders.map((order) => {
                 const itemCount = order.items?.reduce((sum, i) => sum + i.quantity, 0) || 0
                 const canPayBalance = order.canSubmitBalancePayment
+                const canViewTracking = Boolean(order.shalom?.canViewTracking)
 
                 return (
                   <li
@@ -255,10 +314,22 @@ export default function OrdersPage() {
                           Pago restante
                         </button>
                       )}
+                      {canViewTracking && (
+                        <button
+                          type="button"
+                          onClick={() => handleViewTracking(order)}
+                          disabled={trackingLoading && trackingOrder?.idClientOrder === order.idClientOrder}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-full border border-black px-3.5 py-2.5 text-xs font-semibold text-black hover:bg-gray-50 sm:w-auto sm:py-1.5 disabled:opacity-60"
+                        >
+                          <Truck className="h-3.5 w-3.5" />
+                          Ver estado
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => setSelectedOrder(order)}
-                        className="flex w-full items-center justify-center gap-1.5 rounded-full border border-black px-3.5 py-2.5 text-xs font-semibold text-black hover:bg-gray-50 sm:w-auto sm:py-1.5"
+                        onClick={() => handleViewOrder(order)}
+                        disabled={isDetailLoading && selectedOrder?.idClientOrder === order.idClientOrder}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-full border border-black px-3.5 py-2.5 text-xs font-semibold text-black hover:bg-gray-50 sm:w-auto sm:py-1.5 disabled:opacity-60"
                       >
                         <Eye className="h-3.5 w-3.5" />
                         Ver pedido
@@ -300,6 +371,19 @@ export default function OrdersPage() {
         <OrderDetailModal
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
+        />
+      )}
+
+      {trackingOrder && (
+        <ShalomTrackingModal
+          orderNumber={trackingOrder.id}
+          guideNumber={trackingOrder.shalom?.guideNumber}
+          guideCode={trackingOrder.shalom?.guideCode}
+          receiptUrl={trackingOrder.shalom?.receiptUrl}
+          timeline={trackingTimeline}
+          isLoading={trackingLoading}
+          error={trackingError}
+          onClose={handleCloseTracking}
         />
       )}
     </div>

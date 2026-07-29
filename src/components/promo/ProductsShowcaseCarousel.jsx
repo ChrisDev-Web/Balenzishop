@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { productLink } from '../../utils/productUtils'
+import { useCachedImageReady } from '../../hooks/useCachedImageReady'
 import Skeleton from '../ui/skeleton/Skeleton'
 import { ShowcaseProductCardSkeleton } from '../ui/skeleton/ProductCardSkeleton'
 
@@ -22,27 +23,17 @@ function useItemsPerView() {
 }
 
 function ShowcaseProductImage({ src, alt }) {
-  const [loaded, setLoaded] = useState(false)
-
-  const markLoaded = useCallback(() => {
-    setLoaded(true)
-  }, [])
-
-  const handleRef = useCallback(
-    (node) => {
-      if (node?.complete && node.naturalWidth > 0) {
-        markLoaded()
-      }
-    },
-    [markLoaded],
-  )
+  const { ready: loaded, cachedHint, markReady: markLoaded, markError, handleRef } =
+    useCachedImageReady(src)
+  const showSkeleton = !loaded && !cachedHint
 
   return (
     <div className="relative flex h-full w-full items-center justify-center">
-      {!loaded && (
+      {!loaded && showSkeleton && (
         <Skeleton className="absolute inset-0 m-auto aspect-square max-h-full max-w-full rounded-none" />
       )}
       <img
+        key={src}
         ref={handleRef}
         src={src}
         alt={alt}
@@ -52,7 +43,7 @@ function ShowcaseProductImage({ src, alt }) {
         loading="lazy"
         decoding="async"
         onLoad={markLoaded}
-        onError={markLoaded}
+        onError={markError}
       />
     </div>
   )

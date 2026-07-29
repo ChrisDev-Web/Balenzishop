@@ -1,32 +1,26 @@
-import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Skeleton from '../ui/skeleton/Skeleton'
+import { useCachedImageReady } from '../../hooks/useCachedImageReady'
 
 const FRAME_CLASS =
   'relative w-full overflow-hidden max-md:aspect-[4/5] max-md:max-h-[88vh] md:aspect-auto md:min-h-[70vh]'
 
 export default function HomeHero({ backgroundImage, priority = true }) {
-  const [imageReady, setImageReady] = useState(false)
-
-  const markImageReady = useCallback(() => {
-    setImageReady(true)
-  }, [])
-
-  const handleImageRef = useCallback(
-    (node) => {
-      if (node?.complete && node.naturalWidth > 0) {
-        markImageReady()
-      }
-    },
-    [markImageReady],
-  )
+  const {
+    ready: imageReady,
+    cachedHint,
+    markReady: markImageReady,
+    markError: markImageError,
+    handleRef: handleImageRef,
+  } = useCachedImageReady(backgroundImage)
 
   const showContent = Boolean(backgroundImage) && imageReady
+  const showSkeleton = Boolean(backgroundImage) && !imageReady && !cachedHint
 
   return (
     <section className="relative w-full max-md:bg-stone-100 md:bg-stone-200">
       <div className={FRAME_CLASS}>
-        {(!backgroundImage || !imageReady) && (
+        {showSkeleton && (
           <Skeleton className="absolute inset-0 z-[1] rounded-none max-md:min-h-[88vh] md:min-h-[70vh]" />
         )}
 
@@ -39,11 +33,11 @@ export default function HomeHero({ backgroundImage, priority = true }) {
             className={`home-hero-img pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ease-out md:relative md:block md:max-h-[85vh] md:w-full md:object-[58%_center] ${
               imageReady ? `opacity-100 ${priority ? 'hero-banner-image-enter' : ''}` : 'opacity-0'
             }`}
-            loading={priority ? 'eager' : 'lazy'}
+            loading={priority || cachedHint ? 'eager' : 'lazy'}
             decoding="async"
-            fetchPriority={priority ? 'high' : 'auto'}
+            fetchPriority={priority || cachedHint ? 'high' : 'auto'}
             onLoad={markImageReady}
-            onError={markImageReady}
+            onError={markImageError}
           />
         )}
 

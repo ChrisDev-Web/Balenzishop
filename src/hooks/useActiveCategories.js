@@ -1,40 +1,47 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { fetchActiveCategories } from '../api/categories'
+import { STORE_NS } from '../core/cache/moduleCacheNamespaces'
+import { runPersistedValueFetch, usePersistedValueQuery } from '../core/cache/usePersistedValueQuery'
+
+const CACHE_KEY = 'default'
 
 export function useActiveCategories() {
-  const [categories, setCategories] = useState([])
-  const [ready, setReady] = useState(false)
-  const [error, setError] = useState(null)
-  const mounted = useRef(true)
+  const [refreshCounter, setRefreshCounter] = useState(0)
+  const stableCacheKey = CACHE_KEY
+  const queryKey = `${stableCacheKey}|${refreshCounter}`
+
+  const {
+    value: categories,
+    error,
+    ready,
+    commitValueResult,
+  } = usePersistedValueQuery({
+    namespace: STORE_NS.categories,
+    stableCacheKey,
+    queryKey,
+    defaultValue: [],
+    isEmpty: (items) => !Array.isArray(items) || items.length === 0,
+  })
 
   useEffect(() => {
-    mounted.current = true
+    let ignore = false
+
+    runPersistedValueFetch({
+      fetcher: fetchActiveCategories,
+      queryKey,
+      commitValueResult: (result) => {
+        if (!ignore) commitValueResult(result)
+      },
+      fallbackError: 'No se pudieron cargar las categorías',
+      defaultValue: [],
+    })
+
     return () => {
-      mounted.current = false
+      ignore = true
     }
-  }, [])
+  }, [commitValueResult, queryKey])
 
-  const loadCategories = useCallback(async ({ silent = false } = {}) => {
-    try {
-      const items = await fetchActiveCategories()
-      if (mounted.current) {
-        setCategories(items)
-        setError(null)
-      }
-    } catch (err) {
-      if (mounted.current && !silent) {
-        setError(err.message || 'No se pudieron cargar las categorías')
-      }
-    } finally {
-      if (mounted.current) setReady(true)
-    }
-  }, [])
-
-  useEffect(() => {
-    loadCategories()
-  }, [loadCategories])
-
-  const refetch = useCallback(() => loadCategories({ silent: true }), [loadCategories])
+  const refetch = useCallback(() => setRefreshCounter((count) => count + 1), [])
 
   return { categories, ready, error, refetch }
 }

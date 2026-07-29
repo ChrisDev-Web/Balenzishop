@@ -17,7 +17,7 @@ export default function ProductDetailPage() {
   const addItem = useCartStore((s) => s.addItem)
   const cartItem = useCartStore((s) => s.items.find((item) => item.id === id))
   const { isMayorista, minQuantity, role } = useUserPricing()
-  const { product, error, ready, isFetching } = useProductDetail(id)
+  const { product, error, ready } = useProductDetail(id)
 
   if (!ready && !product) {
     return <ProductDetailSkeleton />
@@ -43,11 +43,7 @@ export default function ProductDetailPage() {
   const canAddToCart = maxQuantity > 0 && (!cartItem || cartItem.quantity < maxQuantity)
 
   return (
-    <div
-      className={`mx-auto max-w-7xl px-4 py-6 transition-opacity duration-200 lg:px-6 lg:py-8 ${
-        isFetching ? 'opacity-60' : 'opacity-100'
-      }`}
-    >
+    <div className="mx-auto max-w-7xl px-4 py-6 lg:px-6 lg:py-8">
       <nav className="mb-6 flex flex-wrap items-center gap-1 text-xs text-gray-500 sm:text-sm">
         <Link to="/" className="flex items-center hover:text-black">
           <Home className="h-4 w-4" />

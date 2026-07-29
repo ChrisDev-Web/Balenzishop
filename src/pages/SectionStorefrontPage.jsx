@@ -17,15 +17,19 @@ export default function SectionStorefrontPage({
   catalogHref: catalogHrefOverride,
   filterProducts,
 }) {
-  const { heroBanners, seriesItems, ready: bannersReady, error: bannersError } =
-    useShopPageSection(section)
+  const {
+    heroBanners,
+    seriesItems,
+    isInitialLoading: bannersInitialLoading,
+    error: bannersError,
+  } = useShopPageSection(section)
 
   const usesApiProducts = SECTIONS_WITH_API_PRODUCTS.has(section)
 
   const {
     products: apiProducts,
     catalogHref: apiCatalogHref,
-    ready: productsReady,
+    isInitialLoading: productsInitialLoading,
     error: productsError,
   } = useSectionShowcaseProducts(section)
 
@@ -42,11 +46,11 @@ export default function SectionStorefrontPage({
 
   const products = usesApiProducts ? apiProducts : mockProducts
   const catalogHref = usesApiProducts ? apiCatalogHref : catalogHrefOverride ?? '/catalogo'
-  const showcaseLoading = usesApiProducts && !productsReady
+  const showcaseLoading = usesApiProducts && productsInitialLoading
 
   return (
     <div className="-mt-[var(--navbar-height)]">
-      {!bannersReady ? (
+      {bannersInitialLoading ? (
         <>
           {Array.from({ length: INITIAL_HERO_SKELETONS }, (_, index) => (
             <BannerSkeleton key={`hero-skeleton-${index}`} compactImage />
@@ -87,7 +91,7 @@ export default function SectionStorefrontPage({
         loading={showcaseLoading}
       />
 
-      {!bannersReady ? <SeriesGridSkeleton /> : <CategorySeriesGrid items={seriesItems} />}
+      {!bannersInitialLoading ? <CategorySeriesGrid items={seriesItems} /> : <SeriesGridSkeleton />}
     </div>
   )
 }

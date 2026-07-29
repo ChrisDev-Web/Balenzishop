@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     server: {
-      host: true,
+      host: 'localhost',
       proxy: {
         '/api/v1': {
           target: apiTarget,

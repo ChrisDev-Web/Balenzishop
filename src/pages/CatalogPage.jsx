@@ -65,7 +65,7 @@ export default function CatalogPage() {
     return () => window.clearTimeout(timer)
   }, [searchDraft, urlSearch, searchKey, searchParams, setSearchParams])
 
-  const { items, meta, error, ready, isFetching } = useCatalogProducts(
+  const { items, meta, error, ready } = useCatalogProducts(
     filters,
     page,
     PAGE_SIZE,
@@ -121,11 +121,7 @@ export default function CatalogPage() {
             </div>
           ) : (
             <>
-              <div
-                className={`grid gap-3 sm:gap-4 grid-cols-2 md:grid-cols-3 xl:grid-cols-4 transition-opacity duration-200 ${
-                  isFetching ? 'opacity-60' : 'opacity-100'
-                }`}
-              >
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
                 {items.map((product) => (
                   <ProductCard key={product.id} perfume={product} />
                 ))}

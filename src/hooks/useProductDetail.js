@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { fetchCatalogProductDetail } from '../api/products'
+import { STORE_NS } from '../core/cache/moduleCacheNamespaces'
+import { runPersistedValueFetch, usePersistedValueQuery } from '../core/cache/usePersistedValueQuery'
 import { useAuthStore } from '../stores/authStore'
 import { isMayorista } from '../utils/pricing'
 
@@ -8,77 +10,68 @@ export function useProductDetail(productId) {
   const role = useAuthStore((state) => state.user?.role)
   const wholesale = isMayorista(role)
 
-  const [state, setState] = useState({
-    product: null,
-    error: '',
-    ready: false,
-  })
-  const [isFetching, setIsFetching] = useState(false)
   const [refreshCounter, setRefreshCounter] = useState(0)
-  const fetchIdRef = useRef(0)
+  const stableCacheKey = `${productId}|${wholesale}`
+  const queryKey = `${stableCacheKey}|${refreshCounter}|${accessToken ?? ''}`
+  const enabled = Boolean(productId) && !(wholesale && !accessToken)
 
-  const requestKey = useMemo(
-    () => `${productId}|${wholesale}|${accessToken ?? ''}|${refreshCounter}`,
-    [productId, wholesale, accessToken, refreshCounter],
-  )
+  const {
+    value: product,
+    error,
+    ready: cachedReady,
+    isFetching,
+    commitValueResult,
+    setData,
+  } = usePersistedValueQuery({
+    namespace: STORE_NS.productDetail,
+    stableCacheKey,
+    queryKey,
+    defaultValue: null,
+    isEmpty: (value) => value == null,
+  })
 
   useEffect(() => {
     if (!productId) return undefined
 
     if (wholesale && !accessToken) {
-      setState({
-        product: null,
+      setData({
+        key: queryKey,
+        value: null,
         error: 'Inicia sesión como mayorista para ver este producto.',
-        ready: true,
       })
-      setIsFetching(false)
       return undefined
     }
 
-    const fetchId = ++fetchIdRef.current
+    let ignore = false
 
-    setIsFetching(true)
-    setState((prev) => ({
-      ...prev,
-      error: '',
-    }))
-
-    fetchCatalogProductDetail(productId, {
-      token: wholesale ? accessToken : null,
-      wholesale,
+    runPersistedValueFetch({
+      fetcher: () =>
+        fetchCatalogProductDetail(productId, {
+          token: wholesale ? accessToken : null,
+          wholesale,
+        }),
+      queryKey,
+      commitValueResult: (result) => {
+        if (!ignore) commitValueResult(result)
+      },
+      fallbackError: 'No se pudo cargar el producto',
+      defaultValue: null,
     })
-      .then((product) => {
-        if (fetchId !== fetchIdRef.current) return
 
-        setState({
-          product,
-          error: '',
-          ready: true,
-        })
-      })
-      .catch((error) => {
-        if (fetchId !== fetchIdRef.current) return
+    return () => {
+      ignore = true
+    }
+  }, [accessToken, commitValueResult, productId, queryKey, setData, wholesale])
 
-        setState((prev) => ({
-          product: prev.ready ? prev.product : null,
-          error: error.message || 'No se pudo cargar el producto',
-          ready: true,
-        }))
-      })
-      .finally(() => {
-        if (fetchId === fetchIdRef.current) {
-          setIsFetching(false)
-        }
-      })
-
-    return undefined
-  }, [requestKey])
+  const ready = wholesale && !accessToken ? true : cachedReady
 
   return {
-    product: state.product,
-    error: state.error,
-    ready: state.ready,
-    isFetching,
+    product: wholesale && !accessToken ? null : product,
+    error: wholesale && !accessToken
+      ? 'Inicia sesión como mayorista para ver este producto.'
+      : error,
+    ready,
+    isFetching: enabled && isFetching,
     refresh: () => setRefreshCounter((count) => count + 1),
   }
 }

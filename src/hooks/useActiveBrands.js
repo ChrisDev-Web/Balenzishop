@@ -1,40 +1,47 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { fetchActiveBrands } from '../api/brands'
+import { STORE_NS } from '../core/cache/moduleCacheNamespaces'
+import { runPersistedValueFetch, usePersistedValueQuery } from '../core/cache/usePersistedValueQuery'
+
+const CACHE_KEY = 'default'
 
 export function useActiveBrands() {
-  const [brands, setBrands] = useState([])
-  const [ready, setReady] = useState(false)
-  const [error, setError] = useState(null)
-  const mounted = useRef(true)
+  const [refreshCounter, setRefreshCounter] = useState(0)
+  const stableCacheKey = CACHE_KEY
+  const queryKey = `${stableCacheKey}|${refreshCounter}`
+
+  const {
+    value: brands,
+    error,
+    ready,
+    commitValueResult,
+  } = usePersistedValueQuery({
+    namespace: STORE_NS.brands,
+    stableCacheKey,
+    queryKey,
+    defaultValue: [],
+    isEmpty: (items) => !Array.isArray(items) || items.length === 0,
+  })
 
   useEffect(() => {
-    mounted.current = true
+    let ignore = false
+
+    runPersistedValueFetch({
+      fetcher: fetchActiveBrands,
+      queryKey,
+      commitValueResult: (result) => {
+        if (!ignore) commitValueResult(result)
+      },
+      fallbackError: 'No se pudieron cargar las marcas',
+      defaultValue: [],
+    })
+
     return () => {
-      mounted.current = false
+      ignore = true
     }
-  }, [])
+  }, [commitValueResult, queryKey])
 
-  const loadBrands = useCallback(async ({ silent = false } = {}) => {
-    try {
-      const items = await fetchActiveBrands()
-      if (mounted.current) {
-        setBrands(items)
-        setError(null)
-      }
-    } catch (err) {
-      if (mounted.current && !silent) {
-        setError(err.message || 'No se pudieron cargar las marcas')
-      }
-    } finally {
-      if (mounted.current) setReady(true)
-    }
-  }, [])
-
-  useEffect(() => {
-    loadBrands()
-  }, [loadBrands])
-
-  const refetch = useCallback(() => loadBrands({ silent: true }), [loadBrands])
+  const refetch = useCallback(() => setRefreshCounter((count) => count + 1), [])
 
   return { brands, ready, error, refetch }
 }

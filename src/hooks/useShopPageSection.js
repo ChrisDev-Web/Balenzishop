@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchActiveShopPageItems } from '../api/shopPageItems'
+import { STORE_NS } from '../core/cache/moduleCacheNamespaces'
+import { runPersistedValueFetch, usePersistedValueQuery } from '../core/cache/usePersistedValueQuery'
 import { preloadHeroImage } from '../utils/mediaUrl'
 import {
   mapShopPageHeroBanners,
@@ -7,51 +9,53 @@ import {
 } from '../utils/shopPageItemMapper'
 
 export function useShopPageSection(section, catalogHref = '/catalogo') {
-  const [items, setItems] = useState([])
-  const [ready, setReady] = useState(false)
-  const [error, setError] = useState(null)
-  const mounted = useRef(true)
+  const [refreshCounter, setRefreshCounter] = useState(0)
+  const stableCacheKey = section
+  const queryKey = `${stableCacheKey}|${refreshCounter}`
+
+  const {
+    value: items,
+    error,
+    ready,
+    isInitialLoading,
+    commitValueResult,
+  } = usePersistedValueQuery({
+    namespace: STORE_NS.shopPageItems,
+    stableCacheKey,
+    queryKey,
+    defaultValue: [],
+    isEmpty: (value) => !Array.isArray(value) || value.length === 0,
+  })
 
   useEffect(() => {
-    mounted.current = true
+    let ignore = false
+
+    runPersistedValueFetch({
+      fetcher: () => fetchActiveShopPageItems(section),
+      queryKey,
+      commitValueResult: (result) => {
+        if (!ignore) commitValueResult(result)
+      },
+      fallbackError: 'No se pudieron cargar los banners',
+      defaultValue: [],
+    })
+
     return () => {
-      mounted.current = false
+      ignore = true
     }
-  }, [])
-
-  const loadItems = useCallback(async () => {
-    try {
-      const data = await fetchActiveShopPageItems(section)
-      if (mounted.current) {
-        setItems(data)
-        setError(null)
-
-        const firstHero = data.find(
-          (item) =>
-            item.placement === 'hero_top' &&
-            item.image &&
-            (item.section === 'inicio' || item.section === section),
-        )
-        if (firstHero?.image) {
-          preloadHeroImage(firstHero.image)
-        }
-      }
-    } catch (err) {
-      if (mounted.current) {
-        setItems([])
-        setError(err.message || 'No se pudieron cargar los banners')
-      }
-    } finally {
-      if (mounted.current) {
-        setReady(true)
-      }
-    }
-  }, [section])
+  }, [commitValueResult, queryKey, section])
 
   useEffect(() => {
-    setReady(false)
-    loadItems()
-  }, [loadItems])
+    const firstHero = items.find(
+      (item) =>
+        item.placement === 'hero_top' &&
+        item.image &&
+        (item.section === 'inicio' || item.section === section),
+    )
+    if (firstHero?.image) {
+      preloadHeroImage(firstHero.image)
+    }
+  }, [items, section])
 
   const heroBanners = useMemo(
     () => mapShopPageHeroBanners(items, catalogHref),
@@ -62,12 +66,15 @@ export function useShopPageSection(section, catalogHref = '/catalogo') {
     [catalogHref, items],
   )
 
+  const refetch = useCallback(() => setRefreshCounter((count) => count + 1), [])
+
   return {
     items,
     heroBanners,
     seriesItems,
     ready,
+    isInitialLoading,
     error,
-    refetch: loadItems,
+    refetch,
   }
 }

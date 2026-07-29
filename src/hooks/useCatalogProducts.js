@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchCatalogProducts } from '../api/products'
+import { runPersistedListFetch, usePersistedListQuery } from '../core/cache/usePersistedListQuery'
+import { STORE_NS } from '../core/cache/moduleCacheNamespaces'
 import { useAuthStore } from '../stores/authStore'
 import { isMayorista } from '../utils/pricing'
 
@@ -12,79 +14,68 @@ export function useCatalogProducts(filters, page, pageSize, filtersKey = null) {
   const filtersRef = useRef(filters)
   filtersRef.current = filters
 
-  const [state, setState] = useState({
-    items: [],
-    meta: null,
-    error: '',
-    ready: false,
-  })
-  const [isFetching, setIsFetching] = useState(false)
   const [refreshCounter, setRefreshCounter] = useState(0)
-  const fetchIdRef = useRef(0)
+  const stableCacheKey = `${wholesale}|${resolvedFiltersKey}|${page}|${pageSize}`
+  const queryKey = `${stableCacheKey}|${refreshCounter}`
+  const enabled = !(wholesale && !accessToken)
 
-  const requestKey = useMemo(
-    () => `${wholesale}|${resolvedFiltersKey}|${page}|${pageSize}|${refreshCounter}`,
-    [wholesale, resolvedFiltersKey, page, pageSize, refreshCounter],
-  )
+  const {
+    items,
+    meta,
+    error,
+    ready: cachedReady,
+    isFetching,
+    commitListResult,
+    setData,
+  } = usePersistedListQuery({
+    namespace: STORE_NS.catalogProducts,
+    stableCacheKey,
+    queryKey,
+    enabled,
+  })
 
   useEffect(() => {
-    if (wholesale && !accessToken) {
-      setState({
+    if (!enabled) {
+      setData({
+        key: queryKey,
         items: [],
         meta: null,
         error: 'Inicia sesión como mayorista para ver el catálogo.',
-        ready: true,
       })
-      setIsFetching(false)
       return undefined
     }
 
-    const fetchId = ++fetchIdRef.current
+    let ignore = false
 
-    setIsFetching(true)
-
-    fetchCatalogProducts({
-      filters: filtersRef.current,
-      page,
-      pageSize,
-      token: wholesale ? accessToken : null,
-      wholesale,
+    runPersistedListFetch({
+      fetcher: () =>
+        fetchCatalogProducts({
+          filters: filtersRef.current,
+          page,
+          pageSize,
+          token: wholesale ? accessToken : null,
+          wholesale,
+        }),
+      queryKey,
+      commitListResult: (result) => {
+        if (!ignore) commitListResult(result)
+      },
+      fallbackError: 'No se pudieron cargar los productos',
     })
-      .then((response) => {
-        if (fetchId !== fetchIdRef.current) return
 
-        setState({
-          items: response.items,
-          meta: response.meta,
-          error: '',
-          ready: true,
-        })
-      })
-      .catch((error) => {
-        if (fetchId !== fetchIdRef.current) return
+    return () => {
+      ignore = true
+    }
+  }, [accessToken, commitListResult, enabled, page, pageSize, queryKey, setData, wholesale])
 
-        setState((prev) => ({
-          items: prev.ready ? prev.items : [],
-          meta: prev.ready ? prev.meta : null,
-          error: error.message || 'No se pudieron cargar los productos',
-          ready: true,
-        }))
-      })
-      .finally(() => {
-        if (fetchId === fetchIdRef.current) {
-          setIsFetching(false)
-        }
-      })
-
-    return undefined
-  }, [requestKey])
+  const ready = enabled ? cachedReady : true
 
   return {
-    items: state.items,
-    meta: state.meta,
-    error: state.error,
-    ready: state.ready,
-    isFetching,
+    items: enabled ? items : [],
+    meta: enabled ? meta : null,
+    error: enabled ? error : 'Inicia sesión como mayorista para ver el catálogo.',
+    ready,
+    isFetching: enabled && isFetching,
     refresh: () => setRefreshCounter((count) => count + 1),
   }
 }

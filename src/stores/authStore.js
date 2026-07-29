@@ -14,6 +14,7 @@ import {
   updateClientDirection,
 } from '../api/clientDirections'
 import { clearUserSessionsCache } from '../utils/clearUserSessions'
+import { clearAllModuleCache } from '../core/cache/moduleCache'
 import {
   mapClientToUser,
   mapRegisterFormToPayload,
@@ -344,6 +345,7 @@ export const useAuthStore = create(
 
         resetBootstrapSession()
         clearCheckoutDraftSession()
+        clearAllModuleCache()
 
         set({
           user: null,
@@ -355,6 +357,7 @@ export const useAuthStore = create(
 
       clearAllSessions: () => {
         clearUserSessionsCache()
+        clearAllModuleCache()
         resetBootstrapSession()
         set({
           user: null,

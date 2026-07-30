@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/generate-store-bootstrap.mjs",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "bootstrap": "node scripts/generate-store-bootstrap.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
@@ -18,8 +20,9 @@
     "@tailwindcss/vite": "^4.3.1",
     "@tanstack/react-table": "^8.21.3",
     "axios": "^1.18.1",
-    "leaflet": "^1.9.4",
+    "idb-keyval": "^6.3.0",
     "install": "^0.13.0",
+    "leaflet": "^1.9.4",
     "lucide-react": "^1.21.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

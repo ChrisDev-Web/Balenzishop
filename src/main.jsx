@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import { initPersistentCache } from './core/cache/moduleCache'
 import { clearUserSessionsCache } from './utils/clearUserSessions'
 import { preconnectMediaOrigin } from './utils/mediaUrl'
 
@@ -15,10 +16,16 @@ if (localStorage.getItem(SESSIONS_RESET_KEY) !== SESSIONS_RESET_VERSION) {
   localStorage.setItem(SESSIONS_RESET_KEY, SESSIONS_RESET_VERSION)
 }
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <div className="flex min-h-dvh flex-1 flex-col">
-      <App />
-    </div>
-  </StrictMode>,
-)
+async function bootstrapApp() {
+  await initPersistentCache()
+
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <div className="flex min-h-dvh flex-1 flex-col">
+        <App />
+      </div>
+    </StrictMode>,
+  )
+}
+
+bootstrapApp()

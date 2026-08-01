@@ -1,3 +1,8 @@
+import {
+  DELIVERY_TYPES,
+  isHomeDeliveryType,
+} from './deliveryTypes'
+
 export function parseShalonLabelParts(label) {
   if (!label?.trim()) return { name: '', address: '' }
 
@@ -90,18 +95,37 @@ export function mapDirectionToAddress(item) {
     deliveryFee: item.delivery_fee ?? 0,
     isPrimary: Boolean(item.is_primary),
     deliveryScope: item.delivery_scope || null,
+    createdAt: item.created_at || null,
   }
 }
 
+/** Principal primero; el resto por antigüedad (la más nueva al final). */
+export function sortAddresses(addresses) {
+  if (!Array.isArray(addresses) || addresses.length <= 1) {
+    return addresses ?? []
+  }
+
+  return [...addresses].sort((a, b) => {
+    if (a.isPrimary !== b.isPrimary) {
+      return a.isPrimary ? -1 : 1
+    }
+
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : Number(a.idClientDirection ?? a.id)
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : Number(b.idClientDirection ?? b.id)
+
+    return timeA - timeB
+  })
+}
+
 export function mapAddressFormToPayload(form) {
-  const isDelivery = form.deliveryType === 'delivery'
+  const isDelivery = isHomeDeliveryType(form.deliveryType)
 
   const payload = {
     id_province: Number(form.idProvince),
     id_district: Number(form.idDistrict),
     is_primary: Boolean(form.isPrimary),
     delivery_scope: form.deliveryScope || null,
-    delivery_type: form.deliveryType || 'shalon',
+    delivery_type: form.deliveryType || DELIVERY_TYPES.SHALON,
   }
 
   if (isDelivery) {

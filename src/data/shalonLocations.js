@@ -1,4 +1,4 @@
-export const LIMA_CITY = 'Lima'
+export const LIMA_CITY = 'Lima Metropolitana'
 export const PROVINCE_CITIES = ['Arequipa', 'Trujillo', 'Piura', 'Cusco']
 export const cities = [LIMA_CITY, ...PROVINCE_CITIES]
 

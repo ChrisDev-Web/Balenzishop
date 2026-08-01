@@ -37,13 +37,13 @@ const ICON = {
 const SEP = '━━━━━━━━━━━━━━━━━'
 
 function formatShippingLine({ deliveryFee, deliveryLabel, deliveryMode }) {
-  if (deliveryMode === DELIVERY_MODES.DELIVERY && deliveryFee > 0) {
-    return `${ICON.truck} Envío (${deliveryLabel || 'Delivery'}): S/ ${deliveryFee.toFixed(2)}`
+  const cost = deliveryFee > 0 ? `S/ ${deliveryFee.toFixed(2)}` : 'con cargo'
+
+  if (deliveryMode === DELIVERY_MODES.SHALON_FREE || deliveryMode === DELIVERY_MODES.SHALON_PAID) {
+    return `${ICON.truck} Recojo en Shalon: ${cost}`
   }
-  if (deliveryMode === DELIVERY_MODES.SHALON_PAID) {
-    return `${ICON.truck} Recojo en Shalon (con cargo)`
-  }
-  return `${ICON.truck} Recojo en Shalon: sin cargo`
+
+  return `${ICON.truck} Envío (${deliveryLabel || 'Delivery'}): ${cost}`
 }
 
 export function generateOrderId() {
@@ -102,7 +102,11 @@ export function buildWhatsAppMessage({
     const codeSuffix = discountCode ? ` (${discountCode})` : ''
     lines.push(`${ICON.ticket} Descuento${codeSuffix}: -S/ ${discount.toFixed(2)}`)
   }
-  lines.push(formatShippingLine({ deliveryFee, deliveryLabel, deliveryMode }))
+  lines.push(formatShippingLine({
+    deliveryFee,
+    deliveryLabel,
+    deliveryMode,
+  }))
   lines.push(`${ICON.coins} *Total pedido: S/ ${total.toFixed(2)}*`)
 
   if (paymentMode === 'reserva') {

@@ -1,8 +1,13 @@
+import { getDeliveryProviderLabel, isHomeDeliveryType, isRainauDeliveryType } from './deliveryTypes'
+
 export const DELIVERY_MODES = {
   DELIVERY: 'delivery',
+  CUSTOMER_DELIVERY: 'customer_delivery',
   SHALON_PAID: 'shalon_paid',
   SHALON_FREE: 'shalon_free',
 }
+
+export { isHomeDeliveryType, isRainauDeliveryType }
 
 export function getDeliveryFeeForAddress(address) {
   if (!address) {
@@ -14,10 +19,19 @@ export function getDeliveryFeeForAddress(address) {
   }
 
   if (address.deliveryScope === 'lima') {
-    if (address.deliveryType === 'delivery') {
+    if (address.deliveryType === 'delivery_own') {
+      return {
+        fee: 0,
+        label: getDeliveryProviderLabel(address.deliveryType),
+        zone: null,
+        mode: DELIVERY_MODES.CUSTOMER_DELIVERY,
+      }
+    }
+
+    if (isRainauDeliveryType(address.deliveryType)) {
       return {
         fee: Number(address.deliveryFee || 0),
-        label: 'Delivery (Lima)',
+        label: getDeliveryProviderLabel(address.deliveryType),
         zone: address.coverageZone || null,
         mode: DELIVERY_MODES.DELIVERY,
       }
@@ -35,4 +49,12 @@ export function computeOrderTotal(subtotal, discount, deliveryFee, deliveryMode)
     return productsTotal + deliveryFee
   }
   return productsTotal
+}
+
+export function formatShippingDisplay({ deliveryFee }) {
+  if (deliveryFee > 0) {
+    return `S/ ${deliveryFee.toFixed(2)}`
+  }
+
+  return 'Con cargo'
 }

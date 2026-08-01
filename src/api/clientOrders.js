@@ -67,7 +67,7 @@ export async function reserveCheckoutOrder(payload, token) {
   return apiPostForm('client_orders/reserve_checkout', formData, token)
 }
 
-export function buildSubmitCheckoutFormData({ orderId, paymentMode, payments, paymentProofs }) {
+export function buildSubmitCheckoutFormData({ orderId, paymentMode, payments, paymentProofs, delivery }) {
   const formData = new FormData()
 
   const metadata = {
@@ -76,6 +76,10 @@ export function buildSubmitCheckoutFormData({ orderId, paymentMode, payments, pa
       id_payment_method: Number(payment.id_payment_method),
       amount: Number(payment.amount),
     })),
+  }
+
+  if (delivery) {
+    metadata.delivery = delivery
   }
 
   formData.append('metadata', JSON.stringify(metadata))

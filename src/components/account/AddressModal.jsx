@@ -15,7 +15,8 @@ import {
   mapRegionOption,
   mapShalonOption,
 } from '../../utils/addressMapper'
-import { buildFormFromAddress, resolveLimaProvinceIds } from '../../utils/addressFormHelpers'
+import { buildFormFromAddress } from '../../utils/addressFormHelpers'
+import { DELIVERY_TYPES, getDeliveryProviderLabel, isHomeDeliveryType } from '../../utils/deliveryTypes'
 import SearchableCombobox from '../ui/SearchableCombobox'
 import DeliveryLocationPicker from './DeliveryLocationPicker'
 
@@ -36,13 +37,11 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
   const [isLoadingProvinces, setIsLoadingProvinces] = useState(false)
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false)
   const [isLoadingShalons, setIsLoadingShalons] = useState(false)
-  const [limaProvinceIds, setLimaProvinceIds] = useState([])
-  const [isResolvingLimaProvinces, setIsResolvingLimaProvinces] = useState(false)
 
   const deliveryScope = address.deliveryScope || null
   const isLimaScope = deliveryScope === 'lima'
   const isProvinciaScope = deliveryScope === 'provincia'
-  const isLimaDelivery = isLimaScope && (form.deliveryType === 'delivery' || address.deliveryType === 'delivery')
+  const isLimaDelivery = isLimaScope && isHomeDeliveryType(form.deliveryType || address.deliveryType)
   const isShalonPickup = isProvinciaScope || !isLimaDelivery
 
   const regions = useMemo(
@@ -159,31 +158,6 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
   }, [editing, isProvinciaScope, form.idRegion])
 
   useEffect(() => {
-    if (!editing || !isLimaScope) {
-      setLimaProvinceIds([])
-      return undefined
-    }
-
-    let ignore = false
-    setIsResolvingLimaProvinces(true)
-
-    resolveLimaProvinceIds()
-      .then((ids) => {
-        if (!ignore) setLimaProvinceIds(Array.isArray(ids) ? ids : [])
-      })
-      .catch(() => {
-        if (!ignore) setLimaProvinceIds([])
-      })
-      .finally(() => {
-        if (!ignore) setIsResolvingLimaProvinces(false)
-      })
-
-    return () => {
-      ignore = true
-    }
-  }, [editing, isLimaScope])
-
-  useEffect(() => {
     if (!editing) {
       setDistrictOptions([])
       return undefined
@@ -191,7 +165,7 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
 
     const canLoadDistricts = isProvinciaScope
       ? Boolean(form.idProvince)
-      : isLimaScope && limaProvinceIds.length > 0
+      : isLimaScope
 
     if (!canLoadDistricts) {
       setDistrictOptions([])
@@ -203,7 +177,7 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
 
     const request = isProvinciaScope
       ? listDistrictsPublic({ page: 1, page_size: 100, id_province: form.idProvince })
-      : listDistrictsPublic({ page: 1, page_size: 100, id_provinces: limaProvinceIds })
+      : listDistrictsPublic({ page: 1, page_size: 100, delivery_scope: 'lima' })
 
     request
       .then((response) => {
@@ -220,7 +194,7 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
     return () => {
       ignore = true
     }
-  }, [editing, isProvinciaScope, isLimaScope, form.idProvince, limaProvinceIds])
+  }, [editing, isProvinciaScope, isLimaScope, form.idProvince])
 
   useEffect(() => {
     if (!editing || !form.idDistrict) {
@@ -356,7 +330,7 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
       idShalon: form.idShalon,
       isPrimary: form.isPrimary,
       deliveryScope: address.deliveryScope,
-      deliveryType: isLimaDelivery ? 'delivery' : 'shalon',
+      deliveryType: isLimaDelivery ? form.deliveryType : DELIVERY_TYPES.SHALON,
       fullAddress: form.fullAddress,
       googleMapsLink: form.googleMapsLink,
       geoLat: form.geoLat,
@@ -380,7 +354,7 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
 
   const districtsDisabled = isProvinciaScope
     ? !form.idProvince || isLoadingDistricts
-    : isResolvingLimaProvinces || limaProvinceIds.length === 0 || isLoadingDistricts
+    : isLoadingDistricts
 
   return createPortal(
     <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4">
@@ -444,30 +418,17 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
                 <div>
                   <dt className="font-medium text-gray-500">Tipo de entrega</dt>
                   <dd className="mt-0.5 text-gray-900">
-                    {address.deliveryType === 'delivery' ? 'Delivery a domicilio' : 'Recojo en Shalon'}
+                    {isHomeDeliveryType(address.deliveryType)
+                      ? getDeliveryProviderLabel(address.deliveryType)
+                      : 'Recojo en Shalon'}
                   </dd>
                 </div>
-                {address.deliveryType === 'delivery' ? (
+                {isHomeDeliveryType(address.deliveryType) ? (
                   <>
                     <div>
                       <dt className="font-medium text-gray-500">Dirección completa</dt>
                       <dd className="mt-0.5 text-gray-900">{address.fullAddress || '—'}</dd>
                     </div>
-                    {address.googleMapsLink && (
-                      <div>
-                        <dt className="font-medium text-gray-500">Ubicación en mapa</dt>
-                        <dd className="mt-0.5">
-                          <a
-                            href={address.googleMapsLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm font-medium text-black hover:underline"
-                          >
-                            Ver en Google Maps
-                          </a>
-                        </dd>
-                      </div>
-                    )}
                   </>
                 ) : (
                   <div>
@@ -538,7 +499,7 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
                   placeholder="Selecciona un distrito"
                   searchPlaceholder="Escribe para buscar distrito…"
                   options={districtComboboxOptions}
-                  isLoading={isLoadingDistricts || isResolvingLimaProvinces}
+                  isLoading={isLoadingDistricts}
                   disabled={districtsDisabled}
                   emptyMessage={
                     isProvinciaScope && !form.idProvince
@@ -577,6 +538,7 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
                   googleMapsLink={form.googleMapsLink}
                   fullAddress={form.fullAddress}
                   onChange={handleDeliveryLocationChange}
+                  isSaving={isSaving}
                 />
               )}
 

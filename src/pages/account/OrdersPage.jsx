@@ -18,7 +18,7 @@ const tabs = [
   { key: 'pending', label: 'Pendientes', statuses: ['Pendiente'] },
   { key: 'process', label: 'En proceso', statuses: ['En Proceso'] },
   { key: 'shipped', label: 'Enviados', statuses: ['Enviado'] },
-  { key: 'received', label: 'Recibidos', statuses: ['Recibido'] },
+  { key: 'delivered', label: 'Entregados', statuses: ['Entregado'] },
   { key: 'cancelled', label: 'Cancelados', statuses: ['Cancelado'] },
 ]
 
@@ -26,7 +26,7 @@ const STATUS_STYLES = {
   Pendiente: 'bg-amber-100 text-amber-800',
   'En Proceso': 'bg-blue-100 text-blue-800',
   Enviado: 'bg-green-100 text-green-800',
-  Recibido: 'bg-gray-100 text-gray-800',
+  Entregado: 'bg-gray-100 text-gray-800',
   Cancelado: 'bg-gray-100 text-gray-600',
 }
 

@@ -1,11 +1,13 @@
 import { createPortal } from 'react-dom'
 import { MapPin, Plus, Star } from 'lucide-react'
 
+import { getDeliveryProviderLabel, isHomeDeliveryType } from '../../utils/deliveryTypes'
+
 function getDeliverySummary(address) {
   if (!address) return ''
 
-  if (address.deliveryType === 'delivery') {
-    return address.fullAddress || 'Delivery en Lima'
+  if (isHomeDeliveryType(address.deliveryType)) {
+    return address.fullAddress || getDeliveryProviderLabel(address.deliveryType)
   }
 
   return address.shalon || address.street || 'Recojo en Shalon'
@@ -13,7 +15,9 @@ function getDeliverySummary(address) {
 
 function getScopeLabel(address) {
   if (address.deliveryScope === 'lima') {
-    return address.deliveryType === 'delivery' ? 'Lima · Delivery' : 'Lima · Recojo Shalon'
+    return isHomeDeliveryType(address.deliveryType)
+      ? `Lima · ${getDeliveryProviderLabel(address.deliveryType)}`
+      : 'Lima · Recojo Shalon'
   }
 
   if (address.deliveryScope === 'provincia') {
@@ -26,7 +30,7 @@ function getScopeLabel(address) {
 export function formatCheckoutAddressLine(address) {
   if (!address) return '—'
 
-  if (address.deliveryType === 'delivery') {
+  if (isHomeDeliveryType(address.deliveryType)) {
     return address.fullAddress || `${address.district}, ${address.city}`
   }
 

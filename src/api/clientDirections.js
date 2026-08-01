@@ -39,11 +39,13 @@ export async function listDistrictsPublic({
   id_region,
   id_province,
   id_provinces,
+  delivery_scope,
 } = {}) {
   const params = { page, page_size }
   if (name?.trim()) params.name = name.trim()
   if (id_region) params.id_region = id_region
   if (id_province) params.id_province = id_province
+  if (delivery_scope) params.delivery_scope = delivery_scope
   if (Array.isArray(id_provinces) && id_provinces.length > 0) {
     params.id_provinces = id_provinces
   }

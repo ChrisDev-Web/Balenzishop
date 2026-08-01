@@ -20,7 +20,7 @@ import {
   mapRegisterFormToPayload,
   mapUserToProfilePayload,
 } from '../utils/clientMapper'
-import { mapAddressFormToPayload, mapDirectionToAddress } from '../utils/addressMapper'
+import { mapAddressFormToPayload, mapDirectionToAddress, sortAddresses } from '../utils/addressMapper'
 import { USER_ROLES } from '../utils/pricing'
 import { clearCheckoutDraftSession } from './checkoutDraftStore'
 
@@ -45,7 +45,9 @@ function applySession(set, client, tokens, existingUser = null) {
 
 async function loadDirectionsForUser(accessToken, user) {
   const response = await fetchClientDirections(accessToken)
-  const addresses = (response.data ?? []).map(mapDirectionToAddress).filter(Boolean)
+  const addresses = sortAddresses(
+    (response.data ?? []).map(mapDirectionToAddress).filter(Boolean),
+  )
   return { ...user, addresses }
 }
 
@@ -198,6 +200,8 @@ export const useAuthStore = create(
             }))
           }
 
+          addresses = sortAddresses(addresses)
+
           set({ user: { ...user, addresses } })
           return { success: true, address: created }
         } catch (err) {
@@ -230,6 +234,8 @@ export const useAuthStore = create(
             }))
           }
 
+          addresses = sortAddresses(addresses)
+
           set({ user: { ...user, addresses } })
           return { success: true, address: updated }
         } catch (err) {
@@ -255,7 +261,7 @@ export const useAuthStore = create(
                 isPrimary: index === 0,
               }))
             }
-            set({ user: { ...user, addresses } })
+            set({ user: { ...user, addresses: sortAddresses(addresses) } })
           }
           return { success: true }
         } catch (err) {

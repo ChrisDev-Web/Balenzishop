@@ -4,7 +4,11 @@ import { X, Plus, Trash2, Upload, MessageCircle } from 'lucide-react'
 import { submitCheckoutOrder } from '../../api/clientOrders'
 import { calculateReservationAmount } from '../../utils/reservation'
 import { findPaymentMethodById } from '../../utils/paymentMethods'
+import { computeOrderTotal, DELIVERY_MODES, formatShippingDisplay } from '../../utils/deliveryFee'
+import { DELIVERY_TYPES } from '../../utils/deliveryTypes'
+import { useRainauAvailableDeliveryDates } from '../../hooks/useRainauAvailableDeliveryDates'
 import PaymentMethodCheckoutInfo from './PaymentMethodCheckoutInfo'
+import RainauDeliveryDatePicker from './RainauDeliveryDatePicker'
 import CancelCheckoutConfirmModal, {
   cancelActiveCheckoutDraft,
 } from './CancelCheckoutConfirmModal'
@@ -68,13 +72,38 @@ export default function ReserveOrderModal({
   const [cancelling, setCancelling] = useState(false)
   const [error, setError] = useState('')
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [calendarPickerOpen, setCalendarPickerOpen] = useState(false)
+  const [scheduledDeliveryDate, setScheduledDeliveryDate] = useState('')
+
+  const requiresRainauDeliveryDate = deliveryMode === DELIVERY_MODES.DELIVERY
+    && primaryAddress?.deliveryType === DELIVERY_TYPES.RAINAU
+
+  const {
+    dates: availableDeliveryDates,
+    sameDayCutoffPassed,
+    isLoading: deliveryDatesLoading,
+    error: deliveryDatesError,
+    refresh: refreshDeliveryDates,
+  } = useRainauAvailableDeliveryDates(open && requiresRainauDeliveryDate, {
+    fastPoll: calendarPickerOpen,
+  })
+
+  const rainauDeliveryFee = Number(primaryAddress?.deliveryFee || 0)
+  const effectiveDeliveryFee = requiresRainauDeliveryDate && scheduledDeliveryDate
+    ? rainauDeliveryFee
+    : 0
 
   const reservationAmount = useMemo(
     () => calculateReservationAmount(totalQuantity),
     [totalQuantity],
   )
 
-  const expectedAmount = paymentMode === PAYMENT_MODE_FULL ? total : reservationAmount
+  const orderTotal = useMemo(
+    () => computeOrderTotal(subtotal, discount, effectiveDeliveryFee, deliveryMode),
+    [subtotal, discount, effectiveDeliveryFee, deliveryMode],
+  )
+
+  const expectedAmount = paymentMode === PAYMENT_MODE_FULL ? orderTotal : reservationAmount
 
   const paidTotal = useMemo(
     () => roundMoney(
@@ -90,6 +119,7 @@ export default function ReserveOrderModal({
   )
 
   const canSubmit = amountMatches && allRowsValid && !submitting && !cancelling && draftOrderId
+    && (!requiresRainauDeliveryDate || Boolean(scheduledDeliveryDate))
 
   useEffect(() => {
     if (!open) return
@@ -100,7 +130,18 @@ export default function ReserveOrderModal({
     setCancelling(false)
     setError('')
     setShowCancelConfirm(false)
+    setCalendarPickerOpen(false)
+    setScheduledDeliveryDate('')
   }, [open])
+
+  useEffect(() => {
+    if (!scheduledDeliveryDate || availableDeliveryDates.length === 0) return
+
+    const selected = availableDeliveryDates.find((entry) => entry.date === scheduledDeliveryDate)
+    if (selected?.blocked) {
+      setScheduledDeliveryDate('')
+    }
+  }, [availableDeliveryDates, scheduledDeliveryDate])
 
   useEffect(() => {
     if (!open) return
@@ -194,6 +235,12 @@ export default function ReserveOrderModal({
           paymentMode,
           payments,
           paymentProofs,
+          delivery: requiresRainauDeliveryDate
+            ? {
+                scheduled_delivery_date: scheduledDeliveryDate,
+                delivery_fee: effectiveDeliveryFee,
+              }
+            : undefined,
         },
         accessToken,
       )
@@ -244,13 +291,32 @@ export default function ReserveOrderModal({
             <p className="font-bold text-gray-900">
               Reserva: S/ {reservationAmount.toFixed(2)} ({totalQuantity} × S/ 20)
             </p>
-            <p className="mt-1 font-bold text-gray-900">Total del pedido: S/ {total.toFixed(2)}</p>
+            <p className="mt-1 font-bold text-gray-900">Total del pedido: S/ {orderTotal.toFixed(2)}</p>
+            {requiresRainauDeliveryDate && (
+              <p className="mt-1 text-gray-600">
+                Delivery Rainau:{' '}
+                {formatShippingDisplay({ deliveryFee: effectiveDeliveryFee })}
+              </p>
+            )}
             {paymentMode === PAYMENT_MODE_RESERVATION && (
               <p className="mt-1 text-gray-600">
-                Saldo pendiente tras la reserva: S/ {Math.max(0, total - reservationAmount).toFixed(2)}
+                Saldo pendiente tras la reserva: S/ {Math.max(0, orderTotal - reservationAmount).toFixed(2)}
               </p>
             )}
           </div>
+
+          {requiresRainauDeliveryDate && (
+            <RainauDeliveryDatePicker
+              dates={availableDeliveryDates}
+              value={scheduledDeliveryDate}
+              isLoading={deliveryDatesLoading}
+              error={deliveryDatesError}
+              sameDayCutoffPassed={sameDayCutoffPassed}
+              onChange={setScheduledDeliveryDate}
+              onRefreshDates={refreshDeliveryDates}
+              onCalendarOpenChange={setCalendarPickerOpen}
+            />
+          )}
 
           <div>
             <p className="mb-2 text-sm font-semibold text-gray-900">¿Qué vas a pagar ahora?</p>
@@ -275,7 +341,7 @@ export default function ReserveOrderModal({
                   onChange={() => setPaymentMode(PAYMENT_MODE_FULL)}
                 />
                 <span className="font-bold text-gray-900">Pago completo</span>
-                <span className="mt-1 block text-gray-600">S/ {total.toFixed(2)}</span>
+                <span className="mt-1 block text-gray-600">S/ {orderTotal.toFixed(2)}</span>
               </label>
             </div>
           </div>

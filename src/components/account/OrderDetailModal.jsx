@@ -5,7 +5,7 @@ const STATUS_STYLES = {
   Pendiente: 'bg-amber-100 text-amber-800',
   'En Proceso': 'bg-blue-100 text-blue-800',
   Enviado: 'bg-green-100 text-green-800',
-  Recibido: 'bg-gray-100 text-gray-800',
+  Entregado: 'bg-gray-100 text-gray-800',
   Cancelado: 'bg-gray-100 text-gray-600',
 }
 
@@ -89,10 +89,10 @@ export default function OrderDetailModal({ order, onClose }) {
             )}
             <div className="flex justify-between text-gray-600">
               <span>Envío</span>
-              {order.deliveryMode === 'delivery' && order.deliveryFee > 0 ? (
+              {order.deliveryFee > 0 ? (
                 <span className="font-bold text-gray-900">S/ {order.deliveryFee.toFixed(2)}</span>
               ) : (
-                <span className="font-bold text-gray-900">Sin cargo</span>
+                <span className="font-bold text-gray-900">Con cargo</span>
               )}
             </div>
             <div className="flex justify-between border-t border-gray-200 pt-2 font-bold text-gray-900">

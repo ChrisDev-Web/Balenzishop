@@ -18,12 +18,19 @@ import {
   mapRegionOption,
   mapShalonOption,
 } from '../../utils/addressMapper'
-import { buildFormFromAddress, resolveLimaProvinceIds } from '../../utils/addressFormHelpers'
+import { buildFormFromAddress, formatAddressCityLabel } from '../../utils/addressFormHelpers'
 import SearchableCombobox from '../../components/ui/SearchableCombobox'
 import AddressModal from '../../components/account/AddressModal'
+import DeleteAddressConfirmModal from '../../components/account/DeleteAddressConfirmModal'
 import DeliveryZoneModal from '../../components/account/DeliveryZoneModal'
 import LimaDeliveryTypeModal from '../../components/account/LimaDeliveryTypeModal'
+import LimaDeliveryProviderModal from '../../components/account/LimaDeliveryProviderModal'
 import DeliveryLocationPicker from '../../components/account/DeliveryLocationPicker'
+import {
+  DELIVERY_TYPES,
+  getDeliveryProviderLabel,
+  isHomeDeliveryType,
+} from '../../utils/deliveryTypes'
 
 const emptyForm = {
   idRegion: '',
@@ -69,6 +76,9 @@ export default function AddressesPage() {
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false)
   const [modalAddress, setModalAddress] = useState(null)
   const [modalMode, setModalMode] = useState('view')
+  const [addressToDelete, setAddressToDelete] = useState(null)
+  const [isDeletingAddress, setIsDeletingAddress] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const [regionOptions, setRegionOptions] = useState([])
   const [provinceOptions, setProvinceOptions] = useState([])
   const [districtOptions, setDistrictOptions] = useState([])
@@ -77,11 +87,10 @@ export default function AddressesPage() {
   const [isLoadingProvinces, setIsLoadingProvinces] = useState(false)
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false)
   const [isLoadingShalons, setIsLoadingShalons] = useState(false)
-  const [limaProvinceIds, setLimaProvinceIds] = useState([])
-  const [isResolvingLimaProvinces, setIsResolvingLimaProvinces] = useState(false)
 
   const [showZoneModal, setShowZoneModal] = useState(false)
   const [showLimaTypeModal, setShowLimaTypeModal] = useState(false)
+  const [showLimaProviderModal, setShowLimaProviderModal] = useState(false)
   const [deliveryScope, setDeliveryScope] = useState(null)
   const [limaDeliveryType, setLimaDeliveryType] = useState(null)
 
@@ -89,7 +98,7 @@ export default function AddressesPage() {
   const isSetupFlow = flujo === 'pedido' || flujo === 'onboarding'
   const isProvinciaScope = deliveryScope === 'provincia'
   const isLimaScope = deliveryScope === 'lima'
-  const isLimaDelivery = isLimaScope && limaDeliveryType === 'delivery'
+  const isLimaDelivery = isLimaScope && isHomeDeliveryType(form.deliveryType)
   const isShalonPickup = isProvinciaScope || (isLimaScope && limaDeliveryType === 'shalon')
 
   const regions = useMemo(
@@ -213,31 +222,6 @@ export default function AddressesPage() {
   }, [isProvinciaScope, form.idRegion])
 
   useEffect(() => {
-    if (!isLimaScope) {
-      setLimaProvinceIds([])
-      return undefined
-    }
-
-    let ignore = false
-    setIsResolvingLimaProvinces(true)
-
-    resolveLimaProvinceIds()
-      .then((ids) => {
-        if (!ignore) setLimaProvinceIds(Array.isArray(ids) ? ids : [])
-      })
-      .catch(() => {
-        if (!ignore) setLimaProvinceIds([])
-      })
-      .finally(() => {
-        if (!ignore) setIsResolvingLimaProvinces(false)
-      })
-
-    return () => {
-      ignore = true
-    }
-  }, [isLimaScope])
-
-  useEffect(() => {
     if (!deliveryScope) {
       setDistrictOptions([])
       return undefined
@@ -245,7 +229,7 @@ export default function AddressesPage() {
 
     const canLoadDistricts = isProvinciaScope
       ? Boolean(form.idProvince)
-      : limaProvinceIds.length > 0
+      : isLimaScope
 
     if (!canLoadDistricts) {
       setDistrictOptions([])
@@ -257,7 +241,7 @@ export default function AddressesPage() {
 
     const request = isProvinciaScope
       ? listDistrictsPublic({ page: 1, page_size: 100, id_province: form.idProvince })
-      : listDistrictsPublic({ page: 1, page_size: 100, id_provinces: limaProvinceIds })
+      : listDistrictsPublic({ page: 1, page_size: 100, delivery_scope: 'lima' })
 
     request
       .then((response) => {
@@ -274,7 +258,7 @@ export default function AddressesPage() {
     return () => {
       ignore = true
     }
-  }, [deliveryScope, isProvinciaScope, form.idProvince, limaProvinceIds])
+  }, [deliveryScope, isProvinciaScope, isLimaScope, form.idProvince])
 
   useEffect(() => {
     if (!form.idDistrict) {
@@ -340,13 +324,14 @@ export default function AddressesPage() {
     setForm(emptyForm)
     setDeliveryScope(null)
     setLimaDeliveryType(null)
+    setShowLimaProviderModal(false)
     setEditingAddressId(null)
     setError('')
   }
 
   const resolveDeliveryTypeFromAddress = (address) => {
     if (address.deliveryScope === 'lima') {
-      return address.deliveryType === 'delivery' ? 'delivery' : 'shalon'
+      return isHomeDeliveryType(address.deliveryType) ? 'delivery' : 'shalon'
     }
 
     if (address.deliveryScope === 'provincia') {
@@ -354,6 +339,26 @@ export default function AddressesPage() {
     }
 
     return null
+  }
+
+  const applyLimaDeliveryProvider = (provider) => {
+    const deliveryType = provider === 'rainau' ? DELIVERY_TYPES.RAINAU : DELIVERY_TYPES.OWN
+
+    setLimaDeliveryType('delivery')
+    setForm((prev) => ({
+      ...prev,
+      deliveryType,
+      idShalon: '',
+      shalonName: '',
+      shalonLat: null,
+      shalonLng: null,
+      shalon: '',
+      fullAddress: '',
+      googleMapsLink: '',
+      geoLat: null,
+      geoLng: null,
+    }))
+    setShowLimaProviderModal(false)
   }
 
   const openEditForm = (address) => {
@@ -391,10 +396,16 @@ export default function AddressesPage() {
   }
 
   const handleLimaDeliveryTypeSelect = (type) => {
+    if (type === 'delivery') {
+      setShowLimaTypeModal(false)
+      setShowLimaProviderModal(true)
+      return
+    }
+
     setLimaDeliveryType(type)
     setForm((prev) => ({
       ...prev,
-      deliveryType: type,
+      deliveryType: DELIVERY_TYPES.SHALON,
       idShalon: '',
       shalonName: '',
       shalonLat: null,
@@ -554,7 +565,7 @@ export default function AddressesPage() {
       idShalon: form.idShalon,
       isPrimary: editingAddressId ? form.isPrimary : (form.isPrimary || addresses.length === 0),
       deliveryScope,
-      deliveryType: isLimaDelivery ? 'delivery' : 'shalon',
+      deliveryType: isLimaDelivery ? form.deliveryType : DELIVERY_TYPES.SHALON,
       fullAddress: form.fullAddress,
       googleMapsLink: form.googleMapsLink,
       geoLat: form.geoLat,
@@ -596,11 +607,31 @@ export default function AddressesPage() {
     }
   }
 
-  const handleDelete = async (id) => {
-    const result = await deleteAddress(id)
+  const openDeleteConfirm = (addr) => {
+    setDeleteError('')
+    setAddressToDelete(addr)
+  }
+
+  const closeDeleteConfirm = () => {
+    if (isDeletingAddress) return
+    setAddressToDelete(null)
+    setDeleteError('')
+  }
+
+  const confirmDelete = async () => {
+    if (!addressToDelete) return
+
+    setIsDeletingAddress(true)
+    setDeleteError('')
+    const result = await deleteAddress(addressToDelete.id)
+    setIsDeletingAddress(false)
+
     if (!result.success) {
-      setError(result.error || 'No se pudo eliminar la dirección')
+      setDeleteError(result.error || 'No se pudo eliminar la dirección')
+      return
     }
+
+    setAddressToDelete(null)
   }
 
   const openModal = (addr, mode) => {
@@ -615,7 +646,7 @@ export default function AddressesPage() {
   const readonlyClass = 'mt-1 w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700'
   const districtsDisabled = isProvinciaScope
     ? !form.idProvince || isLoadingDistricts
-    : !deliveryScope || isResolvingLimaProvinces || limaProvinceIds.length === 0 || isLoadingDistricts
+    : !deliveryScope || isLoadingDistricts
 
   return (
     <div>
@@ -623,6 +654,17 @@ export default function AddressesPage() {
         <DeliveryZoneModal
           onSelect={handleZoneSelect}
           onClose={() => setShowZoneModal(false)}
+        />
+      )}
+
+      {showLimaProviderModal && (
+        <LimaDeliveryProviderModal
+          onSelect={applyLimaDeliveryProvider}
+          onBack={() => {
+            setShowLimaProviderModal(false)
+            setShowLimaTypeModal(true)
+          }}
+          onClose={() => setShowLimaProviderModal(false)}
         />
       )}
 
@@ -674,7 +716,7 @@ export default function AddressesPage() {
               Modalidad:{' '}
               {deliveryScope === 'lima'
                 ? isLimaDelivery
-                  ? 'Delivery en Lima'
+                  ? getDeliveryProviderLabel(form.deliveryType)
                   : 'Recojo en Shalon (Lima)'
                 : 'Provincia — Recojo en Shalon'}
               {isLimaScope && (
@@ -767,7 +809,7 @@ export default function AddressesPage() {
                 placeholder="Selecciona un distrito"
                 searchPlaceholder="Escribe para buscar distrito…"
                 options={districtComboboxOptions}
-                isLoading={isLoadingDistricts || isResolvingLimaProvinces}
+                isLoading={isLoadingDistricts}
                 disabled={districtsDisabled}
                 emptyMessage={
                   isProvinciaScope && !form.idProvince
@@ -831,6 +873,7 @@ export default function AddressesPage() {
                   googleMapsLink={form.googleMapsLink}
                   fullAddress={form.fullAddress}
                   onChange={handleDeliveryLocationChange}
+                  isSaving={isSaving}
                 />
               </div>
             )}
@@ -898,7 +941,7 @@ export default function AddressesPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold leading-snug text-gray-900">
-                        {addr.district}, {addr.city}
+                        {addr.district}, {formatAddressCityLabel(addr)}
                       </span>
                       {addr.isPrimary && (
                         <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-black px-2 py-0.5 text-xs font-medium text-white">
@@ -910,21 +953,10 @@ export default function AddressesPage() {
                       <p className="mt-0.5 text-xs text-gray-500">{addr.region}</p>
                     )}
                     <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                      {addr.deliveryType === 'delivery'
+                      {isHomeDeliveryType(addr.deliveryType)
                         ? addr.fullAddress
                         : addr.shalon || addr.street}
                     </p>
-                    {addr.deliveryType === 'delivery' && addr.googleMapsLink && (
-                      <a
-                        href={addr.googleMapsLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-black hover:underline"
-                      >
-                        <Map className="h-3 w-3" />
-                        Ver ubicación en mapa
-                      </a>
-                    )}
                     {addr.shalon && addr.deliveryType !== 'delivery' && (
                       <a
                         href={buildShalonMapsUrl({
@@ -977,11 +1009,11 @@ export default function AddressesPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleDelete(addr.id)}
-                    className="flex items-center justify-center gap-1 rounded-lg py-2 text-xs font-medium text-gray-500 hover:bg-gray-50 hover:text-black sm:rounded-full sm:p-1.5"
+                    onClick={() => openDeleteConfirm(addr)}
+                    className="flex items-center justify-center gap-1 rounded-full border border-black px-3 py-2 text-xs font-medium text-black hover:bg-gray-50 sm:py-1.5"
                     aria-label="Eliminar dirección"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-4 w-4" strokeWidth={2} />
                     <span className="sm:hidden">Eliminar</span>
                   </button>
                 </div>
@@ -999,6 +1031,14 @@ export default function AddressesPage() {
           onEdit={openEditForm}
         />
       )}
+
+      <DeleteAddressConfirmModal
+        address={addressToDelete}
+        isProcessing={isDeletingAddress}
+        error={deleteError}
+        onCancel={closeDeleteConfirm}
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }

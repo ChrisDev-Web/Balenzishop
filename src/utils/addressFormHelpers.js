@@ -1,7 +1,8 @@
 import { listProvincesPublic } from '../api/clientDirections'
+import { LIMA_CITY } from '../data/shalonLocations'
 import { normalizeSearchText } from './searchText'
 
-export const LIMA_SCOPE_PROVINCE_NAMES = ['Lima']
+export const LIMA_SCOPE_PROVINCE_NAMES = ['Lima', 'Prov. Const. del Callao']
 
 export async function fetchAllProvincesPublic() {
   const items = []
@@ -20,12 +21,23 @@ export async function fetchAllProvincesPublic() {
 }
 
 export async function resolveLimaProvinceIds() {
-  const response = await listProvincesPublic({ page: 1, page_size: 100 })
-  const items = response.data?.items ?? []
+  const items = await fetchAllProvincesPublic()
 
   const ids = LIMA_SCOPE_PROVINCE_NAMES
     .map((provinceName) => items.find((item) => item.name === provinceName)?.id_province)
     .filter(Boolean)
+
+  if (ids.length < LIMA_SCOPE_PROVINCE_NAMES.length) {
+    const fallbackIds = items
+      .filter((item) => {
+        const name = (item.name ?? '').trim().toLowerCase()
+        return name === 'lima' || name.includes('callao')
+      })
+      .map((item) => item.id_province)
+      .filter(Boolean)
+
+    return [...new Set([...ids, ...fallbackIds])]
+  }
 
   return [...new Set(ids)]
 }
@@ -72,4 +84,12 @@ export function filterOptionsByPrefix(options, query) {
   return options.filter((option) =>
     normalizeSearchText(option.label).startsWith(normalizedQuery),
   )
+}
+
+export function formatAddressCityLabel(address) {
+  if (address?.deliveryScope === 'lima') {
+    return LIMA_CITY
+  }
+
+  return address?.city || ''
 }

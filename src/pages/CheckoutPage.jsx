@@ -12,7 +12,7 @@ import {
   mapValidationToAppliedCoupon,
   buildEligibleDiscountMap,
 } from '../api/discountCoupons'
-import { getDeliveryFeeForAddress, computeOrderTotal } from '../utils/deliveryFee'
+import { getDeliveryFeeForAddress, computeOrderTotal, formatShippingDisplay } from '../utils/deliveryFee'
 import { buildWhatsAppMessage, openWhatsAppOrder } from '../utils/orderMessage'
 import { mapApiClientOrder } from '../utils/clientOrderMapper'
 import { reserveCheckoutOrder } from '../api/clientOrders'
@@ -542,9 +542,7 @@ export default function CheckoutPage() {
               <div className="flex justify-between text-gray-600">
                 <span>Envío</span>
                 <span className="font-bold text-gray-900">
-                  {delivery.mode === 'delivery' && deliveryFee > 0
-                    ? `S/ ${deliveryFee.toFixed(2)}`
-                    : 'Sin cargo'}
+                  {formatShippingDisplay({ deliveryFee })}
                 </span>
               </div>
               <div className="flex justify-between border-t pt-2 text-lg">

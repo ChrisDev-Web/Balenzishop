@@ -7,7 +7,8 @@ const STATUS_MAP = {
   'Pago total Verificado': 'En Proceso',
   'En Proceso': 'En Proceso',
   Enviado: 'Enviado',
-  Recibido: 'Recibido',
+  Recibido: 'Entregado',
+  Entregado: 'Entregado',
   Cancelado: 'Cancelado',
 }
 
@@ -22,9 +23,11 @@ export function mapApiClientOrder(order) {
     orderNumber: order.order_number,
     date: formatOrderDate(new Date(order.created_at)),
     createdAt: order.created_at,
-    status: order.display_status
-      ? (STATUS_MAP[order.display_status] || order.display_status)
-      : (STATUS_MAP[order.status] || order.status),
+    status: order.is_returned
+      ? 'Cancelado'
+      : order.display_status
+        ? (STATUS_MAP[order.display_status] || order.display_status)
+        : (STATUS_MAP[order.status] || order.status),
     displayStatus: order.display_status || order.status,
     statusRaw: order.status,
     paymentMode: order.payment_mode,
@@ -80,6 +83,7 @@ export function mapApiClientOrder(order) {
         }
       : null,
     isShalonDelivery: Boolean(order.is_shalon_delivery),
+    isReturned: Boolean(order.is_returned),
   }
 }
 

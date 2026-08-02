@@ -1,0 +1,51 @@
+import { DECANT_BULK_DISCOUNT, DECANT_BULK_EVERY, getDecantBulkDiscount, getDecantLineTotal } from '../../utils/pricing'
+
+export default function DecantPriceDisplay({
+  unitPrice,
+  quantity = 1,
+  variant = 'detail',
+  showUnit = true,
+  showBulkHint = true,
+}) {
+  const price = Number(unitPrice) || 0
+  const qty = Math.max(1, Number(quantity) || 1)
+  const isDetail = variant === 'detail'
+  const bulkDiscount = getDecantBulkDiscount(qty)
+  const lineTotal = getDecantLineTotal(price, qty)
+
+  return (
+    <div className="min-w-0 space-y-1">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <span
+          className={
+            isDetail
+              ? 'text-2xl font-bold text-gray-900 sm:text-3xl'
+              : 'text-xs font-bold text-gray-900 sm:text-sm md:text-lg'
+          }
+        >
+          S/ {price.toFixed(2)}
+        </span>
+        {showUnit && <span className="text-sm text-gray-500">x Und</span>}
+      </div>
+
+      {qty > 1 && (
+        <div className="space-y-0.5">
+          {bulkDiscount > 0 && (
+            <p className="text-sm font-bold text-black">
+              Descuento por volumen: - S/ {bulkDiscount.toFixed(2)}
+            </p>
+          )}
+          <p className={`font-semibold text-gray-900 ${isDetail ? 'text-lg' : 'text-sm'}`}>
+            Total: S/ {lineTotal.toFixed(2)}
+          </p>
+        </div>
+      )}
+
+      {showBulkHint && (
+        <p className="text-xs text-gray-500">
+          Cada {DECANT_BULK_EVERY} decants: S/ {DECANT_BULK_DISCOUNT.toFixed(2)} de descuento
+        </p>
+      )}
+    </div>
+  )
+}

@@ -5,6 +5,7 @@ import Footer from './Footer'
 import ScrollToTop from './ScrollToTop'
 import PendingOrderBanner from '../order/PendingOrderBanner'
 import ShippingCutoffNotice from './ShippingCutoffNotice'
+import CartFlyAnimation from '../cart/CartFlyAnimation'
 import { useAuthStore } from '../../stores/authStore'
 import { useCartStore } from '../../stores/cartStore'
 import { useCompanyStore } from '../../stores/companyStore'
@@ -39,6 +40,7 @@ export default function Layout() {
         <Outlet />
       </main>
       <Footer />
+      <CartFlyAnimation />
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { useCartStore } from '../../stores/cartStore'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
 import { getRouteAfterLogin, AUTH_INTENT } from '../../utils/authFlow'
-import { getMaxCartQuantity } from '../../utils/pricing'
+import { getCartLineTotal, getDecantBulkDiscount, getDecantCartOptions, getMaxCartQuantity } from '../../utils/pricing'
 import { useUserPricing } from '../../hooks/useUserPricing'
 
 export default function CartDropdown({ onClose, variant = 'anchored' }) {
@@ -20,9 +20,21 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
 
   useEffect(() => {
     items.forEach((item) => {
-      const maxQuantity = getMaxCartQuantity(item.stock, role)
+      const isDecant = Boolean(item.isDecant || item.idProductDecant)
+      const maxQuantity = getMaxCartQuantity(
+        item.stock,
+        role,
+        isDecant,
+        isDecant
+          ? getDecantCartOptions(item, {
+              items,
+              productId: item.id,
+              excludeDecantId: item.idProductDecant ?? null,
+            })
+          : null,
+      )
       if (Number.isFinite(maxQuantity) && item.quantity > maxQuantity) {
-        updateQuantity(item.id, maxQuantity)
+        updateQuantity(item.id, maxQuantity, item.idProductDecant ?? null)
       }
     })
   }, [items, role, updateQuantity])
@@ -116,11 +128,25 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
             <ul className="space-y-4">
               {items.map((item) => {
-                const maxQuantity = getMaxCartQuantity(item.stock, role)
+                const isDecant = Boolean(item.isDecant || item.idProductDecant)
+                const maxQuantity = getMaxCartQuantity(
+                  item.stock,
+                  role,
+                  isDecant,
+                  isDecant
+                    ? getDecantCartOptions(item, {
+                        items,
+                        productId: item.id,
+                        excludeDecantId: item.idProductDecant ?? null,
+                      })
+                    : null,
+                )
                 const atMaxStock = Number.isFinite(maxQuantity) && item.quantity >= maxQuantity
+                const lineTotal = getCartLineTotal(item)
+                const bulkDiscount = isDecant ? getDecantBulkDiscount(item.quantity) : 0
 
                 return (
-                <li key={item.id} className="flex gap-3">
+                <li key={item.idProductDecant ? `${item.id}-${item.idProductDecant}` : item.id} className="flex gap-3">
                   <img
                     src={item.image}
                     alt={item.name}
@@ -131,11 +157,23 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-2 text-sm font-medium text-gray-900">{item.name}</p>
                     <p className="text-xs text-gray-500">{item.brand}</p>
-                    <p className="mt-1 text-sm font-bold text-gray-900">S/ {item.price.toFixed(2)}</p>
+                    <p className="mt-1 text-sm font-bold text-gray-900">
+                      S/ {item.price.toFixed(2)}
+                      {isDecant && item.quantity > 1 && (
+                        <span className="ml-1 font-normal text-gray-600">
+                          · Total S/ {lineTotal.toFixed(2)}
+                        </span>
+                      )}
+                    </p>
+                    {isDecant && bulkDiscount > 0 && (
+                      <p className="text-xs font-bold text-black">
+                        Descuento por volumen: - S/ {bulkDiscount.toFixed(2)}
+                      </p>
+                    )}
                     <div className="mt-2 flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        onClick={() => updateQuantity(item.id, item.quantity - 1, item.idProductDecant ?? null)}
                         className="rounded border p-1 hover:bg-gray-50"
                         aria-label="Disminuir cantidad"
                       >
@@ -144,7 +182,7 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
                       <span className="min-w-[1.25rem] text-center text-sm font-medium">{item.quantity}</span>
                       <button
                         type="button"
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        onClick={() => updateQuantity(item.id, item.quantity + 1, item.idProductDecant ?? null)}
                         disabled={atMaxStock}
                         className="rounded border p-1 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                         aria-label="Aumentar cantidad"
@@ -153,7 +191,7 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => removeItem(item.id)}
+                        onClick={() => removeItem(item.id, item.idProductDecant ?? null)}
                         className="ml-auto text-gray-400 hover:text-black"
                         aria-label="Eliminar producto"
                       >

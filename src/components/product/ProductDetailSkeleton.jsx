@@ -11,7 +11,7 @@ export default function ProductDetailSkeleton() {
         <div className="h-4 w-40 animate-pulse rounded bg-gray-100" />
       </nav>
 
-      <div className="product-detail__hero grid gap-8 md:items-start">
+      <div className="product-detail__hero grid gap-8 lg:items-start">
         <div className="product-detail__media">
           <div className="product-gallery__stage animate-pulse" aria-hidden>
             <div className="product-gallery__frame">

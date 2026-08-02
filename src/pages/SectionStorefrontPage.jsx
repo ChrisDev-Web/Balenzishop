@@ -17,13 +17,6 @@ export default function SectionStorefrontPage({
   catalogHref: catalogHrefOverride,
   filterProducts,
 }) {
-  const {
-    heroBanners,
-    seriesItems,
-    isInitialLoading: bannersInitialLoading,
-    error: bannersError,
-  } = useShopPageSection(section)
-
   const usesApiProducts = SECTIONS_WITH_API_PRODUCTS.has(section)
 
   const {
@@ -32,6 +25,15 @@ export default function SectionStorefrontPage({
     isInitialLoading: productsInitialLoading,
     error: productsError,
   } = useSectionShowcaseProducts(section)
+
+  const catalogHref = usesApiProducts ? apiCatalogHref : catalogHrefOverride ?? '/catalogo'
+
+  const {
+    heroBanners,
+    seriesItems,
+    isInitialLoading: bannersInitialLoading,
+    error: bannersError,
+  } = useShopPageSection(section, catalogHref)
 
   const mockProducts = useMemo(() => {
     if (!filterProducts) return []
@@ -45,7 +47,6 @@ export default function SectionStorefrontPage({
   }, [filterProducts])
 
   const products = usesApiProducts ? apiProducts : mockProducts
-  const catalogHref = usesApiProducts ? apiCatalogHref : catalogHrefOverride ?? '/catalogo'
   const showcaseLoading = usesApiProducts && productsInitialLoading
 
   return (

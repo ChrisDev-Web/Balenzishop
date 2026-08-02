@@ -5,7 +5,7 @@ const TABS = {
   description: 'description',
 }
 
-export default function ProductSpecs({ specs, description = '' }) {
+export default function ProductSpecs({ specs = [], description = '' }) {
   const [activeTab, setActiveTab] = useState(TABS.specs)
   const hasDescription = Boolean(description?.trim())
 

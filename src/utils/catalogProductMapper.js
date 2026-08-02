@@ -7,11 +7,19 @@ function parseMoney(value) {
 }
 
 export function mapCatalogProduct(item) {
+  const isLivePrice = Boolean(item.price?.is_live)
   const price = parseMoney(item.price?.sale_price) ?? 0
   const referencePrice = parseMoney(item.reference_price?.sale_price)
-  const liveOriginalPrice = item.price?.is_live
-    ? parseMoney(item.price?.normal_sale_price)
-    : null
+  const onlinePrice = isLivePrice ? parseMoney(item.price?.normal_sale_price) : price
+  const fakePrice = parseMoney(item.price?.fake_price)
+  const hasFakePrice = fakePrice != null && onlinePrice != null && fakePrice > onlinePrice
+
+  let originalPrice = referencePrice
+  if (hasFakePrice) {
+    originalPrice = fakePrice
+  } else if (isLivePrice && onlinePrice != null && onlinePrice > price) {
+    originalPrice = onlinePrice
+  }
 
   return {
     id: item.id_product,
@@ -20,10 +28,13 @@ export function mapCatalogProduct(item) {
     brand: item.brand_name ?? '',
     image: normalizeMediaUrl(item.photo || ''),
     price,
+    onlinePrice,
     referencePrice,
+    fakePrice: hasFakePrice ? fakePrice : null,
     basePrice: price,
-    originalPrice: liveOriginalPrice ?? referencePrice,
-    isLivePrice: Boolean(item.price?.is_live),
+    originalPrice,
+    hasFakePrice,
+    isLivePrice,
     aroma: item.scent ?? '',
     description: item.brief_description || item.description || '',
     fullDescription: item.description ?? '',
@@ -37,9 +48,26 @@ export function mapCatalogProduct(item) {
   }
 }
 
+function mapDecant(item) {
+  const salePrice = parseMoney(item.sale_price) ?? 0
+
+  return {
+    id: item.id_product_decant,
+    idProductDecant: item.id_product_decant,
+    sizeMl: item.size_ml,
+    name: item.name,
+    image: normalizeMediaUrl(item.photo || ''),
+    price: salePrice,
+    basePrice: salePrice,
+    stock: Number(item.available_units ?? 0),
+    availableMl: Number(item.available_ml ?? 0),
+  }
+}
+
 export function mapCatalogProductDetail(item) {
   const product = mapCatalogProduct(item)
   const specs = item.specifications ?? {}
+  const decants = (item.decants ?? []).map(mapDecant)
 
   return {
     ...product,
@@ -49,6 +77,9 @@ export function mapCatalogProductDetail(item) {
     specifications: specs,
     specRows: mapSpecificationsToRows(specs),
     similarProducts: (item.similar_products ?? []).map(mapCatalogProduct),
+    decants,
+    netContentMl: item.net_content_ml ?? null,
+    hasDecants: decants.length > 0,
   }
 }
 

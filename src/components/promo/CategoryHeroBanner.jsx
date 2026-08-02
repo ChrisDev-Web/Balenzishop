@@ -3,6 +3,9 @@ import { productLink } from '../../utils/productUtils'
 import Skeleton from '../ui/skeleton/Skeleton'
 import { useCachedImageReady } from '../../hooks/useCachedImageReady'
 
+const DESKTOP_IMAGE =
+  'xl:relative xl:inset-auto xl:block xl:h-auto xl:w-full xl:max-h-[96vh] xl:object-cover xl:object-center'
+
 export default function CategoryHeroBanner({
   title,
   backgroundImage,
@@ -31,28 +34,32 @@ export default function CategoryHeroBanner({
   const showContent = Boolean(backgroundImage) && imageReady
 
   const imageClassName = compactImage
-    ? 'max-md:h-[68vh] max-md:object-cover max-md:object-[50%_38%] md:max-h-[96vh] md:object-cover md:object-center'
+    ? `absolute inset-0 h-full w-full object-cover max-xl:object-[50%_38%] ${DESKTOP_IMAGE}`
     : festiveMobileLayout
-      ? `max-md:h-[74vh] max-md:object-cover md:h-auto ${
-          mobileImagePositionClass || 'max-md:object-[62%_36%]'
-        }`
-      : 'h-auto'
+      ? `absolute inset-0 h-full w-full object-cover ${
+          mobileImagePositionClass || 'max-xl:object-[62%_36%]'
+        } ${DESKTOP_IMAGE}`
+      : `max-xl:absolute max-xl:inset-0 max-xl:h-full max-xl:w-full max-xl:object-cover max-xl:object-center xl:relative xl:inset-auto xl:block xl:h-auto xl:w-full`
 
   const frameMinHeight = compactImage
-    ? 'max-md:min-h-[68vh] md:min-h-[72vh]'
+    ? 'max-xl:min-h-[68vh] xl:min-h-[72vh]'
     : festiveMobileLayout
-      ? 'max-md:min-h-[74vh] md:min-h-[72vh]'
-      : 'min-h-[50vh] md:min-h-[70vh]'
+      ? 'max-xl:min-h-[74vh] xl:min-h-[72vh]'
+      : 'max-xl:min-h-[50vh] xl:min-h-[70vh]'
 
   return (
     <section
-      className={`relative w-full ${mobileVerticalImage ? 'max-md:bg-stone-200' : ''} ${
-        compactImage ? (imageReady ? 'md:bg-black' : 'md:bg-stone-200') : ''
+      className={`relative w-full ${mobileVerticalImage && !imageReady ? 'bg-stone-200' : ''} ${
+        compactImage ? (imageReady ? 'xl:bg-black' : 'xl:bg-stone-200') : ''
       }`}
     >
       <div className={`relative w-full overflow-hidden ${frameMinHeight}`}>
         {showSkeleton && (
-          <Skeleton className={`absolute inset-0 z-[1] rounded-none ${frameMinHeight}`} />
+          <Skeleton
+            className={`absolute inset-0 z-[1] rounded-none max-xl:min-h-[68vh] ${
+              compactImage ? 'xl:relative xl:block xl:min-h-[72vh] xl:max-h-[96vh] xl:h-[85vh]' : frameMinHeight
+            }`}
+          />
         )}
 
         {backgroundImage && (
@@ -61,7 +68,7 @@ export default function CategoryHeroBanner({
             ref={handleImageRef}
             src={backgroundImage}
             alt=""
-            className={`pointer-events-none block w-full transition-opacity duration-300 ease-out ${imageClassName} ${
+            className={`pointer-events-none transition-opacity duration-300 ease-out ${imageClassName} ${
               imageReady ? `opacity-100 ${enterAnimation ? 'hero-banner-image-enter' : ''}` : 'opacity-0'
             }`}
             loading={priority || cachedHint ? 'eager' : 'lazy'}
@@ -73,9 +80,14 @@ export default function CategoryHeroBanner({
         )}
 
         <div
-          className={`pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t md:from-black/75 md:via-black/20 ${
+          className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-24 bg-gradient-to-b from-black/40 to-transparent xl:hidden"
+          aria-hidden="true"
+        />
+
+        <div
+          className={`pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t xl:from-black/75 xl:via-black/20 ${
             mobileVerticalImage
-              ? 'from-black/85 via-black/10 to-transparent max-md:from-black/90 max-md:via-black/5'
+              ? 'from-black/90 via-black/15 to-transparent max-xl:from-black/85 max-xl:via-black/10'
               : 'from-black/80 via-black/15 to-transparent'
           } ${showContent ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
           aria-hidden="true"
@@ -83,7 +95,7 @@ export default function CategoryHeroBanner({
 
         {compactImage ? (
           <div
-            className={`absolute inset-x-0 bottom-12 z-10 flex flex-col items-center gap-3.5 px-4 text-center sm:bottom-14 md:hidden ${
+            className={`absolute inset-x-0 bottom-12 z-10 flex flex-col items-center gap-3.5 px-4 text-center sm:bottom-14 xl:hidden ${
               showContent ? `pointer-events-auto ${contentEnterClass}` : 'pointer-events-none opacity-0'
             }`}
           >
@@ -97,7 +109,7 @@ export default function CategoryHeroBanner({
           </div>
         ) : festiveMobileLayout ? (
           <div
-            className={`absolute inset-x-0 bottom-5 z-10 flex flex-col items-center gap-3 px-4 text-center md:hidden ${
+            className={`absolute inset-x-0 bottom-5 z-10 flex flex-col items-center gap-3 px-4 text-center xl:hidden ${
               showContent ? `pointer-events-auto ${contentEnterClass}` : 'pointer-events-none opacity-0'
             }`}
           >
@@ -111,7 +123,7 @@ export default function CategoryHeroBanner({
           </div>
         ) : (
           <div
-            className={`absolute inset-x-0 bottom-[10%] z-10 flex flex-col items-center px-4 text-center md:hidden ${
+            className={`absolute inset-x-0 bottom-[10%] z-10 flex flex-col items-center px-4 text-center xl:hidden ${
               showContent ? `pointer-events-auto ${contentEnterClass}` : 'pointer-events-none opacity-0'
             }`}
           >
@@ -126,13 +138,13 @@ export default function CategoryHeroBanner({
         )}
 
         <div
-          className={`absolute inset-x-0 z-10 hidden w-full px-10 lg:px-16 md:block ${contentEnterClass} ${
+          className={`absolute inset-x-0 z-10 hidden w-full px-10 lg:px-16 xl:block ${contentEnterClass} ${
             raisedContent
-              ? 'bottom-[22%] md:bottom-[24%] lg:bottom-[26%]'
+              ? 'bottom-[22%] xl:bottom-[24%] 2xl:bottom-[26%]'
               : 'bottom-0 pb-16 lg:pb-20'
           } ${showContent ? 'pointer-events-auto' : 'pointer-events-none opacity-0'}`}
         >
-          <h2 className={`${titleClass} max-w-3xl text-3xl md:text-4xl lg:text-5xl`}>{title}</h2>
+          <h2 className={`${titleClass} max-w-3xl text-3xl xl:text-4xl 2xl:text-5xl`}>{title}</h2>
           <Link
             to={href}
             className={`btn-fill-light inline-flex px-8 py-3 text-sm ${raisedContent ? 'mt-4' : 'mt-6'}`}
@@ -142,9 +154,9 @@ export default function CategoryHeroBanner({
         </div>
 
         {showSkeleton && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-12 z-[2] flex flex-col items-center gap-3.5 px-4 sm:bottom-14 md:bottom-0 md:items-start md:px-10 md:pb-16 lg:px-16 lg:pb-20">
-            <Skeleton className="h-5 w-40 md:h-10 md:w-72 lg:w-96" />
-            <Skeleton className="h-9 w-28 md:h-11 md:w-36" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-12 z-[2] flex flex-col items-center gap-3.5 px-4 sm:bottom-14 xl:bottom-0 xl:items-start xl:px-10 xl:pb-16 lg:px-16 lg:pb-20">
+            <Skeleton className="h-5 w-40 xl:h-10 xl:w-72 2xl:w-96" />
+            <Skeleton className="h-9 w-28 xl:h-11 xl:w-36" />
           </div>
         )}
       </div>

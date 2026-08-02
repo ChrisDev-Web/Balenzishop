@@ -13,6 +13,7 @@ import {
   buildEligibleDiscountMap,
 } from '../api/discountCoupons'
 import { getDeliveryFeeForAddress, computeOrderTotal, formatShippingDisplay } from '../utils/deliveryFee'
+import { getCartLineTotal, getDecantBulkDiscount } from '../utils/pricing'
 import { buildWhatsAppMessage, openWhatsAppOrder } from '../utils/orderMessage'
 import { mapApiClientOrder } from '../utils/clientOrderMapper'
 import { reserveCheckoutOrder } from '../api/clientOrders'
@@ -372,8 +373,16 @@ export default function CheckoutPage() {
     )
   }
 
-  if (!user?.profileComplete || !primaryAddress) {
+  if (!user?.profileComplete) {
     return null
+  }
+
+  if (!primaryAddress) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-20 text-center">
+        <p className="text-sm text-gray-600">Cargando dirección de entrega…</p>
+      </div>
+    )
   }
 
   return (
@@ -408,11 +417,16 @@ export default function CheckoutPage() {
             </div>
             <ul className="max-h-[min(28rem,55vh)] divide-y overflow-y-auto px-5">
               {items.map((item) => {
-                const lineTotal = item.price * item.quantity
+                const isDecant = Boolean(item.isDecant || item.idProductDecant)
+                const lineTotal = getCartLineTotal(item)
+                const bulkDiscount = isDecant ? getDecantBulkDiscount(item.quantity) : 0
                 const discountInfo = eligibleDiscountByProductId.get(Number(item.id))
 
                 return (
-                  <li key={item.id} className="flex gap-4 py-4">
+                  <li
+                    key={item.idProductDecant ? `${item.id}-${item.idProductDecant}` : item.id}
+                    className="flex gap-4 py-4"
+                  >
                     {item.image ? (
                       <img src={item.image} alt={item.name} className="h-20 w-16 shrink-0 rounded object-contain bg-gray-50" />
                     ) : (
@@ -422,6 +436,11 @@ export default function CheckoutPage() {
                       <p className="font-medium text-gray-900">{item.name}</p>
                       <p className="text-xs text-gray-500">{item.brand}</p>
                       <p className="mt-1 text-sm text-gray-600">Cantidad: {item.quantity}</p>
+                      {isDecant && bulkDiscount > 0 && (
+                        <p className="mt-1 text-xs font-bold text-black">
+                          Descuento por volumen: - S/ {bulkDiscount.toFixed(2)}
+                        </p>
+                      )}
                       {discountInfo && (
                         <p className="mt-1 text-xs font-bold text-gray-900">
                           Cupón aplicado: - S/ {discountInfo.discountAmount.toFixed(2)}

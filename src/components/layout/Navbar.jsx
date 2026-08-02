@@ -6,6 +6,7 @@ import { useCartStore } from '../../stores/cartStore'
 import LoginModal from '../auth/LoginModal'
 import CartDropdown from '../cart/CartDropdown'
 import { useUiStore } from '../../stores/uiStore'
+import { useCartAnimationStore } from '../../stores/cartAnimationStore'
 import { useCompanyStore } from '../../stores/companyStore'
 import { AUTH_INTENT } from '../../utils/authFlow'
 import {
@@ -131,13 +132,16 @@ function AccountMenu({ accountOpen, setAccountOpen, accountRef, isAuthenticated,
   )
 }
 
-function CartButton({ count, isOpen, toggleCart, closeCart }) {
+function CartButton({ count, isOpen, toggleCart, closeCart, cartShake }) {
   return (
     <div className="relative shrink-0">
       <button
         type="button"
+        data-cart-target
         onClick={toggleCart}
-        className="navbar-icon relative rounded-full p-1.5 text-white hover:bg-white/10 min-[400px]:p-2"
+        className={`navbar-icon relative rounded-full p-1.5 text-white hover:bg-white/10 min-[400px]:p-2 ${
+          cartShake ? 'cart-target-shake' : ''
+        }`}
         aria-label="Carrito de compras"
         aria-expanded={isOpen}
       >
@@ -150,7 +154,7 @@ function CartButton({ count, isOpen, toggleCart, closeCart }) {
       </button>
 
       {isOpen && (
-        <div className="hidden sm:block">
+        <div className="hidden xl:block">
           <CartDropdown onClose={closeCart} variant="anchored" />
         </div>
       )}
@@ -169,6 +173,7 @@ export default function Navbar() {
   const { isAuthenticated, user, logout } = useAuthStore()
   const { totalItems, isOpen, toggleCart, closeCart } = useCartStore()
   const { loginModalOpen, openLoginModal, closeLoginModal } = useUiStore()
+  const cartShake = useCartAnimationStore((s) => s.cartShake)
   const company = useCompanyStore((s) => s.company)
   const count = totalItems()
   const logoUrl = company?.logo || DEFAULT_NAVBAR_LOGO
@@ -212,8 +217,8 @@ export default function Navbar() {
       if (e.key === 'Escape') closeCart()
     }
 
-    const isMobile = window.matchMedia('(max-width: 639px)').matches
-    if (isMobile) {
+    const isMobileCart = window.matchMedia('(max-width: 1279px)').matches
+    if (isMobileCart) {
       closeSidebar()
       document.body.style.overflow = 'hidden'
     }
@@ -287,11 +292,11 @@ export default function Navbar() {
     <>
       <header
         className={`fixed top-0 left-0 right-0 z-[100] w-full ${immersiveNav ? 'navbar-glass-immersive' : 'navbar-glass'} ${
-          isOpen ? 'max-sm:hidden' : ''
+          isOpen ? 'max-xl:hidden' : ''
         }`}
       >
-        {/* Mobile bar */}
-        <div className="relative flex h-14 items-center justify-between px-3 min-[400px]:h-16 min-[400px]:px-4 md:hidden">
+        {/* Mobile / tablet / laptop bar */}
+        <div className="relative flex h-14 items-center justify-between px-3 min-[400px]:h-16 min-[400px]:px-4 xl:hidden">
           <div className="relative z-20 flex items-center gap-1">
             <button
               type="button"
@@ -333,12 +338,18 @@ export default function Navbar() {
               logout={logout}
               displayName={displayName}
             />
-            <CartButton count={count} isOpen={isOpen} toggleCart={toggleCart} closeCart={closeCart} />
+            <CartButton
+              count={count}
+              isOpen={isOpen}
+              toggleCart={toggleCart}
+              closeCart={closeCart}
+              cartShake={cartShake}
+            />
           </div>
         </div>
 
         {/* Desktop bar */}
-        <div className="hidden h-16 w-full items-center justify-between gap-4 pl-8 pr-6 md:flex">
+        <div className="hidden h-16 w-full items-center justify-between gap-4 pl-8 pr-6 xl:flex">
           <Link to="/" className="shrink-0">
             <img
               src={logoUrl}
@@ -378,21 +389,27 @@ export default function Navbar() {
               displayName={displayName}
             />
 
-            <CartButton count={count} isOpen={isOpen} toggleCart={toggleCart} closeCart={closeCart} />
+            <CartButton
+              count={count}
+              isOpen={isOpen}
+              toggleCart={toggleCart}
+              closeCart={closeCart}
+              cartShake={cartShake}
+            />
           </div>
         </div>
       </header>
 
-      {/* Mobile sidebar */}
+      {/* Mobile / tablet / laptop sidebar */}
       {sidebarOpen && (
         <>
           <div
-            className="fixed inset-0 z-[110] bg-black/50 md:hidden"
+            className="fixed inset-0 z-[110] bg-black/50 xl:hidden"
             onClick={closeSidebar}
             aria-hidden="true"
           />
           <aside
-            className="fixed inset-y-0 left-0 z-[120] flex w-[min(85vw,300px)] flex-col bg-white shadow-2xl md:hidden"
+            className="fixed inset-y-0 left-0 z-[120] flex w-[min(85vw,300px)] flex-col bg-white shadow-2xl xl:hidden"
             role="dialog"
             aria-modal="true"
             aria-label="Menú de navegación"
@@ -449,16 +466,16 @@ export default function Navbar() {
         </>
       )}
 
-      <div className={`navbar-spacer ${isOpen ? 'max-sm:hidden' : ''}`} aria-hidden="true" />
+      <div className={`navbar-spacer ${isOpen ? 'max-xl:hidden' : ''}`} aria-hidden="true" />
 
       {isOpen && (
         <>
           <div
-            className="fixed inset-0 z-[120] bg-black/40 sm:z-40"
+            className="fixed inset-0 z-[120] bg-black/40 xl:z-40"
             onClick={closeCart}
             aria-hidden="true"
           />
-          <div className="sm:hidden">
+          <div className="xl:hidden">
             <CartDropdown onClose={closeCart} variant="mobile" />
           </div>
         </>

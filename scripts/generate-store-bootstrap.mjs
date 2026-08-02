@@ -69,7 +69,22 @@ function mapBrand(brand) {
 }
 
 function mapCatalogProduct(item) {
+  const isLivePrice = Boolean(item.price?.is_live)
   const price = Number(item.price?.sale_price ?? 0)
+  const safePrice = Number.isNaN(price) ? 0 : price
+  const onlinePriceRaw = isLivePrice ? item.price?.normal_sale_price : safePrice
+  const onlinePrice = onlinePriceRaw == null || onlinePriceRaw === '' ? safePrice : Number(onlinePriceRaw)
+  const safeOnlinePrice = Number.isNaN(onlinePrice) ? safePrice : onlinePrice
+  const fakePriceRaw = item.price?.fake_price
+  const fakePrice = fakePriceRaw == null || fakePriceRaw === '' ? null : Number(fakePriceRaw)
+  const hasFakePrice = fakePrice != null && !Number.isNaN(fakePrice) && fakePrice > safeOnlinePrice
+
+  let originalPrice = item.reference_price?.sale_price ?? null
+  if (hasFakePrice) {
+    originalPrice = fakePrice
+  } else if (isLivePrice && safeOnlinePrice > safePrice) {
+    originalPrice = safeOnlinePrice
+  }
 
   return {
     id: item.id_product,
@@ -77,11 +92,14 @@ function mapCatalogProduct(item) {
     name: item.name,
     brand: item.brand_name ?? '',
     image: item.photo || '',
-    price: Number.isNaN(price) ? 0 : price,
+    price: safePrice,
+    onlinePrice: safeOnlinePrice,
     referencePrice: item.reference_price?.sale_price ?? null,
-    basePrice: Number.isNaN(price) ? 0 : price,
-    originalPrice: item.price?.is_live ? item.price?.normal_sale_price ?? null : item.reference_price?.sale_price ?? null,
-    isLivePrice: Boolean(item.price?.is_live),
+    fakePrice: hasFakePrice ? fakePrice : null,
+    basePrice: safePrice,
+    originalPrice,
+    hasFakePrice,
+    isLivePrice,
     aroma: item.scent ?? '',
     description: item.brief_description || item.description || '',
     fullDescription: item.description ?? '',

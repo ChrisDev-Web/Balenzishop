@@ -1,11 +1,19 @@
 import { apiGet, apiPostForm } from './client'
 
 function buildCartItems(items) {
-  return items.map((item) => ({
-    id_product: Number(item.id),
-    quantity: Number(item.quantity),
-    unit_price: Number(item.price),
-  }))
+  return items.map((item) => {
+    const payload = {
+      id_product: Number(item.id),
+      quantity: Number(item.quantity),
+      unit_price: Number(item.price),
+    }
+
+    if (item.idProductDecant) {
+      payload.id_product_decant = Number(item.idProductDecant)
+    }
+
+    return payload
+  })
 }
 
 export function buildCreateOrderFormData({

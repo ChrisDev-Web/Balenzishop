@@ -3,19 +3,28 @@ import { Link } from 'react-router-dom'
 import { ShoppingBag } from 'lucide-react'
 import { useCartStore } from '../../stores/cartStore'
 import { useUserPricing } from '../../hooks/useUserPricing'
-import { getDiscountPercent, formatDiscountLabel, getLiveDiscountLabel, getMaxCartQuantity } from '../../utils/pricing'
+import { useAddToCart } from '../../hooks/useAddToCart'
+import {
+  getCatalogPricePresentation,
+  getDiscountPercent,
+  formatDiscountLabel,
+  getPromoDiscountLabel,
+  getMaxCartQuantity,
+} from '../../utils/pricing'
+import CatalogPriceDisplay from '../product/CatalogPriceDisplay'
 import LiveDiscountBadge from '../product/LiveDiscountBadge'
 import { productLink } from '../../utils/productUtils'
 
 function ProductCard({ perfume, priority = false }) {
-  const addItem = useCartStore((s) => s.addItem)
+  const addToCart = useAddToCart()
   const cartItem = useCartStore((s) => s.items.find((item) => item.id === perfume.id))
   const { getCatalogDisplayPrices, isMayorista, minQuantity, role } = useUserPricing()
   const [imgError, setImgError] = useState(false)
+  const pricePresentation = getCatalogPricePresentation(perfume, role)
   const { displayPrice, strikePrice } = getCatalogDisplayPrices(perfume)
   const discountPercent = isMayorista ? getDiscountPercent(displayPrice, strikePrice) : null
   const discountLabel = formatDiscountLabel(discountPercent)
-  const liveDiscountLabel = getLiveDiscountLabel(perfume, role)
+  const promoDiscountLabel = getPromoDiscountLabel(perfume, role)
   const maxQuantity = getMaxCartQuantity(perfume.stock, role)
   const canAddToCart = maxQuantity > 0 && (!cartItem || cartItem.quantity < maxQuantity)
 
@@ -23,7 +32,7 @@ function ProductCard({ perfume, priority = false }) {
     e.preventDefault()
     e.stopPropagation()
     if (!canAddToCart) return
-    addItem(perfume)
+    addToCart(perfume, e)
   }
 
   return (
@@ -54,9 +63,9 @@ function ProductCard({ perfume, priority = false }) {
             {discountLabel}
           </span>
         )}
-        {liveDiscountLabel && (
+        {promoDiscountLabel && (
           <LiveDiscountBadge
-            label={liveDiscountLabel}
+            label={promoDiscountLabel}
             className={`absolute left-1 sm:left-1.5 ${
               discountLabel ? 'top-5 sm:top-7' : 'top-1 sm:top-1.5'
             }`}
@@ -65,7 +74,7 @@ function ProductCard({ perfume, priority = false }) {
         {perfume.onSale && (
           <span
             className={`absolute left-1 rounded bg-black px-1 py-px text-[8px] font-bold leading-none text-white sm:left-1.5 sm:px-1.5 sm:py-0.5 sm:text-[10px] md:text-xs ${
-              discountLabel || liveDiscountLabel ? 'top-5 sm:top-7' : 'top-1 sm:top-1.5'
+              discountLabel || promoDiscountLabel ? 'top-5 sm:top-7' : 'top-1 sm:top-1.5'
             }`}
           >
             Oferta
@@ -90,16 +99,9 @@ function ProductCard({ perfume, priority = false }) {
 
         <div className="mt-auto space-y-1.5 pt-1.5 sm:space-y-2 sm:pt-2 md:space-y-2.5 md:pt-4">
           <div className="min-w-0">
-            <p className="truncate text-xs font-bold text-gray-900 sm:text-sm md:text-lg">
-              S/ {displayPrice.toFixed(2)}
-            </p>
-            {strikePrice != null && (
-              <p className="truncate text-[9px] text-gray-400 line-through sm:text-[10px] md:text-xs">
-                S/ {strikePrice.toFixed(2)}
-              </p>
-            )}
+            <CatalogPriceDisplay presentation={pricePresentation} variant="card" />
             {isMayorista && (
-              <p className="text-[9px] text-gray-500 sm:text-[10px] md:text-xs">Mín. {minQuantity}</p>
+              <p className="mt-0.5 text-[9px] text-gray-500 sm:text-[10px] md:text-xs">Mín. {minQuantity}</p>
             )}
           </div>
 

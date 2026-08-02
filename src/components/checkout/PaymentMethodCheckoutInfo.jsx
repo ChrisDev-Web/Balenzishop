@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Copy, Download, Eye, X } from 'lucide-react'
 import {
+  PAYMENT_METHOD_TYPE_POS,
   PAYMENT_METHOD_TYPE_TRANSFER,
   PAYMENT_METHOD_TYPE_WALLET,
   downloadPaymentMethodQr,
   resolvePaymentMethodType,
 } from '../../utils/paymentMethods'
+import { POS_SURCHARGE_RATE } from '../../utils/paymentSurcharge'
 
 export default function PaymentMethodCheckoutInfo({ method }) {
   const [copied, setCopied] = useState(false)
@@ -42,6 +44,18 @@ export default function PaymentMethodCheckoutInfo({ method }) {
     } catch (error) {
       setDownloadError(error.message || 'No se pudo descargar el QR')
     }
+  }
+
+  if (type === PAYMENT_METHOD_TYPE_POS) {
+    return (
+      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+        <p className="font-semibold">Pago con tarjeta en POS</p>
+        <p className="mt-1 leading-relaxed">
+          Al usar este método se aplica un recargo del {(POS_SURCHARGE_RATE * 100).toFixed(0)}% sobre el total del pedido.
+          Solo disponible para delivery Rainau.
+        </p>
+      </div>
+    )
   }
 
   if (type === PAYMENT_METHOD_TYPE_TRANSFER && (method.full_name || method.number_count)) {

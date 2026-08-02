@@ -2,13 +2,19 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Plus, Trash2, Upload, MessageCircle } from 'lucide-react'
 import { submitCheckoutOrder } from '../../api/clientOrders'
-import { calculateReservationAmount } from '../../utils/reservation'
+import { calculateReservationAmount, formatReservationHint } from '../../utils/reservation'
 import { findPaymentMethodById } from '../../utils/paymentMethods'
+import {
+  applyPosSurcharge,
+  filterCheckoutPaymentMethods,
+  isPosPaymentMethod,
+} from '../../utils/paymentSurcharge'
 import { computeOrderTotal, DELIVERY_MODES, formatShippingDisplay } from '../../utils/deliveryFee'
 import { DELIVERY_TYPES } from '../../utils/deliveryTypes'
 import { useRainauAvailableDeliveryDates } from '../../hooks/useRainauAvailableDeliveryDates'
 import PaymentMethodCheckoutInfo from './PaymentMethodCheckoutInfo'
 import RainauDeliveryDatePicker from './RainauDeliveryDatePicker'
+import PosSurchargeConfirmModal from './PosSurchargeConfirmModal'
 import CancelCheckoutConfirmModal, {
   cancelActiveCheckoutDraft,
 } from './CancelCheckoutConfirmModal'
@@ -74,9 +80,16 @@ export default function ReserveOrderModal({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [calendarPickerOpen, setCalendarPickerOpen] = useState(false)
   const [scheduledDeliveryDate, setScheduledDeliveryDate] = useState('')
+  const [showPosSurchargeModal, setShowPosSurchargeModal] = useState(false)
+  const [pendingPosSelection, setPendingPosSelection] = useState(null)
 
   const requiresRainauDeliveryDate = deliveryMode === DELIVERY_MODES.DELIVERY
     && primaryAddress?.deliveryType === DELIVERY_TYPES.RAINAU
+
+  const checkoutPaymentMethods = useMemo(
+    () => filterCheckoutPaymentMethods(paymentMethods, { rainauDelivery: requiresRainauDeliveryDate }),
+    [paymentMethods, requiresRainauDeliveryDate],
+  )
 
   const {
     dates: availableDeliveryDates,
@@ -94,8 +107,13 @@ export default function ReserveOrderModal({
     : 0
 
   const reservationAmount = useMemo(
-    () => calculateReservationAmount(totalQuantity),
-    [totalQuantity],
+    () => calculateReservationAmount(items),
+    [items],
+  )
+
+  const reservationHint = useMemo(
+    () => formatReservationHint(items),
+    [items],
   )
 
   const orderTotal = useMemo(
@@ -103,7 +121,19 @@ export default function ReserveOrderModal({
     [subtotal, discount, effectiveDeliveryFee, deliveryMode],
   )
 
-  const expectedAmount = paymentMode === PAYMENT_MODE_FULL ? orderTotal : reservationAmount
+  const usesPosPayment = useMemo(
+    () => paymentRows.some((row) => isPosPaymentMethod(
+      findPaymentMethodById(checkoutPaymentMethods, row.id_payment_method),
+    )),
+    [paymentRows, checkoutPaymentMethods],
+  )
+
+  const { surcharge: posSurchargeAmount, total: orderTotalWithSurcharge } = useMemo(
+    () => (usesPosPayment ? applyPosSurcharge(orderTotal) : { surcharge: 0, total: orderTotal }),
+    [usesPosPayment, orderTotal],
+  )
+
+  const expectedAmount = paymentMode === PAYMENT_MODE_FULL ? orderTotalWithSurcharge : reservationAmount
 
   const paidTotal = useMemo(
     () => roundMoney(
@@ -132,6 +162,8 @@ export default function ReserveOrderModal({
     setShowCancelConfirm(false)
     setCalendarPickerOpen(false)
     setScheduledDeliveryDate('')
+    setShowPosSurchargeModal(false)
+    setPendingPosSelection(null)
   }, [open])
 
   useEffect(() => {
@@ -153,6 +185,33 @@ export default function ReserveOrderModal({
 
   function updateRow(key, patch) {
     setPaymentRows((rows) => rows.map((row) => (row.key === key ? { ...row, ...patch } : row)))
+  }
+
+  function handlePaymentMethodChange(rowKey, methodId) {
+    const selectedMethod = findPaymentMethodById(checkoutPaymentMethods, methodId)
+
+    if (isPosPaymentMethod(selectedMethod)) {
+      setPendingPosSelection({ rowKey, methodId })
+      setShowPosSurchargeModal(true)
+      return
+    }
+
+    updateRow(rowKey, { id_payment_method: methodId })
+  }
+
+  function confirmPosSurcharge() {
+    if (!pendingPosSelection) return
+
+    updateRow(pendingPosSelection.rowKey, {
+      id_payment_method: pendingPosSelection.methodId,
+    })
+    setPendingPosSelection(null)
+    setShowPosSurchargeModal(false)
+  }
+
+  function cancelPosSurcharge() {
+    setPendingPosSelection(null)
+    setShowPosSurchargeModal(false)
   }
 
   function updateRowAmount(key, rawAmount) {
@@ -289,9 +348,16 @@ export default function ReserveOrderModal({
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-5">
           <div className="rounded-lg bg-gray-50 px-4 py-3 text-sm">
             <p className="font-bold text-gray-900">
-              Reserva: S/ {reservationAmount.toFixed(2)} ({totalQuantity} × S/ 20)
+              Reserva: S/ {reservationAmount.toFixed(2)} ({reservationHint})
             </p>
-            <p className="mt-1 font-bold text-gray-900">Total del pedido: S/ {orderTotal.toFixed(2)}</p>
+            <p className="mt-1 font-bold text-gray-900">
+              Total del pedido: S/ {orderTotalWithSurcharge.toFixed(2)}
+            </p>
+            {usesPosPayment && (
+              <p className="mt-1 text-gray-600">
+                Incluye recargo POS (5%): S/ {posSurchargeAmount.toFixed(2)}
+              </p>
+            )}
             {requiresRainauDeliveryDate && (
               <p className="mt-1 text-gray-600">
                 Delivery Rainau:{' '}
@@ -300,7 +366,7 @@ export default function ReserveOrderModal({
             )}
             {paymentMode === PAYMENT_MODE_RESERVATION && (
               <p className="mt-1 text-gray-600">
-                Saldo pendiente tras la reserva: S/ {Math.max(0, orderTotal - reservationAmount).toFixed(2)}
+                Saldo pendiente tras la reserva: S/ {Math.max(0, orderTotalWithSurcharge - reservationAmount).toFixed(2)}
               </p>
             )}
           </div>
@@ -341,7 +407,7 @@ export default function ReserveOrderModal({
                   onChange={() => setPaymentMode(PAYMENT_MODE_FULL)}
                 />
                 <span className="font-bold text-gray-900">Pago completo</span>
-                <span className="mt-1 block text-gray-600">S/ {orderTotal.toFixed(2)}</span>
+                <span className="mt-1 block text-gray-600">S/ {orderTotalWithSurcharge.toFixed(2)}</span>
               </label>
             </div>
           </div>
@@ -361,7 +427,7 @@ export default function ReserveOrderModal({
 
             <div className="space-y-4">
               {paymentRows.map((row, index) => {
-                const selectedMethod = findPaymentMethodById(paymentMethods, row.id_payment_method)
+                const selectedMethod = findPaymentMethodById(checkoutPaymentMethods, row.id_payment_method)
 
                 return (
                 <div key={row.key} className="min-w-0 rounded-lg border border-gray-200 p-3 sm:p-4">
@@ -384,11 +450,11 @@ export default function ReserveOrderModal({
                       <span className="mb-1 block text-gray-700">Método de pago</span>
                       <select
                         value={row.id_payment_method}
-                        onChange={(e) => updateRow(row.key, { id_payment_method: e.target.value })}
+                        onChange={(e) => handlePaymentMethodChange(row.key, e.target.value)}
                         className="w-full max-w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:border-black focus:outline-none sm:text-sm"
                       >
                         <option value="">Seleccionar…</option>
-                        {paymentMethods.map((method) => (
+                        {checkoutPaymentMethods.map((method) => (
                           <option key={method.id} value={String(method.id)}>
                             {method.name}
                           </option>
@@ -491,6 +557,13 @@ export default function ReserveOrderModal({
           onConfirmCancel={confirmCancelReservation}
         />
       )}
+
+      <PosSurchargeConfirmModal
+        open={showPosSurchargeModal}
+        baseTotal={orderTotal}
+        onConfirm={confirmPosSurcharge}
+        onCancel={cancelPosSurcharge}
+      />
     </div>,
     document.body,
   )

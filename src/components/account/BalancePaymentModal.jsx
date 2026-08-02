@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { X, Plus, Trash2, Upload, MessageCircle } from 'lucide-react'
 import { submitBalancePayment } from '../../api/clientOrders'
 import { findPaymentMethodById } from '../../utils/paymentMethods'
+import { filterCheckoutPaymentMethods } from '../../utils/paymentSurcharge'
 import PaymentMethodCheckoutInfo from '../checkout/PaymentMethodCheckoutInfo'
 
 function createPaymentRow(balanceDue) {
@@ -53,6 +54,8 @@ export default function BalancePaymentModal({
   }, [open, balanceDue])
 
   if (!open || !order) return null
+
+  const checkoutPaymentMethods = filterCheckoutPaymentMethods(paymentMethods, { rainauDelivery: false })
 
   function updateRow(key, patch) {
     setPaymentRows((rows) => rows.map((row) => (row.key === key ? { ...row, ...patch } : row)))
@@ -179,7 +182,7 @@ export default function BalancePaymentModal({
                       onChange={(event) => updateRow(row.key, { id_payment_method: event.target.value })}
                     >
                       <option value="">Seleccionar…</option>
-                      {paymentMethods.map((method) => (
+                      {checkoutPaymentMethods.map((method) => (
                         <option key={method.id_payment_method} value={String(method.id_payment_method)}>
                           {method.name}
                         </option>

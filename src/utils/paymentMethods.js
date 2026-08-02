@@ -2,6 +2,7 @@ import http from '../api/client'
 
 export const PAYMENT_METHOD_TYPE_WALLET = 'digital_wallet'
 export const PAYMENT_METHOD_TYPE_TRANSFER = 'bank_transfer'
+export const PAYMENT_METHOD_TYPE_POS = 'pos'
 
 export function resolvePaymentMethodType(method) {
   if (method?.type) {

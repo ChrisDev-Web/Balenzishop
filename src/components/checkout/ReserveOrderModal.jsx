@@ -18,13 +18,14 @@ import PosSurchargeConfirmModal from './PosSurchargeConfirmModal'
 import CancelCheckoutConfirmModal, {
   cancelActiveCheckoutDraft,
 } from './CancelCheckoutConfirmModal'
+import { createClientId } from '../../utils/createClientId'
 
 const PAYMENT_MODE_RESERVATION = 'reserva'
 const PAYMENT_MODE_FULL = 'completo'
 
 function createPaymentRow(amount = '') {
   return {
-    key: crypto.randomUUID(),
+    key: createClientId(),
     id_payment_method: '',
     amount: amount === '' ? '' : String(amount),
     files: [],
@@ -83,7 +84,10 @@ export default function ReserveOrderModal({
   const [showPosSurchargeModal, setShowPosSurchargeModal] = useState(false)
   const [pendingPosSelection, setPendingPosSelection] = useState(null)
 
-  const requiresRainauDeliveryDate = deliveryMode === DELIVERY_MODES.DELIVERY
+  const requiresScheduledDeliveryDate = deliveryMode === DELIVERY_MODES.DELIVERY
+    || deliveryMode === DELIVERY_MODES.CUSTOMER_DELIVERY
+
+  const requiresRainauDeliveryDate = requiresScheduledDeliveryDate
     && primaryAddress?.deliveryType === DELIVERY_TYPES.RAINAU
 
   const checkoutPaymentMethods = useMemo(
@@ -97,7 +101,7 @@ export default function ReserveOrderModal({
     isLoading: deliveryDatesLoading,
     error: deliveryDatesError,
     refresh: refreshDeliveryDates,
-  } = useRainauAvailableDeliveryDates(open && requiresRainauDeliveryDate, {
+  } = useRainauAvailableDeliveryDates(open && requiresScheduledDeliveryDate, {
     fastPoll: calendarPickerOpen,
   })
 
@@ -149,7 +153,7 @@ export default function ReserveOrderModal({
   )
 
   const canSubmit = amountMatches && allRowsValid && !submitting && !cancelling && draftOrderId
-    && (!requiresRainauDeliveryDate || Boolean(scheduledDeliveryDate))
+    && (!requiresScheduledDeliveryDate || Boolean(scheduledDeliveryDate))
 
   useEffect(() => {
     if (!open) return
@@ -294,7 +298,7 @@ export default function ReserveOrderModal({
           paymentMode,
           payments,
           paymentProofs,
-          delivery: requiresRainauDeliveryDate
+          delivery: requiresScheduledDeliveryDate
             ? {
                 scheduled_delivery_date: scheduledDeliveryDate,
                 delivery_fee: effectiveDeliveryFee,
@@ -371,7 +375,7 @@ export default function ReserveOrderModal({
             )}
           </div>
 
-          {requiresRainauDeliveryDate && (
+          {requiresScheduledDeliveryDate && (
             <RainauDeliveryDatePicker
               dates={availableDeliveryDates}
               value={scheduledDeliveryDate}

@@ -13,6 +13,8 @@ import CompleteProfilePage from './pages/account/CompleteProfilePage'
 import ProfilePage from './pages/account/ProfilePage'
 import AddressesPage from './pages/account/AddressesPage'
 import OrdersPage from './pages/account/OrdersPage'
+import TermsPage from './pages/legal/TermsPage'
+import PrivacyPage from './pages/legal/PrivacyPage'
 import RequireAuth from './components/auth/RequireAuth'
 import PresenceTracker from './hooks/usePresenceHeartbeat'
 
@@ -31,6 +33,8 @@ export default function App() {
           <Route path="catalogo" element={<CatalogPage />} />
           <Route path="producto/:id" element={<ProductDetailPage />} />
           <Route path="pedido" element={<CheckoutPage />} />
+          <Route path="terminos-y-condiciones" element={<TermsPage />} />
+          <Route path="politica-de-privacidad" element={<PrivacyPage />} />
 
           <Route path="mi-cuenta/completar-perfil" element={
             <RequireAuth>

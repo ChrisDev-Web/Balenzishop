@@ -1,28 +1,27 @@
 import { useEffect, useRef, useState } from 'react'
 import { Crosshair, Eye, EyeOff } from 'lucide-react'
 import L from 'leaflet'
+import markerIconUrl from 'leaflet/dist/images/marker-icon.png'
+import markerIconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png'
+import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png'
 import 'leaflet/dist/leaflet.css'
 import {
   buildGoogleMapsLink,
   getCurrentPosition,
-  getDefaultMapCenter,
+  normalizeMapLocation,
+  resolveMapLocation,
   reverseGeocode,
 } from '../../utils/deliveryLocation'
 
 const markerIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconUrl: markerIconUrl,
+  iconRetinaUrl: markerIconRetinaUrl,
+  shadowUrl: markerShadowUrl,
   iconSize: [25, 41],
   iconAnchor: [12, 41],
 })
 
-function normalizeLocation(value) {
-  const lat = Number(value?.lat)
-  const lng = Number(value?.lng)
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
-  return { lat, lng }
-}
+const MAP_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
 
 export default function DeliveryLocationPicker({
   value,
@@ -42,7 +41,8 @@ export default function DeliveryLocationPicker({
   const [isResolving, setIsResolving] = useState(false)
   const [error, setError] = useState('')
 
-  const currentLocation = normalizeLocation(value)
+  const currentLocation = normalizeMapLocation(value)
+  const mapCenter = resolveMapLocation(value)
 
   useEffect(() => {
     setAddressInput(fullAddress)
@@ -55,40 +55,67 @@ export default function DeliveryLocationPicker({
   }, [isSaving])
 
   useEffect(() => {
-    if (!showPreview || !mapContainerRef.current || mapRef.current) return undefined
+    if (!showPreview || !mapContainerRef.current) return undefined
 
-    const initial = currentLocation ?? getDefaultMapCenter()
-    const map = L.map(mapContainerRef.current, {
-      center: [initial.lat, initial.lng],
-      zoom: currentLocation ? 16 : 12,
-      scrollWheelZoom: true,
-    })
+    const container = mapContainerRef.current
+    const initial = mapCenter
+    let map = null
+    let marker = null
+    let disposed = false
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap',
-    }).addTo(map)
+    const initMap = () => {
+      if (disposed || !container.isConnected) return
 
-    const marker = L.marker([initial.lat, initial.lng], {
-      draggable: !disabled,
-      icon: markerIcon,
-    }).addTo(map)
+      if (container._leaflet_id) {
+        container.replaceChildren()
+        delete container._leaflet_id
+      }
 
-    marker.on('dragend', async () => {
-      const { lat, lng } = marker.getLatLng()
-      await applyLocation({ lat, lng })
-    })
+      map = L.map(container, {
+        center: [initial.lat, initial.lng],
+        zoom: currentLocation ? 16 : 13,
+        scrollWheelZoom: true,
+      })
 
-    mapRef.current = map
-    markerRef.current = marker
+      L.tileLayer(MAP_TILE_URL, {
+        subdomains: 'abc',
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap',
+      }).addTo(map)
 
-    requestAnimationFrame(() => map.invalidateSize())
+      marker = L.marker([initial.lat, initial.lng], {
+        draggable: !disabled,
+        icon: markerIcon,
+      }).addTo(map)
+
+      marker.on('dragend', async () => {
+        const { lat, lng } = marker.getLatLng()
+        await applyLocation({ lat, lng })
+      })
+
+      mapRef.current = map
+      markerRef.current = marker
+
+      const refreshMapSize = () => {
+        if (!disposed && map) {
+          map.invalidateSize(true)
+        }
+      }
+
+      map.whenReady(refreshMapSize)
+      ;[100, 300, 600].forEach((delay) => window.setTimeout(refreshMapSize, delay))
+    }
+
+    const timer = window.setTimeout(initMap, 50)
 
     return () => {
-      map.remove()
+      disposed = true
+      window.clearTimeout(timer)
+      map?.remove()
       mapRef.current = null
       markerRef.current = null
     }
-  }, [showPreview])
+  }, [showPreview, disabled, mapCenter.lat, mapCenter.lng, currentLocation])
 
   useEffect(() => {
     if (!showPreview || !mapRef.current || !markerRef.current || !currentLocation) return
@@ -97,14 +124,17 @@ export default function DeliveryLocationPicker({
   }, [currentLocation, showPreview])
 
   function buildInternalMapsLink(location) {
-    const normalized = normalizeLocation(location)
+    const normalized = normalizeMapLocation(location)
     if (!normalized) return googleMapsLink || null
     return buildGoogleMapsLink(normalized.lat, normalized.lng)
   }
 
   async function applyLocation(location) {
-    const normalized = normalizeLocation(location)
-    if (!normalized) return
+    const normalized = normalizeMapLocation(location)
+    if (!normalized) {
+      setError('Selecciona una ubicación dentro de Perú.')
+      return
+    }
 
     setError('')
     let nextAddress = addressInput
@@ -176,10 +206,14 @@ export default function DeliveryLocationPicker({
       </div>
 
       {showPreview && (
-        <div className="overflow-hidden rounded-lg border border-gray-200">
-          <div ref={mapContainerRef} className="h-56 w-full" />
+        <div className="leaflet-map-root overflow-hidden rounded-lg border border-gray-200">
+          <div
+            ref={mapContainerRef}
+            className="h-56 w-full"
+            style={{ minHeight: '14rem' }}
+          />
           <p className="border-t bg-gray-50 px-3 py-2 text-xs text-gray-500">
-            Arrastra el pin si la ubicación no es correcta y guarda la dirección.
+            Arrastra el pin a Los Olivos si hace falta y guarda la dirección.
           </p>
         </div>
       )}

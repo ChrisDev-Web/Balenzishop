@@ -1,5 +1,28 @@
 const LIMA_CENTER = { lat: -12.0464, lng: -77.0428 }
 
+export function isLocationInPeru({ lat, lng }) {
+  return (
+    Number.isFinite(lat)
+    && Number.isFinite(lng)
+    && lat >= -19.5
+    && lat <= 0.5
+    && lng >= -82.5
+    && lng <= -68.5
+  )
+}
+
+export function normalizeMapLocation(value) {
+  const lat = Number(value?.lat)
+  const lng = Number(value?.lng)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+  if (!isLocationInPeru({ lat, lng })) return null
+  return { lat, lng }
+}
+
+export function resolveMapLocation(value) {
+  return normalizeMapLocation(value) ?? getDefaultMapCenter()
+}
+
 function parseCoordinatePair(value) {
   const match = String(value).match(/(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/)
   if (!match) return null
@@ -78,10 +101,19 @@ export async function getCurrentPosition() {
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        resolve({
+        const location = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
-        })
+        }
+
+        if (!isLocationInPeru(location)) {
+          reject(new Error(
+            'No se pudo obtener una ubicación válida en Perú. Arrastra el pin en el mapa o escribe tu dirección.',
+          ))
+          return
+        }
+
+        resolve(location)
       },
       (error) => {
         const message = error.code === error.PERMISSION_DENIED

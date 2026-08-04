@@ -5,10 +5,11 @@ import { submitBalancePayment } from '../../api/clientOrders'
 import { findPaymentMethodById } from '../../utils/paymentMethods'
 import { filterCheckoutPaymentMethods } from '../../utils/paymentSurcharge'
 import PaymentMethodCheckoutInfo from '../checkout/PaymentMethodCheckoutInfo'
+import { createClientId } from '../../utils/createClientId'
 
 function createPaymentRow(balanceDue) {
   return {
-    key: crypto.randomUUID(),
+    key: createClientId(),
     id_payment_method: '',
     amount: balanceDue > 0 ? String(balanceDue) : '',
     files: [],

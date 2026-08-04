@@ -9,6 +9,11 @@ import {
   formatWhatsAppDisplay,
 } from '../../utils/companyBranding'
 
+const LEGAL_LINKS = [
+  { label: 'Términos y condiciones', to: '/terminos-y-condiciones' },
+  { label: 'Política de privacidad', to: '/politica-de-privacidad' },
+]
+
 const STORE_LINKS = [
   { label: 'Inicio', to: '/' },
   { label: 'Mujeres', to: '/mujeres' },
@@ -142,6 +147,7 @@ export default function Footer() {
     { title: 'Tienda', links: STORE_LINKS },
     { title: 'Mi cuenta', links: ACCOUNT_LINKS },
     { title: 'Contacto', links: contactLinks },
+    { title: 'Legal', links: LEGAL_LINKS },
   ]
 
   return (
@@ -180,7 +186,7 @@ export default function Footer() {
               </div>
             </div>
 
-            <div className="grid w-full gap-10 sm:grid-cols-2 lg:w-auto lg:grid-cols-3 lg:gap-14">
+            <div className="grid w-full gap-10 sm:grid-cols-2 lg:w-auto lg:grid-cols-4 lg:gap-14">
               {footerSections.map((section) => (
                 <div key={section.title} className="text-center sm:text-left">
                   <h3 className="font-nav text-xs font-semibold uppercase tracking-[0.22em] text-white">
@@ -216,9 +222,20 @@ export default function Footer() {
         </div>
       </div>
 
-      <div className="mx-auto flex max-w-7xl flex-col items-center gap-2 px-6 py-6 text-center text-[11px] text-white/35 sm:flex-row sm:justify-between lg:px-8">
+      <div className="mx-auto flex max-w-7xl flex-col items-center gap-3 px-6 py-6 text-center text-[11px] text-white/35 sm:flex-row sm:justify-between lg:px-8">
         <p>© {new Date().getFullYear()} {companyName}. Todos los derechos reservados.</p>
-        <p className="tracking-wide">Lima, Perú · Envíos a todo el país</p>
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:justify-end">
+          <Link to="/terminos-y-condiciones" className="transition-colors hover:text-white/70">
+            Términos y condiciones
+          </Link>
+          <Link to="/politica-de-privacidad" className="transition-colors hover:text-white/70">
+            Política de privacidad
+          </Link>
+          <span className="hidden text-white/20 sm:inline" aria-hidden="true">
+            ·
+          </span>
+          <p className="tracking-wide">Lima, Perú · Envíos a todo el país</p>
+        </div>
       </div>
     </footer>
   )

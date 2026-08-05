@@ -1,7 +1,16 @@
 import { apiGet, apiPost, apiPut } from './client'
+import { getShopSessionId } from '../utils/shopSession'
 
 export async function fetchProductReviewsPublic(productId, params = {}, token = null) {
-  return apiGet(`products/${productId}/reviews/list_public`, params, token)
+  const sessionId = getShopSessionId()
+  return apiGet(
+    `products/${productId}/reviews/list_public`,
+    {
+      ...params,
+      session_id: sessionId || undefined,
+    },
+    token,
+  )
 }
 
 export async function fetchMyProductRating(productId, token) {
@@ -18,4 +27,16 @@ export async function createProductReview(productId, payload, token) {
 
 export async function updateProductReview(reviewId, payload, token) {
   return apiPut(`product_reviews/edit/${reviewId}`, payload, token)
+}
+
+export async function reactToProductReview(reviewId, reaction, token = null) {
+  const sessionId = getShopSessionId()
+  return apiPost(
+    `product_reviews/${reviewId}/react`,
+    {
+      reaction,
+      session_id: sessionId,
+    },
+    token,
+  )
 }

@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
 import { AUTH_INTENT, captureAuthReturnTo } from '../../utils/authFlow'
+import { buildReviewCardTitle, formatRelativeReviewDate } from '../../utils/reviewFormat'
 import {
   createProductReview,
   fetchProductReviewsPublic,
+  reactToProductReview,
   updateProductReview,
 } from '../../api/productReviews'
 import StarRating from './StarRating'
@@ -19,47 +21,75 @@ function getInitials(name = '') {
   return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase()
 }
 
-function ReviewAvatar({ review }) {
-  if (review.avatar_url) {
-    return (
-      <img
-        src={review.avatar_url}
-        alt=""
-        className="h-11 w-11 shrink-0 rounded-full border border-gray-200 object-cover"
-      />
-    )
-  }
-
+function ReactionButton({ active, count, label, icon: Icon, onClick, disabled }) {
   return (
-    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-900 text-sm font-semibold text-white">
-      {getInitials(review.display_name)}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      aria-pressed={active}
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+        active
+          ? 'border-gray-900 bg-gray-900 text-white'
+          : 'border-gray-300 bg-white text-gray-700 hover:border-gray-500'
+      }`}
+    >
+      <Icon size={14} strokeWidth={2} aria-hidden />
+      <span>{count}</span>
+    </button>
   )
 }
 
-function ReviewCard({ review, onEdit }) {
+function ReviewCard({ review, onEdit, onReact, isReacting }) {
+  const title = buildReviewCardTitle(review.comment)
+  const relativeDate = formatRelativeReviewDate(review.created_at)
+
   return (
-    <article className="min-w-full snap-center rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start gap-3">
-        <ReviewAvatar review={review} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="truncate text-sm font-semibold text-gray-900">{review.display_name}</h3>
-            {review.is_mine && (
-              <button
-                type="button"
-                onClick={() => onEdit(review)}
-                className="text-xs font-semibold text-gray-600 underline hover:text-gray-900"
-              >
-                Editar
-              </button>
-            )}
-          </div>
-          <StarRating value={review.rating} size={16} className="mt-1" />
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
-            {review.comment}
-          </p>
+    <article className="flex h-full flex-col rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-sm font-bold uppercase leading-snug text-gray-900">{title}</h3>
+        <StarRating value={review.rating} size={14} className="shrink-0" />
+      </div>
+
+      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-gray-500">
+        <span>por {review.display_name}</span>
+        {relativeDate && <span>{relativeDate}</span>}
+      </div>
+
+      <p className="mt-4 flex-1 whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
+        {review.comment}
+      </p>
+
+      <div className="mt-5 flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
+        <div className="flex items-center gap-2">
+          <ReactionButton
+            active={review.my_reaction === 'like'}
+            count={review.likes_count ?? 0}
+            label="Me gusta"
+            icon={ThumbsUp}
+            onClick={() => onReact(review, 'like')}
+            disabled={isReacting}
+          />
+          <ReactionButton
+            active={review.my_reaction === 'dislike'}
+            count={review.dislikes_count ?? 0}
+            label="No me gusta"
+            icon={ThumbsDown}
+            onClick={() => onReact(review, 'dislike')}
+            disabled={isReacting}
+          />
         </div>
+
+        {review.is_mine && (
+          <button
+            type="button"
+            onClick={() => onEdit(review)}
+            className="text-xs font-semibold text-gray-600 underline hover:text-gray-900"
+          >
+            Editar
+          </button>
+        )}
       </div>
     </article>
   )
@@ -80,9 +110,7 @@ export default function ProductReviews({ productId, sectionRef }) {
   const [rating, setRating] = useState(5)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingReview, setEditingReview] = useState(null)
-  const [touchStartX, setTouchStartX] = useState(null)
-
-  const carouselRef = useRef(null)
+  const [reactingReviewId, setReactingReviewId] = useState(null)
 
   const displayName = useMemo(() => {
     const parts = [user?.firstName, user?.lastNamePaternal, user?.lastNameMaternal]
@@ -176,22 +204,27 @@ export default function ProductReviews({ productId, sectionRef }) {
     loadReviews(nextPage)
   }
 
-  const handleTouchStart = (event) => {
-    setTouchStartX(event.touches[0]?.clientX ?? null)
-  }
+  const handleReact = async (review, reaction) => {
+    setReactingReviewId(review.id_product_review)
+    setError('')
 
-  const handleTouchEnd = (event) => {
-    if (touchStartX === null) return
-
-    const touchEndX = event.changedTouches[0]?.clientX ?? touchStartX
-    const delta = touchEndX - touchStartX
-
-    if (Math.abs(delta) >= 50) {
-      if (delta < 0) goToPage(page + 1)
-      else goToPage(page - 1)
+    try {
+      const response = await reactToProductReview(
+        review.id_product_review,
+        reaction,
+        accessToken,
+      )
+      const updated = response.data
+      setItems((current) =>
+        current.map((item) =>
+          item.id_product_review === updated.id_product_review ? updated : item,
+        ),
+      )
+    } catch (reactError) {
+      setError(reactError.message || 'No se pudo registrar tu reacción')
+    } finally {
+      setReactingReviewId(null)
     }
-
-    setTouchStartX(null)
   }
 
   return (
@@ -201,8 +234,8 @@ export default function ProductReviews({ productId, sectionRef }) {
         Comparte tu experiencia con este producto
       </p>
 
-      <div className="mx-auto mt-8 max-w-3xl">
-        <form onSubmit={handleSubmit} className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+      <div className="mx-auto mt-8 max-w-6xl px-4">
+        <form onSubmit={handleSubmit} className="rounded-xl border border-gray-200 bg-gray-50 p-5">
           <div className="flex items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-900 text-sm font-semibold text-white">
               {getInitials(displayName)}
@@ -260,19 +293,20 @@ export default function ProductReviews({ productId, sectionRef }) {
             </p>
           ) : (
             <>
-              <div
-                ref={carouselRef}
-                className="flex snap-x snap-mandatory overflow-hidden"
-                onTouchStart={handleTouchStart}
-                onTouchEnd={handleTouchEnd}
-              >
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {items.map((review) => (
-                  <ReviewCard key={review.id_product_review} review={review} onEdit={handleEdit} />
+                  <ReviewCard
+                    key={review.id_product_review}
+                    review={review}
+                    onEdit={handleEdit}
+                    onReact={handleReact}
+                    isReacting={reactingReviewId === review.id_product_review}
+                  />
                 ))}
               </div>
 
               {meta.last_page > 1 && (
-                <div className="mt-4 flex items-center justify-center gap-4">
+                <div className="mt-6 flex items-center justify-center gap-4">
                   <button
                     type="button"
                     onClick={() => goToPage(page - 1)}

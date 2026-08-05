@@ -103,12 +103,12 @@ export default function ProductStarVote({ productId, onRated }) {
   }
 
   return (
-    <div className="mt-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-      <p className="text-sm font-medium text-gray-700">Califica este producto</p>
+    <div className="mt-5 flex flex-col items-start gap-2">
+      <p className="text-sm font-semibold text-gray-800">Califica este producto</p>
       <StarRating
         value={rating}
         onChange={handleChange}
-        size={24}
+        size={32}
         className={isLoading || isSaving ? 'pointer-events-none opacity-60' : ''}
       />
     </div>

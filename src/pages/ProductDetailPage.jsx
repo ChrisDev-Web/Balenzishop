@@ -243,7 +243,7 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          <div className="product-detail__actions mt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="product-detail__actions mt-6 flex flex-col items-start gap-0">
             <button
               type="button"
               onClick={(event) => canAddToCart && addToCart(displayProduct, event)}

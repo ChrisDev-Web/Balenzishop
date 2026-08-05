@@ -2,6 +2,7 @@ export const AUTH_INTENT = {
   CHECKOUT: 'checkout',
   ONBOARDING: 'onboarding',
   ORDERS: 'orders',
+  REVIEW: 'review',
 }
 
 const DEFAULT_RETURN = '/mi-cuenta'
@@ -40,6 +41,10 @@ export function getRouteAfterLogin(user, authIntent, returnTo = null) {
     return '/mi-cuenta/pedidos'
   }
 
+  if (authIntent === AUTH_INTENT.REVIEW) {
+    return resolveReturnTo(returnTo, DEFAULT_RETURN)
+  }
+
   if (!user.addresses?.length) {
     return authIntent === AUTH_INTENT.CHECKOUT
       ? '/mi-cuenta/direcciones?flujo=pedido'
@@ -54,6 +59,10 @@ export function getRouteAfterLogin(user, authIntent, returnTo = null) {
 }
 
 export function getRouteAfterProfile(user, authIntent, returnTo = null) {
+  if (authIntent === AUTH_INTENT.REVIEW) {
+    return resolveReturnTo(returnTo, DEFAULT_RETURN)
+  }
+
   if (!user?.addresses?.length) {
     return authIntent === AUTH_INTENT.CHECKOUT
       ? '/mi-cuenta/direcciones?flujo=pedido'
@@ -68,6 +77,10 @@ export function getRouteAfterProfile(user, authIntent, returnTo = null) {
     return '/pedido'
   }
 
+  if (authIntent === AUTH_INTENT.REVIEW) {
+    return resolveReturnTo(returnTo, DEFAULT_RETURN)
+  }
+
   return resolveReturnTo(returnTo, DEFAULT_RETURN)
 }
 
@@ -78,6 +91,10 @@ export function getRouteAfterAddress(authIntent, returnTo = null) {
 
   if (authIntent === AUTH_INTENT.ORDERS) {
     return '/mi-cuenta/pedidos'
+  }
+
+  if (authIntent === AUTH_INTENT.REVIEW) {
+    return resolveReturnTo(returnTo, DEFAULT_RETURN)
   }
 
   return resolveReturnTo(returnTo, DEFAULT_RETURN)

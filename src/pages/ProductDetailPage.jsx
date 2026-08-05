@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Home, ChevronRight } from 'lucide-react'
 import { useCartStore } from '../stores/cartStore'
@@ -8,6 +8,8 @@ import { useProductDetail } from '../hooks/useProductDetail'
 import ProductGallery from '../components/product/ProductGallery'
 import ProductDetailSkeleton from '../components/product/ProductDetailSkeleton'
 import SimilarProducts from '../components/product/SimilarProducts'
+import ProductReviews from '../components/product/ProductReviews'
+import ProductStarVote from '../components/product/ProductStarVote'
 import ProductSpecs from '../components/product/ProductSpecs'
 import DecantSizeSelector from '../components/product/DecantSizeSelector'
 import { getCategoryBreadcrumbFromProduct } from '../utils/catalogProductMapper'
@@ -89,6 +91,11 @@ export default function ProductDetailPage() {
   const { isMayorista, minQuantity, role } = useUserPricing()
   const { product, error, ready } = useProductDetail(id)
   const [selectedDecant, setSelectedDecant] = useState(null)
+  const reviewsRef = useRef(null)
+
+  const scrollToReviews = () => {
+    reviewsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const showDecants = Boolean(product?.hasDecants && !isMayorista)
 
@@ -245,11 +252,14 @@ export default function ProductDetailPage() {
             >
               {isMayorista ? `Agregar (${minQuantity} und.)` : 'Agregar'}
             </button>
+            <ProductStarVote productId={product.id} onRated={scrollToReviews} />
           </div>
         </div>
       </div>
 
       <SimilarProducts products={product.similarProducts ?? []} categoryLink={categoryCatalogLink} />
+
+      <ProductReviews productId={product.id} sectionRef={reviewsRef} />
 
       <ProductSpecs specs={product.specRows ?? []} description={product.fullDescription} />
     </div>

@@ -226,7 +226,9 @@ export default function LoginModal({ isOpen, onClose }) {
                 ? 'Inicia sesión para continuar con tu pedido'
                 : authIntent === AUTH_INTENT.ORDERS
                   ? 'Inicia sesión para ver el historial de tus pedidos'
-                  : 'Inicia sesión con tu correo y contraseña'}
+                  : authIntent === AUTH_INTENT.REVIEW
+                    ? 'Inicia sesión para calificar y comentar'
+                    : 'Inicia sesión con tu correo y contraseña'}
             </p>
 
             <div className="mt-8">

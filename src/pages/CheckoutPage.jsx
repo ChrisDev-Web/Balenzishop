@@ -13,7 +13,8 @@ import {
   buildEligibleDiscountMap,
 } from '../api/discountCoupons'
 import { getDeliveryFeeForAddress, computeOrderTotal, formatShippingDisplay } from '../utils/deliveryFee'
-import { getCartLineTotal, getDecantBulkDiscount } from '../utils/pricing'
+import { getCartLineTotal } from '../utils/pricing'
+import { getLineDisplayTotal, getLinePromoDiscount, useCartTotals } from '../hooks/useCartTotals'
 import { buildWhatsAppMessage, openWhatsAppOrder } from '../utils/orderMessage'
 import { mapApiClientOrder } from '../utils/clientOrderMapper'
 import { reserveCheckoutOrder } from '../api/clientOrders'
@@ -29,7 +30,8 @@ import CheckoutAddressConfirmModal, {
 
 export default function CheckoutPage() {
   const navigate = useNavigate()
-  const { items, totalPrice, clearCart, clearEditingOrder, editingOrderId, editingDiscountCode } = useCartStore()
+  const { items, clearCart, clearEditingOrder, editingOrderId, editingDiscountCode } = useCartStore()
+  const { subtotal, grossSubtotal, decantPromoDiscount, promoResult } = useCartTotals()
   const { user, isAuthenticated, accessToken, updateAddress, syncAddresses } = useAuthStore()
   const openLoginModal = useUiStore((s) => s.openLoginModal)
   const setAuthIntent = useUiStore((s) => s.setAuthIntent)
@@ -60,7 +62,6 @@ export default function CheckoutPage() {
   const isEditing = !!editingOrderId
   const addresses = user?.addresses || []
   const primaryAddress = addresses.find((a) => a.isPrimary) || addresses[0]
-  const subtotal = totalPrice()
   const discount = appliedCode?.discount || 0
   const delivery = getDeliveryFeeForAddress(primaryAddress)
   const deliveryFee = delivery.fee
@@ -416,10 +417,10 @@ export default function CheckoutPage() {
               <h2 className="font-semibold text-gray-900">Productos</h2>
             </div>
             <ul className="max-h-[min(28rem,55vh)] divide-y overflow-y-auto px-5">
-              {items.map((item) => {
+              {items.map((item, lineIndex) => {
                 const isDecant = Boolean(item.isDecant || item.idProductDecant)
-                const lineTotal = getCartLineTotal(item)
-                const bulkDiscount = isDecant ? getDecantBulkDiscount(item.quantity) : 0
+                const linePromoDiscount = getLinePromoDiscount(lineIndex, promoResult)
+                const lineTotal = getLineDisplayTotal(item, lineIndex, promoResult)
                 const discountInfo = eligibleDiscountByProductId.get(Number(item.id))
 
                 return (
@@ -436,9 +437,9 @@ export default function CheckoutPage() {
                       <p className="font-medium text-gray-900">{item.name}</p>
                       <p className="text-xs text-gray-500">{item.brand}</p>
                       <p className="mt-1 text-sm text-gray-600">Cantidad: {item.quantity}</p>
-                      {isDecant && bulkDiscount > 0 && (
+                      {isDecant && linePromoDiscount > 0 && (
                         <p className="mt-1 text-xs font-bold text-black">
-                          Descuento por volumen: - S/ {bulkDiscount.toFixed(2)}
+                          Descuento promoción: - S/ {linePromoDiscount.toFixed(2)}
                         </p>
                       )}
                       {discountInfo && (
@@ -550,8 +551,14 @@ export default function CheckoutPage() {
             <div className="mt-6 space-y-2 border-t pt-4 text-sm">
               <div className="flex justify-between text-gray-600">
                 <span>Subtotal</span>
-                <span className="font-bold text-gray-900">S/ {subtotal.toFixed(2)}</span>
+                <span className="font-bold text-gray-900">S/ {grossSubtotal.toFixed(2)}</span>
               </div>
+              {decantPromoDiscount > 0 && (
+                <div className="flex justify-between text-gray-900">
+                  <span>Promoción decants</span>
+                  <span className="font-bold">- S/ {decantPromoDiscount.toFixed(2)}</span>
+                </div>
+              )}
               {discount > 0 && (
                 <div className="flex justify-between text-gray-900">
                   <span>Descuento</span>

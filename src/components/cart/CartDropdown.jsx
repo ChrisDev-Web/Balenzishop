@@ -5,14 +5,16 @@ import { useCartStore } from '../../stores/cartStore'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
 import { getRouteAfterLogin, AUTH_INTENT } from '../../utils/authFlow'
-import { getCartLineTotal, getDecantBulkDiscount, getDecantCartOptions, getMaxCartQuantity } from '../../utils/pricing'
+import { getCartLineTotal, getDecantCartOptions, getMaxCartQuantity } from '../../utils/pricing'
 import { useUserPricing } from '../../hooks/useUserPricing'
+import { getLineDisplayTotal, getLinePromoDiscount, useCartTotals } from '../../hooks/useCartTotals'
 
 export default function CartDropdown({ onClose, variant = 'anchored' }) {
   const navigate = useNavigate()
   const touchStartX = useRef(null)
   const [dragX, setDragX] = useState(0)
-  const { items, removeItem, updateQuantity, totalPrice } = useCartStore()
+  const { items, removeItem, updateQuantity } = useCartStore()
+  const { subtotal, decantPromoDiscount, promoResult } = useCartTotals()
   const { isAuthenticated, user } = useAuthStore()
   const openLoginModal = useUiStore((s) => s.openLoginModal)
   const authReturnTo = useUiStore((s) => s.authReturnTo)
@@ -127,7 +129,7 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
         <>
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
             <ul className="space-y-4">
-              {items.map((item) => {
+              {items.map((item, lineIndex) => {
                 const isDecant = Boolean(item.isDecant || item.idProductDecant)
                 const maxQuantity = getMaxCartQuantity(
                   item.stock,
@@ -142,8 +144,8 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
                     : null,
                 )
                 const atMaxStock = Number.isFinite(maxQuantity) && item.quantity >= maxQuantity
-                const lineTotal = getCartLineTotal(item)
-                const bulkDiscount = isDecant ? getDecantBulkDiscount(item.quantity) : 0
+                const linePromoDiscount = getLinePromoDiscount(lineIndex, promoResult)
+                const lineTotal = getLineDisplayTotal(item, lineIndex, promoResult)
 
                 return (
                 <li key={item.idProductDecant ? `${item.id}-${item.idProductDecant}` : item.id} className="flex gap-3">
@@ -165,9 +167,9 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
                         </span>
                       )}
                     </p>
-                    {isDecant && bulkDiscount > 0 && (
+                    {isDecant && linePromoDiscount > 0 && (
                       <p className="text-xs font-bold text-black">
-                        Descuento por volumen: - S/ {bulkDiscount.toFixed(2)}
+                        Descuento promoción: - S/ {linePromoDiscount.toFixed(2)}
                       </p>
                     )}
                     <div className="mt-2 flex items-center gap-2">
@@ -207,8 +209,13 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
           <div className="shrink-0 border-t px-5 py-4">
             <div className="flex justify-between text-sm font-semibold">
               <span>Total</span>
-              <span className="text-gray-900">S/ {totalPrice().toFixed(2)}</span>
+              <span className="text-gray-900">S/ {subtotal.toFixed(2)}</span>
             </div>
+            {decantPromoDiscount > 0 && (
+              <p className="mt-1 text-xs font-bold text-black">
+                Incluye promoción decants: - S/ {decantPromoDiscount.toFixed(2)}
+              </p>
+            )}
             <button
               type="button"
               onClick={handleGoToCheckout}

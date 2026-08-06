@@ -6,25 +6,11 @@ export const USER_ROLES = {
 export const WHOLESALE_DISCOUNT = 0.1
 export const WHOLESALE_MIN_QTY = 6
 
-export const DECANT_BULK_EVERY = 3
-export const DECANT_BULK_DISCOUNT = 10
-
-export function getDecantBulkDiscount(quantity) {
-  const qty = Math.max(0, Number(quantity) || 0)
-  return Math.floor(qty / DECANT_BULK_EVERY) * DECANT_BULK_DISCOUNT
-}
-
-export function getDecantLineTotal(unitPrice, quantity) {
-  const price = Number(unitPrice) || 0
-  const qty = Math.max(0, Number(quantity) || 0)
-  const gross = price * qty
-  const discount = getDecantBulkDiscount(qty)
-  return Math.round(Math.max(0, gross - discount) * 100) / 100
-}
-
 export function getCartLineTotal(item) {
   if (item?.isDecant || item?.idProductDecant) {
-    return getDecantLineTotal(item.price ?? item.basePrice, item.quantity)
+    const price = Number(item.price ?? item.basePrice) || 0
+    const qty = Math.max(0, Number(item.quantity) || 0)
+    return Math.round(price * qty * 100) / 100
   }
 
   return (Number(item?.price) || 0) * (Number(item?.quantity) || 0)
@@ -250,6 +236,7 @@ export function prepareCartItem(perfume, role, quantity = 1, cartItems = []) {
     quantity: finalQuantity,
     isDecant,
     idProductDecant: isDecant ? (perfume.idProductDecant ?? null) : null,
+    idBrand: perfume.idBrand ?? perfume.id_brand ?? null,
     decantSizeMl: isDecant ? (perfume.decantSizeMl ?? perfume.sizeMl ?? null) : null,
     availableMl: isDecant ? (perfume.availableMl ?? null) : null,
   }

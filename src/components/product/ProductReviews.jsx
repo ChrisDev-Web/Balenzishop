@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
 import { AUTH_INTENT, captureAuthReturnTo } from '../../utils/authFlow'
-import { buildReviewCardTitle, formatRelativeReviewDate } from '../../utils/reviewFormat'
+import { formatRelativeReviewDate } from '../../utils/reviewFormat'
 import {
   createProductReview,
   fetchProductReviewsPublic,
@@ -11,14 +11,21 @@ import {
   updateProductReview,
 } from '../../api/productReviews'
 import StarRating from './StarRating'
+import './product-reviews.css'
 
-const PAGE_SIZE = 3
+const PAGE_SIZE = 6
 
-function getInitials(name = '') {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '?'
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase()
+const SORT_OPTIONS = [
+  { value: 'best', label: 'Mejores evaluaciones' },
+  { value: 'newest', label: 'Más recientes' },
+  { value: 'rating_high', label: 'Mayor calificación' },
+  { value: 'rating_low', label: 'Menor calificación' },
+]
+
+const EMPTY_SUMMARY = {
+  average_rating: null,
+  total_reviews: 0,
+  rating_distribution: { '5': 0, '4': 0, '3': 0, '2': 0, '1': 0 },
 }
 
 function ReactionButton({ active, count, label, icon: Icon, onClick, disabled }) {
@@ -29,11 +36,7 @@ function ReactionButton({ active, count, label, icon: Icon, onClick, disabled })
       disabled={disabled}
       aria-label={label}
       aria-pressed={active}
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
-        active
-          ? 'border-gray-900 bg-gray-900 text-white'
-          : 'border-gray-300 bg-white text-gray-700 hover:border-gray-500'
-      }`}
+      className={`product-reviews__reaction${active ? ' product-reviews__reaction--active' : ''}`}
     >
       <Icon size={14} strokeWidth={2} aria-hidden />
       <span>{count}</span>
@@ -41,28 +44,45 @@ function ReactionButton({ active, count, label, icon: Icon, onClick, disabled })
   )
 }
 
+function RatingDistribution({ distribution, total }) {
+  return (
+    <div className="product-reviews__distribution">
+      {[5, 4, 3, 2, 1].map((stars) => {
+        const count = distribution[String(stars)] ?? 0
+        const width = total > 0 ? `${(count / total) * 100}%` : '0%'
+
+        return (
+          <div key={stars} className="product-reviews__distribution-row">
+            <span>{stars}</span>
+            <Star size={14} className="text-amber-400" fill="currentColor" strokeWidth={1.5} aria-hidden />
+            <div className="product-reviews__distribution-bar">
+              <div className="product-reviews__distribution-fill" style={{ width }} />
+            </div>
+            <span className="product-reviews__distribution-count">{count}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function ReviewCard({ review, onEdit, onReact, isReacting }) {
-  const title = buildReviewCardTitle(review.comment)
   const relativeDate = formatRelativeReviewDate(review.created_at)
 
   return (
-    <article className="flex h-full flex-col rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-bold uppercase leading-snug text-gray-900">{title}</h3>
-        <StarRating value={review.rating} size={14} className="shrink-0" />
+    <article className="product-reviews__card">
+      <div className="product-reviews__card-header">
+        <span className="product-reviews__card-author">{review.display_name}</span>
+        <div className="product-reviews__card-meta">
+          <StarRating value={review.rating} size={14} />
+          {relativeDate && <span className="product-reviews__card-date">{relativeDate}</span>}
+        </div>
       </div>
 
-      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-gray-500">
-        <span>por {review.display_name}</span>
-        {relativeDate && <span>{relativeDate}</span>}
-      </div>
+      <p className="product-reviews__card-body">{review.comment}</p>
 
-      <p className="mt-4 flex-1 whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
-        {review.comment}
-      </p>
-
-      <div className="mt-5 flex items-center justify-between gap-3 border-t border-gray-100 pt-4">
-        <div className="flex items-center gap-2">
+      <div className="product-reviews__card-footer">
+        <div className="product-reviews__reactions">
           <ReactionButton
             active={review.my_reaction === 'like'}
             count={review.likes_count ?? 0}
@@ -82,12 +102,56 @@ function ReviewCard({ review, onEdit, onReact, isReacting }) {
         </div>
 
         {review.is_mine && (
-          <button
-            type="button"
-            onClick={() => onEdit(review)}
-            className="text-xs font-semibold text-gray-600 underline hover:text-gray-900"
-          >
+          <button type="button" className="product-reviews__edit-link" onClick={() => onEdit(review)}>
             Editar
+          </button>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function ComposeCard({
+  displayName,
+  comment,
+  rating,
+  isSubmitting,
+  isEditing,
+  onCommentChange,
+  onRatingChange,
+  onSubmit,
+  onCancel,
+}) {
+  return (
+    <article className="product-reviews__card product-reviews__card--compose">
+      <div className="product-reviews__card-header">
+        <span className="product-reviews__card-author">{displayName}</span>
+        <div className="product-reviews__card-meta">
+          <StarRating value={rating} onChange={onRatingChange} size={18} />
+        </div>
+      </div>
+
+      <textarea
+        value={comment}
+        onChange={(event) => onCommentChange(event.target.value)}
+        rows={4}
+        placeholder="Cuéntanos qué te pareció…"
+        className="product-reviews__card-textarea"
+      />
+
+      <div className="product-reviews__card-footer">
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={isSubmitting}
+          className="btn-fill rounded-full px-6 py-2.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isSubmitting ? 'Guardando…' : isEditing ? 'Actualizar comentario' : 'Publicar comentario'}
+        </button>
+
+        {isEditing && (
+          <button type="button" className="product-reviews__edit-link" onClick={onCancel}>
+            Cancelar
           </button>
         )}
       </div>
@@ -103,7 +167,9 @@ export default function ProductReviews({ productId, sectionRef }) {
 
   const [items, setItems] = useState([])
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0 })
+  const [summary, setSummary] = useState(EMPTY_SUMMARY)
   const [page, setPage] = useState(1)
+  const [sort, setSort] = useState('best')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [comment, setComment] = useState('')
@@ -111,6 +177,8 @@ export default function ProductReviews({ productId, sectionRef }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingReview, setEditingReview] = useState(null)
   const [reactingReviewId, setReactingReviewId] = useState(null)
+  const [showCompose, setShowCompose] = useState(false)
+  const [reviewsVisible, setReviewsVisible] = useState(true)
 
   const displayName = useMemo(() => {
     const parts = [user?.firstName, user?.lastNamePaternal, user?.lastNameMaternal]
@@ -120,7 +188,7 @@ export default function ProductReviews({ productId, sectionRef }) {
   }, [user])
 
   const loadReviews = useCallback(
-    async (targetPage = 1) => {
+    async (targetPage = 1, targetSort = sort) => {
       if (!productId) return
 
       setIsLoading(true)
@@ -129,11 +197,12 @@ export default function ProductReviews({ productId, sectionRef }) {
       try {
         const response = await fetchProductReviewsPublic(
           productId,
-          { page: targetPage, page_size: PAGE_SIZE },
+          { page: targetPage, page_size: PAGE_SIZE, sort: targetSort },
           accessToken,
         )
         setItems(response.data?.items ?? [])
         setMeta(response.data?.meta ?? { current_page: 1, last_page: 1, total: 0 })
+        setSummary(response.data?.summary ?? EMPTY_SUMMARY)
         setPage(targetPage)
       } catch (loadError) {
         setError(loadError.message || 'No se pudieron cargar los comentarios')
@@ -141,15 +210,27 @@ export default function ProductReviews({ productId, sectionRef }) {
         setIsLoading(false)
       }
     },
-    [accessToken, productId],
+    [accessToken, productId, sort],
   )
 
   useEffect(() => {
-    loadReviews(1)
-  }, [loadReviews])
+    loadReviews(1, sort)
+  }, [loadReviews, sort])
 
-  const handleSubmit = async (event) => {
-    event.preventDefault()
+  const handleWriteReview = () => {
+    if (!isAuthenticated) {
+      openLoginModal(AUTH_INTENT.REVIEW, captureAuthReturnTo())
+      return
+    }
+
+    setEditingReview(null)
+    setComment('')
+    setRating(5)
+    setShowCompose(true)
+    setReviewsVisible(true)
+  }
+
+  const handleSubmit = async () => {
     if (!isAuthenticated) {
       openLoginModal(AUTH_INTENT.REVIEW, captureAuthReturnTo())
       return
@@ -178,7 +259,8 @@ export default function ProductReviews({ productId, sectionRef }) {
 
       setComment('')
       setRating(5)
-      await loadReviews(1)
+      setShowCompose(false)
+      await loadReviews(1, sort)
     } catch (submitError) {
       setError(submitError.message || 'No se pudo guardar el comentario')
     } finally {
@@ -190,6 +272,8 @@ export default function ProductReviews({ productId, sectionRef }) {
     setEditingReview(review)
     setComment(review.comment)
     setRating(review.rating)
+    setShowCompose(true)
+    setReviewsVisible(true)
     sectionRef?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
@@ -197,11 +281,12 @@ export default function ProductReviews({ productId, sectionRef }) {
     setEditingReview(null)
     setComment('')
     setRating(5)
+    setShowCompose(false)
   }
 
   const goToPage = (nextPage) => {
     if (nextPage < 1 || nextPage > meta.last_page || nextPage === page) return
-    loadReviews(nextPage)
+    loadReviews(nextPage, sort)
   }
 
   const handleReact = async (review, reaction) => {
@@ -227,73 +312,113 @@ export default function ProductReviews({ productId, sectionRef }) {
     }
   }
 
+  const averageLabel =
+    summary.average_rating !== null ? summary.average_rating.toFixed(1) : '—'
+
+  const pageNumbers = useMemo(() => {
+    const pages = []
+    for (let index = 1; index <= meta.last_page; index += 1) {
+      pages.push(index)
+    }
+    return pages
+  }, [meta.last_page])
+
   return (
-    <section ref={sectionRef} className="mt-16 border-t border-gray-200 pt-10">
-      <h2 className="text-center text-2xl font-bold text-gray-800">Comentarios</h2>
-      <p className="mt-2 text-center text-sm text-gray-500">
-        Comparte tu experiencia con este producto
-      </p>
+    <section ref={sectionRef} className="product-reviews">
+      <h2 className="product-reviews__title">Opiniones de este producto</h2>
 
-      <div className="mx-auto mt-8 max-w-6xl px-4">
-        <form onSubmit={handleSubmit} className="rounded-xl border border-gray-200 bg-gray-50 p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-900 text-sm font-semibold text-white">
-              {getInitials(displayName)}
-            </div>
-            <div className="min-w-0 flex-1 space-y-3">
-              <div>
-                <p className="text-sm font-semibold text-gray-900">{displayName}</p>
-                <StarRating value={rating} onChange={setRating} size={18} className="mt-1" />
-              </div>
-              <textarea
-                value={comment}
-                onChange={(event) => setComment(event.target.value)}
-                rows={4}
-                placeholder="Cuéntanos qué te pareció…"
-                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-800 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
-              />
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="btn-fill rounded-full px-6 py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSubmitting
-                    ? 'Guardando…'
-                    : editingReview
-                      ? 'Actualizar comentario'
-                      : 'Publicar comentario'}
-                </button>
-                {editingReview && (
-                  <button
-                    type="button"
-                    onClick={cancelEdit}
-                    className="text-sm font-medium text-gray-600 hover:text-gray-900"
-                  >
-                    Cancelar edición
-                  </button>
-                )}
-              </div>
-            </div>
+      <div className="product-reviews__summary">
+        <div className="product-reviews__score">
+          <div>
+            <span className="product-reviews__average">{averageLabel}</span>
+            {summary.average_rating !== null && (
+              <span className="product-reviews__average-suffix"> / 5</span>
+            )}
           </div>
-        </form>
-
-        {error && (
-          <p className="mt-4 text-center text-sm text-red-600" role="alert">
-            {error}
+          {summary.average_rating !== null && (
+            <StarRating value={Math.round(summary.average_rating)} size={18} />
+          )}
+          <p className="product-reviews__count">
+            {summary.total_reviews}{' '}
+            {summary.total_reviews === 1 ? 'comentario' : 'comentarios'}
           </p>
-        )}
+        </div>
 
-        <div className="mt-8">
+        <RatingDistribution
+          distribution={summary.rating_distribution}
+          total={summary.total_reviews}
+        />
+      </div>
+
+      <div className="product-reviews__toolbar">
+        <div className="product-reviews__toolbar-actions">
+          <button
+            type="button"
+            onClick={handleWriteReview}
+            className="btn-fill rounded-full px-8 py-3 text-xs sm:text-sm"
+          >
+            Escribir una reseña
+          </button>
+
+          {summary.total_reviews > 0 && (
+            <button
+              type="button"
+              className="product-reviews__toggle"
+              onClick={() => setReviewsVisible((visible) => !visible)}
+            >
+              {reviewsVisible ? 'Ocultar todas las opiniones' : 'Mostrar todas las opiniones'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <p className="product-reviews__error" role="alert">
+          {error}
+        </p>
+      )}
+
+      {reviewsVisible && (
+        <>
+          {summary.total_reviews > 0 && (
+            <div className="product-reviews__sort">
+              <label htmlFor="product-reviews-sort">Ordenar por:</label>
+              <select
+                id="product-reviews-sort"
+                value={sort}
+                onChange={(event) => {
+                  setSort(event.target.value)
+                  setPage(1)
+                }}
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {isLoading ? (
-            <p className="text-center text-sm text-gray-500">Cargando comentarios…</p>
-          ) : items.length === 0 ? (
-            <p className="text-center text-sm text-gray-500">
-              Aún no hay comentarios. Sé el primero en compartir tu opinión.
-            </p>
+            <p className="product-reviews__loading">Cargando comentarios…</p>
           ) : (
             <>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="product-reviews__grid">
+                {showCompose && (
+                  <ComposeCard
+                    displayName={displayName}
+                    comment={comment}
+                    rating={rating}
+                    isSubmitting={isSubmitting}
+                    isEditing={Boolean(editingReview)}
+                    onCommentChange={setComment}
+                    onRatingChange={setRating}
+                    onSubmit={handleSubmit}
+                    onCancel={cancelEdit}
+                  />
+                )}
+
                 {items.map((review) => (
                   <ReviewCard
                     key={review.id_product_review}
@@ -305,37 +430,52 @@ export default function ProductReviews({ productId, sectionRef }) {
                 ))}
               </div>
 
+              {!showCompose && items.length === 0 && (
+                <p className="product-reviews__empty">
+                  Aún no hay comentarios. Sé el primero en compartir tu opinión.
+                </p>
+              )}
+
               {meta.last_page > 1 && (
-                <div className="mt-6 flex items-center justify-center gap-4">
+                <div className="product-reviews__pagination">
                   <button
                     type="button"
+                    className="product-reviews__page-btn"
                     onClick={() => goToPage(page - 1)}
                     disabled={page <= 1}
-                    className="inline-flex items-center gap-1 rounded-full border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40"
-                    aria-label="Comentarios anteriores"
+                    aria-label="Página anterior"
                   >
                     <ChevronLeft size={16} />
-                    Anterior
                   </button>
-                  <span className="text-sm text-gray-600">
-                    {page} / {meta.last_page}
-                  </span>
+
+                  {pageNumbers.map((pageNumber) => (
+                    <button
+                      key={pageNumber}
+                      type="button"
+                      className={`product-reviews__page-btn${
+                        pageNumber === page ? ' product-reviews__page-btn--active' : ''
+                      }`}
+                      onClick={() => goToPage(pageNumber)}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
+
                   <button
                     type="button"
+                    className="product-reviews__page-btn"
                     onClick={() => goToPage(page + 1)}
                     disabled={page >= meta.last_page}
-                    className="inline-flex items-center gap-1 rounded-full border border-gray-300 px-3 py-1.5 text-sm disabled:opacity-40"
-                    aria-label="Comentarios siguientes"
+                    aria-label="Página siguiente"
                   >
-                    Siguiente
                     <ChevronRight size={16} />
                   </button>
                 </div>
               )}
             </>
           )}
-        </div>
-      </div>
+        </>
+      )}
     </section>
   )
 }

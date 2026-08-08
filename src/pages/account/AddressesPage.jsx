@@ -26,10 +26,13 @@ import DeliveryZoneModal from '../../components/account/DeliveryZoneModal'
 import LimaDeliveryTypeModal from '../../components/account/LimaDeliveryTypeModal'
 import LimaDeliveryProviderModal from '../../components/account/LimaDeliveryProviderModal'
 import DeliveryLocationPicker from '../../components/account/DeliveryLocationPicker'
+import OwnDeliveryPickupPointField from '../../components/account/OwnDeliveryPickupPointField'
 import {
   DELIVERY_TYPES,
   getDeliveryProviderLabel,
+  getOwnDeliveryPickupFormValues,
   isHomeDeliveryType,
+  isOwnDeliveryType,
 } from '../../utils/deliveryTypes'
 
 const emptyForm = {
@@ -99,6 +102,8 @@ export default function AddressesPage() {
   const isProvinciaScope = deliveryScope === 'provincia'
   const isLimaScope = deliveryScope === 'lima'
   const isLimaDelivery = isLimaScope && isHomeDeliveryType(form.deliveryType)
+  const isOwnDelivery = isLimaScope && isOwnDeliveryType(form.deliveryType)
+  const isBalenziHomeDelivery = isLimaDelivery && !isOwnDelivery
   const isShalonPickup = isProvinciaScope || (isLimaScope && limaDeliveryType === 'shalon')
 
   const regions = useMemo(
@@ -287,6 +292,20 @@ export default function AddressesPage() {
   }, [form.idDistrict])
 
   useEffect(() => {
+    if (!isOwnDelivery || form.idDistrict || districtOptions.length === 0) return
+
+    const firstDistrict = districtOptions[0]
+    setForm((prev) => ({
+      ...prev,
+      idProvince: String(firstDistrict.idProvince),
+      idDistrict: String(firstDistrict.idDistrict),
+      district: firstDistrict.name,
+      city: LIMA_CITY,
+      ...getOwnDeliveryPickupFormValues(),
+    }))
+  }, [isOwnDelivery, districtOptions, form.idDistrict])
+
+  useEffect(() => {
     if (!isSetupFlow || isLoadingAddresses || addresses.length === 0 || isAddingNew) return
 
     const next = flujo === 'pedido'
@@ -353,10 +372,20 @@ export default function AddressesPage() {
       shalonLat: null,
       shalonLng: null,
       shalon: '',
-      fullAddress: '',
-      googleMapsLink: '',
-      geoLat: null,
-      geoLng: null,
+      ...(deliveryType === DELIVERY_TYPES.OWN
+        ? {
+            idProvince: '',
+            idDistrict: '',
+            district: '',
+            city: LIMA_CITY,
+            ...getOwnDeliveryPickupFormValues(),
+          }
+        : {
+            fullAddress: '',
+            googleMapsLink: '',
+            geoLat: null,
+            geoLng: null,
+          }),
     }))
     setShowLimaProviderModal(false)
   }
@@ -528,12 +557,12 @@ export default function AddressesPage() {
       return
     }
 
-    if (!form.idProvince || !form.idDistrict) {
+    if (!isOwnDelivery && (!form.idProvince || !form.idDistrict)) {
       setError('Completa ciudad y distrito')
       return
     }
 
-    if (isLimaDelivery) {
+    if (isBalenziHomeDelivery) {
       if (form.geoLat == null || form.geoLng == null) {
         setError('Indica la ubicación exacta en el mapa')
         return
@@ -541,6 +570,16 @@ export default function AddressesPage() {
 
       if (!form.fullAddress?.trim()) {
         setError('Indica la dirección completa')
+        return
+      }
+    } else if (isOwnDelivery) {
+      if (!form.idProvince || !form.idDistrict) {
+        setError('Espera un momento mientras cargamos el punto de entrega')
+        return
+      }
+
+      if (!form.googleMapsLink?.trim()) {
+        setError('No se pudo cargar el punto de entrega')
         return
       }
     } else if (!form.idShalon) {
@@ -772,53 +811,59 @@ export default function AddressesPage() {
               </div>
             )}
 
-            <div>
-              <label className="block text-sm text-gray-600">Ciudad *</label>
-              {isLimaScope ? (
-                <input
-                  type="text"
-                  value={LIMA_CITY}
-                  readOnly
-                  className={readonlyClass}
-                  aria-readonly="true"
-                />
-              ) : (
-                <SearchableCombobox
-                  value={form.idProvince}
-                  selectedLabel={form.city}
-                  placeholder="Selecciona una provincia"
-                  searchPlaceholder="Escribe para buscar provincia…"
-                  options={provinceComboboxOptions}
-                  isLoading={isLoadingProvinces}
-                  disabled={!form.idRegion}
-                  emptyMessage={
-                    form.idRegion
-                      ? 'No hay provincias en esta región.'
-                      : 'Primero elige una región.'
-                  }
-                  onChange={handleProvinceSelect}
-                />
-              )}
-            </div>
+            {!isOwnDelivery && (
+              <>
+                <div>
+                  <label className="block text-sm text-gray-600">Ciudad *</label>
+                  {isLimaScope ? (
+                    <input
+                      type="text"
+                      value={LIMA_CITY}
+                      readOnly
+                      className={readonlyClass}
+                      aria-readonly="true"
+                    />
+                  ) : (
+                    <SearchableCombobox
+                      value={form.idProvince}
+                      selectedLabel={form.city}
+                      placeholder="Selecciona una provincia"
+                      searchPlaceholder="Escribe para buscar provincia…"
+                      options={provinceComboboxOptions}
+                      isLoading={isLoadingProvinces}
+                      disabled={!form.idRegion}
+                      emptyMessage={
+                        form.idRegion
+                          ? 'No hay provincias en esta región.'
+                          : 'Primero elige una región.'
+                      }
+                      onChange={handleProvinceSelect}
+                    />
+                  )}
+                </div>
 
-            <div className={isProvinciaScope ? 'sm:col-span-2' : ''}>
-              <label className="block text-sm text-gray-600">Distrito *</label>
-              <SearchableCombobox
-                value={form.idDistrict}
-                selectedLabel={form.district}
-                placeholder="Selecciona un distrito"
-                searchPlaceholder="Escribe para buscar distrito…"
-                options={districtComboboxOptions}
-                isLoading={isLoadingDistricts}
-                disabled={districtsDisabled}
-                emptyMessage={
-                  isProvinciaScope && !form.idProvince
-                    ? 'Primero elige una provincia.'
-                    : 'No hay distritos disponibles.'
-                }
-                onChange={handleDistrictSelect}
-              />
-            </div>
+                <div className={isProvinciaScope ? 'sm:col-span-2' : ''}>
+                  <label className="block text-sm text-gray-600">Distrito *</label>
+                  <SearchableCombobox
+                    value={form.idDistrict}
+                    selectedLabel={form.district}
+                    placeholder="Selecciona un distrito"
+                    searchPlaceholder="Escribe para buscar distrito…"
+                    options={districtComboboxOptions}
+                    isLoading={isLoadingDistricts}
+                    disabled={districtsDisabled}
+                    emptyMessage={
+                      isProvinciaScope && !form.idProvince
+                        ? 'Primero elige una provincia.'
+                        : 'No hay distritos disponibles.'
+                    }
+                    onChange={handleDistrictSelect}
+                  />
+                </div>
+              </>
+            )}
+
+            {isOwnDelivery && <OwnDeliveryPickupPointField />}
 
             {isShalonPickup && (
               <div className="sm:col-span-2">
@@ -866,7 +911,7 @@ export default function AddressesPage() {
               </div>
             )}
 
-            {isLimaDelivery && form.idDistrict && (
+            {isBalenziHomeDelivery && form.idDistrict && (
               <div className="sm:col-span-2">
                 <DeliveryLocationPicker
                   value={{ lat: form.geoLat, lng: form.geoLng }}
@@ -941,7 +986,9 @@ export default function AddressesPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold leading-snug text-gray-900">
-                        {addr.district}, {formatAddressCityLabel(addr)}
+                        {isOwnDeliveryType(addr.deliveryType)
+                          ? getDeliveryProviderLabel(addr.deliveryType)
+                          : `${addr.district}, ${formatAddressCityLabel(addr)}`}
                       </span>
                       {addr.isPrimary && (
                         <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-black px-2 py-0.5 text-xs font-medium text-white">
@@ -953,9 +1000,11 @@ export default function AddressesPage() {
                       <p className="mt-0.5 text-xs text-gray-500">{addr.region}</p>
                     )}
                     <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                      {isHomeDeliveryType(addr.deliveryType)
-                        ? addr.fullAddress
-                        : addr.shalon || addr.street}
+                      {isOwnDeliveryType(addr.deliveryType)
+                        ? (addr.googleMapsLink || addr.fullAddress)
+                        : isHomeDeliveryType(addr.deliveryType)
+                          ? addr.fullAddress
+                          : addr.shalon || addr.street}
                     </p>
                     {addr.shalon && addr.deliveryType !== 'delivery' && (
                       <a

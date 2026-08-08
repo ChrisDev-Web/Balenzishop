@@ -72,6 +72,7 @@ export function buildWhatsAppMessage({
   amountPaid = 0,
   balanceDue = 0,
   payments = [],
+  balancePaymentPreference = null,
   status = 'Pendiente',
 }) {
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0)
@@ -112,6 +113,12 @@ export function buildWhatsAppMessage({
   if (paymentMode === 'reserva') {
     lines.push(`${ICON.money} Reserva pagada: S/ ${amountPaid.toFixed(2)} (S/ ${reservationAmount.toFixed(2)} esperado)`)
     lines.push(`${ICON.coins} Saldo pendiente: S/ ${balanceDue.toFixed(2)}`)
+    if (balancePaymentPreference?.name) {
+      lines.push(`${ICON.card} Saldo restante: pagará con ${balancePaymentPreference.name}`)
+      if (balancePaymentPreference.posSurchargeNote) {
+        lines.push(`   ${balancePaymentPreference.posSurchargeNote}`)
+      }
+    }
   } else if (paymentMode === 'completo') {
     lines.push(`${ICON.money} Pago completo registrado: S/ ${amountPaid.toFixed(2)}`)
   }

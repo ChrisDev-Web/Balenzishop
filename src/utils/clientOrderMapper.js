@@ -51,12 +51,16 @@ export function mapApiClientOrder(order) {
     reservationAmount: Number(order.reservation_amount),
     amountPaid: Number(order.amount_paid),
     balanceDue: Number(order.balance_due),
+    balancePaymentMethodId: order.balance_payment_method_id,
+    balancePaymentMethodName: order.balance_payment_method_name,
+    balancePaymentMethodIsPos: Boolean(order.balance_payment_method_is_pos),
     totalQuantity: Number(order.total_quantity),
     payments: (order.payments ?? []).map((payment) => ({
       id: payment.id_client_order_payment,
       methodId: payment.id_payment_method,
       methodName: payment.payment_method_name,
       amount: Number(payment.amount),
+      paymentType: payment.payment_type,
       proofs: (payment.proofs ?? []).map((proof) => ({
         id: proof.id_client_order_payment_proof,
         url: proof.url,

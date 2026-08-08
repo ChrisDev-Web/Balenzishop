@@ -6,7 +6,25 @@ import {
 } from '../../utils/rainauDeliveryDates'
 import RainauDeliveryDateModal from './RainauDeliveryDateModal'
 
+const VARIANT_COPY = {
+  balenzi: {
+    title: 'Fecha de entrega Balenzi',
+    description: 'Elige un día dentro de la próxima semana. Los días bloqueados no están disponibles.',
+    chooseLabel: 'Elegir fecha de entrega',
+    changeLabel: 'Cambiar fecha de entrega',
+    scheduledPrefix: 'Entrega programada',
+  },
+  own: {
+    title: 'Fecha de encuentro',
+    description: 'Elige el día en que tu courier pasará a recoger el pedido en nuestro punto de entrega.',
+    chooseLabel: 'Elegir fecha de encuentro',
+    changeLabel: 'Cambiar fecha de encuentro',
+    scheduledPrefix: 'Encuentro programado',
+  },
+}
+
 export default function RainauDeliveryDatePicker({
+  variant = 'balenzi',
   dates = [],
   value,
   isLoading = false,
@@ -16,6 +34,7 @@ export default function RainauDeliveryDatePicker({
   onRefreshDates,
   onCalendarOpenChange,
 }) {
+  const copy = VARIANT_COPY[variant] ?? VARIANT_COPY.balenzi
   const [modalOpen, setModalOpen] = useState(false)
   const { minDate, maxDate } = useMemo(() => getDeliveryDateRange(dates), [dates])
 
@@ -46,10 +65,8 @@ export default function RainauDeliveryDatePicker({
 
   return (
     <div>
-      <p className="mb-2 text-sm font-semibold text-gray-900">Fecha de entrega Rainau</p>
-      <p className="mb-3 text-xs text-gray-500">
-        Elige un día dentro de la próxima semana. Los días bloqueados no están disponibles.
-      </p>
+      <p className="mb-2 text-sm font-semibold text-gray-900">{copy.title}</p>
+      <p className="mb-3 text-xs text-gray-500">{copy.description}</p>
 
       <button
         type="button"
@@ -57,12 +74,12 @@ export default function RainauDeliveryDatePicker({
         className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-900 hover:border-gray-400 hover:bg-gray-50 sm:w-auto"
       >
         <CalendarDays className="h-4 w-4" />
-        {value ? 'Cambiar fecha de entrega' : 'Elegir fecha de entrega'}
+        {value ? copy.changeLabel : copy.chooseLabel}
       </button>
 
       {value && (
         <p className="mt-2 text-xs text-gray-600">
-          Entrega programada: {formatDeliveryDateHeading(value)}
+          {copy.scheduledPrefix}: {formatDeliveryDateHeading(value)}
         </p>
       )}
 
@@ -70,6 +87,7 @@ export default function RainauDeliveryDatePicker({
 
       <RainauDeliveryDateModal
         open={modalOpen}
+        variant={variant}
         dates={dates}
         minDate={minDate}
         maxDate={maxDate}

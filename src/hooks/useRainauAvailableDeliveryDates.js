@@ -5,7 +5,10 @@ import { getStoreEcho, RAINAU_DELIVERY_AVAILABILITY_CHANNEL, RAINAU_DELIVERY_AVA
 const DEFAULT_POLL_MS = 5_000
 const FAST_POLL_MS = 2_000
 
-export function useRainauAvailableDeliveryDates(enabled, { pollMs = DEFAULT_POLL_MS, fastPoll = false } = {}) {
+export function useRainauAvailableDeliveryDates(
+  enabled,
+  { pollMs = DEFAULT_POLL_MS, fastPoll = false, deliveryMode = 'delivery' } = {},
+) {
   const [dates, setDates] = useState([])
   const [sameDayCutoffPassed, setSameDayCutoffPassed] = useState(false)
   const [revision, setRevision] = useState('')
@@ -40,7 +43,7 @@ export function useRainauAvailableDeliveryDates(enabled, { pollMs = DEFAULT_POLL
     }
 
     try {
-      const response = await fetchRainauAvailableDeliveryDates({ bustCache: true })
+      const response = await fetchRainauAvailableDeliveryDates({ bustCache: true, deliveryMode })
       if (requestIdRef.current !== requestId) return
 
       if (!response.success) {
@@ -58,7 +61,7 @@ export function useRainauAvailableDeliveryDates(enabled, { pollMs = DEFAULT_POLL
         setIsLoading(false)
       }
     }
-  }, [enabled, applyPayload])
+  }, [enabled, deliveryMode, applyPayload])
 
   useEffect(() => {
     if (!enabled) {
@@ -92,7 +95,7 @@ export function useRainauAvailableDeliveryDates(enabled, { pollMs = DEFAULT_POLL
       window.removeEventListener('focus', handleVisibilityChange)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [enabled, fastPoll, pollMs, refresh])
+  }, [enabled, deliveryMode, fastPoll, pollMs, refresh])
 
   useEffect(() => {
     if (!enabled) return undefined

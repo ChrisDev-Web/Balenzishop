@@ -1,9 +1,9 @@
 import {
   PAYMENT_METHOD_TYPE_POS,
-  PAYMENT_METHOD_TYPE_TRANSFER,
-  PAYMENT_METHOD_TYPE_WALLET,
+  isCashPaymentMethod,
   resolvePaymentMethodType,
 } from './paymentMethods'
+import { DELIVERY_MODES } from './deliveryFee'
 
 export const POS_SURCHARGE_RATE = 0.05
 
@@ -24,10 +24,31 @@ export function applyPosSurcharge(baseTotal) {
   }
 }
 
-export function filterCheckoutPaymentMethods(paymentMethods, { rainauDelivery = false } = {}) {
-  if (rainauDelivery) {
-    return paymentMethods
+export function allowsCashBalancePayment(deliveryMode) {
+  return deliveryMode === DELIVERY_MODES.DELIVERY
+    || deliveryMode === DELIVERY_MODES.CUSTOMER_DELIVERY
+}
+
+export function filterCheckoutPaymentMethods(
+  paymentMethods,
+  { rainauDelivery = false, allowCash = false } = {},
+) {
+  let methods = paymentMethods
+
+  if (!rainauDelivery) {
+    methods = methods.filter((method) => !isPosPaymentMethod(method))
   }
 
-  return paymentMethods.filter((method) => !isPosPaymentMethod(method))
+  if (!allowCash) {
+    methods = methods.filter((method) => !isCashPaymentMethod(method))
+  }
+
+  return methods
+}
+
+/** Métodos para el pago inicial (reserva o pago completo): nunca incluye tarjeta POS ni efectivo. */
+export function filterInitialPaymentMethods(paymentMethods) {
+  return paymentMethods.filter(
+    (method) => !isPosPaymentMethod(method) && !isCashPaymentMethod(method),
+  )
 }

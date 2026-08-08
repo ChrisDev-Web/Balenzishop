@@ -13,6 +13,7 @@ import {
 
 export default function RainauDeliveryDateModal({
   open,
+  variant = 'balenzi',
   dates = [],
   minDate = '',
   maxDate = '',
@@ -77,6 +78,11 @@ export default function RainauDeliveryDateModal({
     onConfirm(pendingDate)
   }
 
+  const modalTitle = variant === 'own' ? 'Elegir fecha de encuentro' : 'Elegir fecha de entrega'
+  const sameDayCutoffMessage = variant === 'own'
+    ? 'Las reservas para hoy solo están disponibles hasta las 8:59 p.m.'
+    : 'Las reservas para hoy solo están disponibles antes de las 10:00 a.m.'
+
   return createPortal(
     <div className="fixed inset-0 z-[260] flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
@@ -92,14 +98,14 @@ export default function RainauDeliveryDateModal({
         <div className="flex items-start justify-between gap-3 border-b px-4 py-4 sm:px-5">
           <div>
             <h3 id="rainau-delivery-date-title" className="text-lg font-bold text-gray-900">
-              Elegir fecha de entrega
+              {modalTitle}
             </h3>
             <p className="mt-0.5 text-xs text-gray-500">
               Puedes elegir hasta 1 semana. Los días bloqueados no están disponibles.
             </p>
             {sameDayCutoffPassed && (
               <p className="mt-1 text-xs font-bold text-gray-900">
-                Las reservas para hoy solo están disponibles antes de las 10:00 a.m.
+                {sameDayCutoffMessage}
               </p>
             )}
           </div>

@@ -117,6 +117,12 @@ export default function OrderDetailModal({ order, onClose }) {
                 <span className="font-bold text-gray-900">S/ {order.balanceDue.toFixed(2)}</span>
               </div>
             )}
+            {order.balanceDue > 0 && order.balancePaymentMethodName && (
+              <div className="flex justify-between text-gray-600">
+                <span>Saldo se pagará con</span>
+                <span className="font-bold text-gray-900">{order.balancePaymentMethodName}</span>
+              </div>
+            )}
           </div>
 
           {order.payments?.length > 0 && (

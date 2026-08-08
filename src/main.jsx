@@ -5,7 +5,9 @@ import App from './App.jsx'
 import { initPersistentCache } from './core/cache/moduleCache'
 import { clearUserSessionsCache } from './utils/clearUserSessions'
 import { preconnectMediaOrigin } from './utils/mediaUrl'
+import { processPreviewAccessFromUrl } from './utils/maintenanceAccess'
 
+processPreviewAccessFromUrl()
 preconnectMediaOrigin()
 
 const SESSIONS_RESET_KEY = 'balenzi-sessions-reset'

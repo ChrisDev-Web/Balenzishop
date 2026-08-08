@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom'
 import { ArrowLeft, ShieldCheck, UserRound, X } from 'lucide-react'
+import { BALENZI_DELIVERY_LABEL } from '../../utils/deliveryTypes'
 
 export default function LimaDeliveryProviderModal({ onSelect, onBack, onClose }) {
   return createPortal(
@@ -47,7 +48,7 @@ export default function LimaDeliveryProviderModal({ onSelect, onBack, onClose })
             <span className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-brand-light text-brand">
               <ShieldCheck className="h-4 w-4" />
             </span>
-            <p className="font-semibold text-gray-900">Delivery Rainau</p>
+            <p className="font-semibold text-gray-900">{BALENZI_DELIVERY_LABEL}</p>
             <p className="mt-1 text-xs text-gray-500">
               Nuestro delivery de confianza en Balenzishop. Llevamos tu pedido a tu domicilio.
             </p>

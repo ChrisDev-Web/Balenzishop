@@ -70,9 +70,28 @@ export default function TermsPage() {
           de stock, datos de entrega y validación del comprobante de pago.
         </p>
         <p>
+          La <strong>reserva</strong> es un monto parcial que se descuenta del total del pedido y nos
+          permite gestionar el envío de tus productos. El saldo restante se cancela según el método
+          acordado al momento de la entrega o en el plazo indicado durante el checkout.
+        </p>
+        <p>
           Los métodos de pago disponibles se informan durante el proceso de compra. El pedido se
           considerará en proceso una vez validado el pago o cumplidas las condiciones acordadas
-          para reservas.
+          para reservas. La tarjeta de crédito mediante POS puede estar disponible únicamente para
+          ciertas modalidades de envío y aplicará el recargo informado al pagar el saldo restante.
+        </p>
+        <p>
+          <strong>Comprobantes de pago.</strong> Solo se aceptan comprobantes válidos, auténticos y
+          correspondientes al pago realizado en la fecha indicada. No se aceptarán capturas falsas,
+          simuladas o editadas (incluye Yape, Plin u otras billeteras), ni comprobantes de fechas
+          anteriores o que no coincidan con el monto declarado.
+        </p>
+        <p>
+          El envío de comprobantes fraudulentos puede configurar delitos tipificados en el Código
+          Penal de la República del Perú, como la <strong>estafa</strong> (artículo 196) y el{' '}
+          <strong>fraude informático</strong> (Ley N.° 30096), con responsabilidad penal. Balenzishop
+          se reserva el derecho de anular el pedido, rechazar la entrega y presentar la denuncia
+          correspondiente ante las autoridades competentes.
         </p>
       </LegalSection>
 

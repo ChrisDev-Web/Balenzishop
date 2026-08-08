@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import { X, Plus, Trash2, Upload, MessageCircle } from 'lucide-react'
 import { submitBalancePayment } from '../../api/clientOrders'
 import { findPaymentMethodById } from '../../utils/paymentMethods'
-import { filterCheckoutPaymentMethods } from '../../utils/paymentSurcharge'
+import { allowsCashBalancePayment, filterCheckoutPaymentMethods } from '../../utils/paymentSurcharge'
+import { DELIVERY_MODES } from '../../utils/deliveryFee'
 import PaymentMethodCheckoutInfo from '../checkout/PaymentMethodCheckoutInfo'
 import { createClientId } from '../../utils/createClientId'
 
@@ -56,7 +57,10 @@ export default function BalancePaymentModal({
 
   if (!open || !order) return null
 
-  const checkoutPaymentMethods = filterCheckoutPaymentMethods(paymentMethods, { rainauDelivery: false })
+  const checkoutPaymentMethods = filterCheckoutPaymentMethods(paymentMethods, {
+    rainauDelivery: order.deliveryMode === DELIVERY_MODES.DELIVERY,
+    allowCash: allowsCashBalancePayment(order.deliveryMode),
+  })
 
   function updateRow(key, patch) {
     setPaymentRows((rows) => rows.map((row) => (row.key === key ? { ...row, ...patch } : row)))

@@ -1,20 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Plus, Trash2, Upload, MessageCircle } from 'lucide-react'
+import { X, Plus, Trash2, Upload, MessageCircle, ChevronLeft, CreditCard } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { submitCheckoutOrder } from '../../api/clientOrders'
 import { calculateReservationAmount, formatReservationHint } from '../../utils/reservation'
 import { findPaymentMethodById } from '../../utils/paymentMethods'
 import {
-  applyPosSurcharge,
+  allowsCashBalancePayment,
   filterCheckoutPaymentMethods,
+  filterInitialPaymentMethods,
   isPosPaymentMethod,
+  calculatePosSurcharge,
 } from '../../utils/paymentSurcharge'
 import { computeOrderTotal, DELIVERY_MODES, formatShippingDisplay } from '../../utils/deliveryFee'
-import { DELIVERY_TYPES } from '../../utils/deliveryTypes'
+import { DELIVERY_TYPES, isOwnDeliveryType } from '../../utils/deliveryTypes'
 import { useRainauAvailableDeliveryDates } from '../../hooks/useRainauAvailableDeliveryDates'
 import PaymentMethodCheckoutInfo from './PaymentMethodCheckoutInfo'
 import RainauDeliveryDatePicker from './RainauDeliveryDatePicker'
-import PosSurchargeConfirmModal from './PosSurchargeConfirmModal'
 import CancelCheckoutConfirmModal, {
   cancelActiveCheckoutDraft,
 } from './CancelCheckoutConfirmModal'
@@ -22,6 +24,20 @@ import { createClientId } from '../../utils/createClientId'
 
 const PAYMENT_MODE_RESERVATION = 'reserva'
 const PAYMENT_MODE_FULL = 'completo'
+
+const STEP_SUMMARY = 'summary'
+const STEP_DELIVERY = 'delivery'
+const STEP_PAYMENT = 'payment'
+const STEP_FINAL = 'final'
+
+const PROOF_WARNING =
+  'No se aceptan comprobantes falsos, simulados o de fecha anterior. Puede cancelar tu pedido e iniciar acciones legales.'
+
+const RESERVATION_NOTICE =
+  'La reserva se descuenta del total; el saldo lo pagas en el siguiente paso.'
+
+/** Altura fija para ~2 filas de producto; el resto hace scroll interno. */
+const PRODUCT_LIST_SCROLL_CLASS = 'max-h-[11.5rem] overflow-y-auto overscroll-contain'
 
 function createPaymentRow(amount = '') {
   return {
@@ -54,6 +70,29 @@ function rebalancePaymentRows(rows, expectedAmount) {
   )
 }
 
+function getStepSubtitle(step, paymentMode, { isOwnDelivery = false } = {}) {
+  switch (step) {
+    case STEP_SUMMARY:
+      return 'Revisa los productos de tu pedido'
+    case STEP_DELIVERY:
+      return isOwnDelivery
+        ? 'Elige la fecha de encuentro en el punto de entrega'
+        : 'Elige la fecha de entrega Balenzi'
+    case STEP_PAYMENT:
+      return 'Indica si pagarás la reserva o el total'
+    case STEP_FINAL:
+      return paymentMode === PAYMENT_MODE_RESERVATION
+        ? 'Elige cómo cancelarás el saldo restante'
+        : 'Confirma tu pedido antes de enviar'
+    default:
+      return ''
+  }
+}
+
+function formatPaymentModeLabel(mode) {
+  return mode === PAYMENT_MODE_FULL ? 'Pago completo' : 'Solo reserva'
+}
+
 export default function ReserveOrderModal({
   open,
   draftOrderId,
@@ -63,8 +102,6 @@ export default function ReserveOrderModal({
   subtotal,
   discount,
   discountCode,
-  total,
-  totalQuantity,
   deliveryFee,
   deliveryMode,
   deliveryLabel,
@@ -73,16 +110,16 @@ export default function ReserveOrderModal({
   paymentMethods,
   onOrderCreated,
 }) {
+  const [step, setStep] = useState(STEP_SUMMARY)
   const [paymentMode, setPaymentMode] = useState(PAYMENT_MODE_RESERVATION)
   const [paymentRows, setPaymentRows] = useState([createPaymentRow()])
+  const [remainderMethodId, setRemainderMethodId] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [error, setError] = useState('')
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [calendarPickerOpen, setCalendarPickerOpen] = useState(false)
   const [scheduledDeliveryDate, setScheduledDeliveryDate] = useState('')
-  const [showPosSurchargeModal, setShowPosSurchargeModal] = useState(false)
-  const [pendingPosSelection, setPendingPosSelection] = useState(null)
 
   const requiresScheduledDeliveryDate = deliveryMode === DELIVERY_MODES.DELIVERY
     || deliveryMode === DELIVERY_MODES.CUSTOMER_DELIVERY
@@ -90,10 +127,36 @@ export default function ReserveOrderModal({
   const requiresRainauDeliveryDate = requiresScheduledDeliveryDate
     && primaryAddress?.deliveryType === DELIVERY_TYPES.RAINAU
 
-  const checkoutPaymentMethods = useMemo(
-    () => filterCheckoutPaymentMethods(paymentMethods, { rainauDelivery: requiresRainauDeliveryDate }),
-    [paymentMethods, requiresRainauDeliveryDate],
+  const requiresOwnDeliveryMeetingDate = requiresScheduledDeliveryDate
+    && isOwnDeliveryType(primaryAddress?.deliveryType)
+
+  const requiresDeliveryDateStep = requiresRainauDeliveryDate || requiresOwnDeliveryMeetingDate
+
+  const steps = useMemo(() => {
+    const list = [STEP_SUMMARY]
+    if (requiresDeliveryDateStep) list.push(STEP_DELIVERY)
+    list.push(STEP_PAYMENT, STEP_FINAL)
+    return list
+  }, [requiresDeliveryDateStep])
+
+  const stepIndex = steps.indexOf(step)
+  const isFirstStep = stepIndex === 0
+  const isLastStep = stepIndex === steps.length - 1
+
+  const initialPaymentMethods = useMemo(
+    () => filterInitialPaymentMethods(paymentMethods),
+    [paymentMethods],
   )
+
+  const remainderPaymentMethods = useMemo(
+    () => filterCheckoutPaymentMethods(paymentMethods, {
+      rainauDelivery: requiresRainauDeliveryDate,
+      allowCash: allowsCashBalancePayment(deliveryMode),
+    }),
+    [paymentMethods, requiresRainauDeliveryDate, deliveryMode],
+  )
+
+  const scheduledDeliveryMode = requiresOwnDeliveryMeetingDate ? 'customer_delivery' : 'delivery'
 
   const {
     dates: availableDeliveryDates,
@@ -102,6 +165,7 @@ export default function ReserveOrderModal({
     error: deliveryDatesError,
     refresh: refreshDeliveryDates,
   } = useRainauAvailableDeliveryDates(open && requiresScheduledDeliveryDate, {
+    deliveryMode: scheduledDeliveryMode,
     fastPoll: calendarPickerOpen,
   })
 
@@ -125,19 +189,10 @@ export default function ReserveOrderModal({
     [subtotal, discount, effectiveDeliveryFee, deliveryMode],
   )
 
-  const usesPosPayment = useMemo(
-    () => paymentRows.some((row) => isPosPaymentMethod(
-      findPaymentMethodById(checkoutPaymentMethods, row.id_payment_method),
-    )),
-    [paymentRows, checkoutPaymentMethods],
-  )
-
-  const { surcharge: posSurchargeAmount, total: orderTotalWithSurcharge } = useMemo(
-    () => (usesPosPayment ? applyPosSurcharge(orderTotal) : { surcharge: 0, total: orderTotal }),
-    [usesPosPayment, orderTotal],
-  )
-
-  const expectedAmount = paymentMode === PAYMENT_MODE_FULL ? orderTotalWithSurcharge : reservationAmount
+  const expectedAmount = paymentMode === PAYMENT_MODE_FULL ? orderTotal : reservationAmount
+  const balanceDue = paymentMode === PAYMENT_MODE_RESERVATION
+    ? roundMoney(Math.max(0, orderTotal - reservationAmount))
+    : 0
 
   const paidTotal = useMemo(
     () => roundMoney(
@@ -152,22 +207,32 @@ export default function ReserveOrderModal({
     (row) => row.id_payment_method && Number(row.amount) > 0 && row.files.length > 0,
   )
 
-  const canSubmit = amountMatches && allRowsValid && !submitting && !cancelling && draftOrderId
-    && (!requiresScheduledDeliveryDate || Boolean(scheduledDeliveryDate))
+  const selectedRemainderMethod = findPaymentMethodById(remainderPaymentMethods, remainderMethodId)
+  const remainderIsPos = isPosPaymentMethod(selectedRemainderMethod)
+  const remainderPosSurcharge = remainderIsPos ? calculatePosSurcharge(balanceDue) : 0
+
+  const canContinueFromDelivery = !requiresDeliveryDateStep || Boolean(scheduledDeliveryDate)
+
+  const canContinueFromPayment = amountMatches && allRowsValid
+
+  const canContinueFromFinal = paymentMode === PAYMENT_MODE_FULL
+    || Boolean(remainderMethodId)
+
+  const canSubmit = canContinueFromFinal && !submitting && !cancelling && draftOrderId
 
   useEffect(() => {
     if (!open) return
 
+    setStep(STEP_SUMMARY)
     setPaymentMode(PAYMENT_MODE_RESERVATION)
     setPaymentRows([createPaymentRow()])
+    setRemainderMethodId('')
     setSubmitting(false)
     setCancelling(false)
     setError('')
     setShowCancelConfirm(false)
     setCalendarPickerOpen(false)
     setScheduledDeliveryDate('')
-    setShowPosSurchargeModal(false)
-    setPendingPosSelection(null)
   }, [open])
 
   useEffect(() => {
@@ -185,6 +250,10 @@ export default function ReserveOrderModal({
     setPaymentRows((rows) => rebalancePaymentRows(rows, expectedAmount))
   }, [open, expectedAmount, paymentRows.length])
 
+  useEffect(() => {
+    setRemainderMethodId('')
+  }, [paymentMode])
+
   if (!open) return null
 
   function updateRow(key, patch) {
@@ -192,30 +261,7 @@ export default function ReserveOrderModal({
   }
 
   function handlePaymentMethodChange(rowKey, methodId) {
-    const selectedMethod = findPaymentMethodById(checkoutPaymentMethods, methodId)
-
-    if (isPosPaymentMethod(selectedMethod)) {
-      setPendingPosSelection({ rowKey, methodId })
-      setShowPosSurchargeModal(true)
-      return
-    }
-
     updateRow(rowKey, { id_payment_method: methodId })
-  }
-
-  function confirmPosSurcharge() {
-    if (!pendingPosSelection) return
-
-    updateRow(pendingPosSelection.rowKey, {
-      id_payment_method: pendingPosSelection.methodId,
-    })
-    setPendingPosSelection(null)
-    setShowPosSurchargeModal(false)
-  }
-
-  function cancelPosSurcharge() {
-    setPendingPosSelection(null)
-    setShowPosSurchargeModal(false)
   }
 
   function updateRowAmount(key, rawAmount) {
@@ -255,6 +301,42 @@ export default function ReserveOrderModal({
   function requestClose() {
     if (submitting) return
     setShowCancelConfirm(true)
+  }
+
+  function goBack() {
+    if (isFirstStep || submitting) return
+    setError('')
+    setStep(steps[stepIndex - 1])
+  }
+
+  function goNext() {
+    setError('')
+
+    if (step === STEP_SUMMARY) {
+      setStep(steps[1])
+      return
+    }
+
+    if (step === STEP_DELIVERY) {
+      if (!canContinueFromDelivery) {
+        setError(
+          requiresOwnDeliveryMeetingDate
+            ? 'Selecciona una fecha de encuentro para continuar.'
+            : 'Selecciona una fecha de entrega para continuar.',
+        )
+        return
+      }
+      setStep(steps[stepIndex + 1])
+      return
+    }
+
+    if (step === STEP_PAYMENT) {
+      if (!canContinueFromPayment) {
+        setError('Completa el método de pago, el monto y adjunta al menos un comprobante.')
+        return
+      }
+      setStep(STEP_FINAL)
+    }
   }
 
   async function confirmCancelReservation() {
@@ -298,6 +380,9 @@ export default function ReserveOrderModal({
           paymentMode,
           payments,
           paymentProofs,
+          balancePaymentMethodId: paymentMode === PAYMENT_MODE_RESERVATION
+            ? Number(remainderMethodId)
+            : undefined,
           delivery: requiresScheduledDeliveryDate
             ? {
                 scheduled_delivery_date: scheduledDeliveryDate,
@@ -312,13 +397,381 @@ export default function ReserveOrderModal({
         throw new Error(response.message || 'No se pudo registrar el pedido')
       }
 
-      await onOrderCreated?.(response.data)
+      const balancePaymentPreference = selectedRemainderMethod
+        ? {
+            name: selectedRemainderMethod.name,
+            posSurchargeNote: remainderIsPos
+              ? `Recargo tarjeta (5%): S/ ${remainderPosSurcharge.toFixed(2)} sobre el saldo restante.`
+              : null,
+          }
+        : null
+
+      await onOrderCreated?.(response.data, { balancePaymentPreference })
       onClose()
     } catch (submitError) {
       setError(submitError.message || 'No se pudo registrar el pedido')
     } finally {
       setSubmitting(false)
     }
+  }
+
+  function renderStepContent() {
+    if (step === STEP_SUMMARY) {
+      return (
+        <div className="space-y-4">
+          <ul className={`divide-y rounded-lg border border-gray-200 ${PRODUCT_LIST_SCROLL_CLASS}`}>
+            {items.map((item) => (
+              <li
+                key={item.idProductDecant ? `${item.id}-${item.idProductDecant}` : item.id}
+                className="flex gap-3 px-4 py-3"
+              >
+                {item.image ? (
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    className="h-16 w-14 shrink-0 rounded object-contain bg-gray-50"
+                  />
+                ) : (
+                  <div className="h-16 w-14 shrink-0 rounded bg-gray-100" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-gray-900">{item.name}</p>
+                  <p className="text-xs text-gray-500">{item.brand}</p>
+                  <p className="mt-1 text-sm text-gray-600">
+                    {item.quantity} × S/ {Number(item.price).toFixed(2)}
+                  </p>
+                </div>
+                <p className="shrink-0 text-sm font-bold text-gray-900">
+                  S/ {(Number(item.price) * Number(item.quantity)).toFixed(2)}
+                </p>
+              </li>
+            ))}
+          </ul>
+
+          <div className="rounded-lg bg-gray-50 px-4 py-3 text-sm">
+            <div className="flex justify-between text-gray-700">
+              <span>Subtotal</span>
+              <span>S/ {subtotal.toFixed(2)}</span>
+            </div>
+            {discount > 0 && (
+              <div className="mt-1 flex justify-between text-gray-700">
+                <span>Descuento{discountCode ? ` (${discountCode})` : ''}</span>
+                <span>- S/ {discount.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="mt-1 flex justify-between text-gray-700">
+              <span>Envío ({deliveryLabel || 'Delivery'})</span>
+              <span>{formatShippingDisplay({ deliveryFee: effectiveDeliveryFee || deliveryFee })}</span>
+            </div>
+            <div className="mt-2 flex justify-between border-t border-gray-200 pt-2 font-bold text-gray-900">
+              <span>Total</span>
+              <span>S/ {orderTotal.toFixed(2)}</span>
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              Reserva estimada: S/ {reservationAmount.toFixed(2)} ({reservationHint})
+            </p>
+          </div>
+        </div>
+      )
+    }
+
+    if (step === STEP_DELIVERY) {
+      return (
+        <RainauDeliveryDatePicker
+          variant={requiresOwnDeliveryMeetingDate ? 'own' : 'balenzi'}
+          dates={availableDeliveryDates}
+          value={scheduledDeliveryDate}
+          isLoading={deliveryDatesLoading}
+          error={deliveryDatesError}
+          sameDayCutoffPassed={sameDayCutoffPassed}
+          onChange={setScheduledDeliveryDate}
+          onRefreshDates={refreshDeliveryDates}
+          onCalendarOpenChange={setCalendarPickerOpen}
+        />
+      )
+    }
+
+    if (step === STEP_PAYMENT) {
+      return (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <label className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm ${paymentMode === PAYMENT_MODE_RESERVATION ? 'border-black bg-gray-50' : 'border-gray-200'}`}>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="payment_mode"
+                  className="h-3.5 w-3.5 shrink-0"
+                  checked={paymentMode === PAYMENT_MODE_RESERVATION}
+                  onChange={() => setPaymentMode(PAYMENT_MODE_RESERVATION)}
+                />
+                <span className="font-semibold text-gray-900">Solo reserva</span>
+              </span>
+              <span className="shrink-0 font-bold text-gray-900">S/ {reservationAmount.toFixed(2)}</span>
+            </label>
+            <label className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm ${paymentMode === PAYMENT_MODE_FULL ? 'border-black bg-gray-50' : 'border-gray-200'}`}>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="payment_mode"
+                  className="h-3.5 w-3.5 shrink-0"
+                  checked={paymentMode === PAYMENT_MODE_FULL}
+                  onChange={() => setPaymentMode(PAYMENT_MODE_FULL)}
+                />
+                <span className="font-semibold text-gray-900">Pago completo</span>
+              </span>
+              <span className="shrink-0 font-bold text-gray-900">S/ {orderTotal.toFixed(2)}</span>
+            </label>
+          </div>
+
+          {paymentMode === PAYMENT_MODE_RESERVATION && (
+            <p className="text-[11px] leading-snug text-gray-500">{RESERVATION_NOTICE}</p>
+          )}
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-gray-900">Método y comprobante</p>
+              {paymentRows.length > 1 && (
+                <button
+                  type="button"
+                  onClick={addPaymentRow}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-900 hover:underline"
+                >
+                  <Plus className="h-3 w-3" />
+                  Agregar
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              {paymentRows.map((row, index) => {
+                const selectedMethod = findPaymentMethodById(initialPaymentMethods, row.id_payment_method)
+
+                return (
+                  <div key={row.key} className="min-w-0 rounded-lg border border-gray-200 p-2.5">
+                    {paymentRows.length > 1 && (
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-xs font-bold text-gray-900">Pago {index + 1}</p>
+                        <button
+                          type="button"
+                          onClick={() => removePaymentRow(row.key)}
+                          className="text-gray-500 hover:text-gray-800"
+                          aria-label="Eliminar pago"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+
+                    <div className={`gap-2 ${paymentRows.length > 1 ? 'grid sm:grid-cols-[1fr_5.5rem]' : ''}`}>
+                      <label className="block min-w-0 text-xs">
+                        <span className="mb-0.5 block text-gray-600">Método</span>
+                        <select
+                          value={row.id_payment_method}
+                          onChange={(e) => handlePaymentMethodChange(row.key, e.target.value)}
+                          className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm focus:border-black focus:outline-none"
+                        >
+                          <option value="">Seleccionar…</option>
+                          {initialPaymentMethods.map((method) => (
+                            <option key={method.id ?? method.id_payment_method} value={String(method.id ?? method.id_payment_method)}>
+                              {method.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {paymentRows.length > 1 && (
+                        <label className="block min-w-0 text-xs">
+                          <span className="mb-0.5 block text-gray-600">Monto</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={row.amount}
+                            readOnly={index === 0}
+                            onChange={(e) => updateRowAmount(row.key, e.target.value)}
+                            className={`w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm focus:border-black focus:outline-none ${
+                              index === 0 ? 'cursor-default bg-gray-100 text-gray-700' : ''
+                            }`}
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    {paymentRows.length === 1 && (
+                      <p className="mt-1.5 text-[11px] text-gray-500">
+                        Monto a pagar: <span className="font-semibold text-gray-800">S/ {expectedAmount.toFixed(2)}</span>
+                      </p>
+                    )}
+
+                    <PaymentMethodCheckoutInfo method={selectedMethod} compact />
+
+                    <div className="mt-2 min-w-0">
+                      <label className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                        <Upload className="h-3.5 w-3.5" />
+                        Adjuntar comprobante
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/jpg"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => handleFilesChange(row.key, e)}
+                        />
+                      </label>
+                      {row.files.length > 0 && (
+                        <p className="mt-1 truncate text-[11px] text-gray-600">
+                          {row.files.map((file) => file.name).join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {paymentRows.length === 1 && (
+              <button
+                type="button"
+                onClick={addPaymentRow}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-700 hover:underline"
+              >
+                <Plus className="h-3 w-3" />
+                Dividir en más de un método
+              </button>
+            )}
+
+            <p className="text-[11px] leading-snug text-amber-800">
+              {PROOF_WARNING}{' '}
+              <Link to="/terminos-y-condiciones" className="font-semibold underline hover:text-amber-900">
+                Ver términos
+              </Link>
+            </p>
+
+            {!amountMatches && paidTotal > 0 && (
+              <p className="text-xs text-red-600">
+                La suma debe ser S/ {expectedAmount.toFixed(2)} (actual: S/ {paidTotal.toFixed(2)}).
+              </p>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    if (step === STEP_FINAL && paymentMode === PAYMENT_MODE_RESERVATION) {
+      return (
+        <div className="space-y-3">
+          <div className="rounded-lg bg-gray-50 px-3 py-2 text-xs">
+            <div className="flex justify-between gap-2">
+              <span className="text-gray-600">Reserva pagada</span>
+              <span className="font-bold text-gray-900">
+                S/ {paidTotal.toFixed(2)}
+                {paymentRows[0] && (
+                  <span className="font-normal text-gray-600">
+                    {' '}· {findPaymentMethodById(initialPaymentMethods, paymentRows[0].id_payment_method)?.name || 'Método'}
+                  </span>
+                )}
+              </span>
+            </div>
+            <div className="mt-1 flex justify-between gap-2 border-t border-gray-200 pt-1">
+              <span className="text-gray-600">Saldo pendiente</span>
+              <span className="font-bold text-gray-900">S/ {balanceDue.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-semibold text-gray-900">¿Cómo cancelarás el saldo?</p>
+
+            <div className="grid grid-cols-2 gap-2">
+              {remainderPaymentMethods.map((method) => {
+                const methodId = String(method.id ?? method.id_payment_method)
+                const isSelected = remainderMethodId === methodId
+                const isPos = isPosPaymentMethod(method)
+
+                return (
+                  <button
+                    key={methodId}
+                    type="button"
+                    onClick={() => setRemainderMethodId(methodId)}
+                    className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                      isSelected ? 'border-black bg-gray-50' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 font-semibold text-gray-900">
+                      {isPos && <CreditCard className="h-3.5 w-3.5 shrink-0" />}
+                      {method.name}
+                    </span>
+                    {isPos && (
+                      <span className="mt-0.5 block text-[10px] text-gray-500">+5% al pagar</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {remainderIsPos && (
+              <p className="mt-2 text-[11px] leading-snug text-amber-900">
+                Recargo del 5% al pagar el saldo: S/ {remainderPosSurcharge.toFixed(2)} sobre S/ {balanceDue.toFixed(2)}.
+              </p>
+            )}
+
+            {selectedRemainderMethod && !remainderIsPos && (
+              <div className="mt-2">
+                <PaymentMethodCheckoutInfo method={selectedRemainderMethod} compact />
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    if (step === STEP_FINAL && paymentMode === PAYMENT_MODE_FULL) {
+      return (
+        <div className="space-y-3">
+          <ul className={`divide-y rounded-lg border border-gray-200 ${PRODUCT_LIST_SCROLL_CLASS}`}>
+            {items.map((item) => (
+              <li
+                key={item.idProductDecant ? `${item.id}-${item.idProductDecant}` : item.id}
+                className="flex gap-3 px-3 py-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                  <p className="text-[11px] text-gray-500">{item.brand} · Cant. {item.quantity}</p>
+                </div>
+                <p className="shrink-0 text-sm font-bold text-gray-900">
+                  S/ {(Number(item.price) * Number(item.quantity)).toFixed(2)}
+                </p>
+              </li>
+            ))}
+          </ul>
+
+          <div className="rounded-lg bg-gray-50 px-3 py-2 text-xs space-y-0.5">
+            <p className="font-bold text-gray-900">{formatPaymentModeLabel(paymentMode)}</p>
+            {requiresDeliveryDateStep && scheduledDeliveryDate && (
+              <p className="text-gray-700">
+                {requiresOwnDeliveryMeetingDate ? 'Encuentro' : 'Entrega'}: {scheduledDeliveryDate}
+              </p>
+            )}
+            <div className="flex justify-between border-t border-gray-200 pt-1 font-bold text-gray-900">
+              <span>Total pagado</span>
+              <span>S/ {paidTotal.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <ul className="space-y-1.5 text-xs text-gray-700">
+            {paymentRows.map((row, index) => {
+              const method = findPaymentMethodById(initialPaymentMethods, row.id_payment_method)
+              return (
+                <li key={row.key} className="flex justify-between rounded-lg border border-gray-200 px-2.5 py-1.5">
+                  <span>{method?.name || `Pago ${index + 1}`}</span>
+                  <span className="font-bold text-gray-900">S/ {Number(row.amount).toFixed(2)}</span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )
+    }
+
+    return null
   }
 
   return createPortal(
@@ -329,13 +782,16 @@ export default function ReserveOrderModal({
         aria-labelledby="reserve-order-title"
         className="relative z-10 flex max-h-[92dvh] w-full min-w-0 max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[92vh] sm:rounded-xl"
       >
-        <div className="flex items-start justify-between gap-3 border-b px-4 py-4 sm:px-5">
+        <div className="flex items-start justify-between gap-3 border-b px-4 py-3 sm:px-5">
           <div className="min-w-0">
-            <h2 id="reserve-order-title" className="text-lg font-bold text-gray-900">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Paso {stepIndex + 1} de {steps.length}
+            </p>
+            <h2 id="reserve-order-title" className="text-base font-bold text-gray-900 sm:text-lg">
               Reservar pedido
             </h2>
-            <p className="mt-0.5 text-sm text-gray-500">
-              El stock ya está reservado. Sube tus comprobantes y envía por WhatsApp para confirmar.
+            <p className="mt-0.5 text-xs text-gray-500 sm:text-sm">
+              {getStepSubtitle(step, paymentMode, { isOwnDelivery: requiresOwnDeliveryMeetingDate })}
             </p>
           </div>
           <button
@@ -349,203 +805,65 @@ export default function ReserveOrderModal({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-5">
-          <div className="rounded-lg bg-gray-50 px-4 py-3 text-sm">
-            <p className="font-bold text-gray-900">
-              Reserva: S/ {reservationAmount.toFixed(2)} ({reservationHint})
-            </p>
-            <p className="mt-1 font-bold text-gray-900">
-              Total del pedido: S/ {orderTotalWithSurcharge.toFixed(2)}
-            </p>
-            {usesPosPayment && (
-              <p className="mt-1 text-gray-600">
-                Incluye recargo POS (5%): S/ {posSurchargeAmount.toFixed(2)}
-              </p>
-            )}
-            {requiresRainauDeliveryDate && (
-              <p className="mt-1 text-gray-600">
-                Delivery Rainau:{' '}
-                {formatShippingDisplay({ deliveryFee: effectiveDeliveryFee })}
-              </p>
-            )}
-            {paymentMode === PAYMENT_MODE_RESERVATION && (
-              <p className="mt-1 text-gray-600">
-                Saldo pendiente tras la reserva: S/ {Math.max(0, orderTotalWithSurcharge - reservationAmount).toFixed(2)}
-              </p>
-            )}
-          </div>
-
-          {requiresScheduledDeliveryDate && (
-            <RainauDeliveryDatePicker
-              dates={availableDeliveryDates}
-              value={scheduledDeliveryDate}
-              isLoading={deliveryDatesLoading}
-              error={deliveryDatesError}
-              sameDayCutoffPassed={sameDayCutoffPassed}
-              onChange={setScheduledDeliveryDate}
-              onRefreshDates={refreshDeliveryDates}
-              onCalendarOpenChange={setCalendarPickerOpen}
-            />
-          )}
-
-          <div>
-            <p className="mb-2 text-sm font-semibold text-gray-900">¿Qué vas a pagar ahora?</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <label className={`cursor-pointer rounded-lg border px-4 py-3 text-sm ${paymentMode === PAYMENT_MODE_RESERVATION ? 'border-black bg-gray-50' : 'border-gray-200'}`}>
-                <input
-                  type="radio"
-                  name="payment_mode"
-                  className="mr-2"
-                  checked={paymentMode === PAYMENT_MODE_RESERVATION}
-                  onChange={() => setPaymentMode(PAYMENT_MODE_RESERVATION)}
-                />
-                <span className="font-bold text-gray-900">Solo reserva</span>
-                <span className="mt-1 block text-gray-600">S/ {reservationAmount.toFixed(2)}</span>
-              </label>
-              <label className={`cursor-pointer rounded-lg border px-4 py-3 text-sm ${paymentMode === PAYMENT_MODE_FULL ? 'border-black bg-gray-50' : 'border-gray-200'}`}>
-                <input
-                  type="radio"
-                  name="payment_mode"
-                  className="mr-2"
-                  checked={paymentMode === PAYMENT_MODE_FULL}
-                  onChange={() => setPaymentMode(PAYMENT_MODE_FULL)}
-                />
-                <span className="font-bold text-gray-900">Pago completo</span>
-                <span className="mt-1 block text-gray-600">S/ {orderTotalWithSurcharge.toFixed(2)}</span>
-              </label>
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-900">Pagos y comprobantes</p>
-              <button
-                type="button"
-                onClick={addPaymentRow}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-gray-900 hover:underline"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Agregar método
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {paymentRows.map((row, index) => {
-                const selectedMethod = findPaymentMethodById(checkoutPaymentMethods, row.id_payment_method)
-
-                return (
-                <div key={row.key} className="min-w-0 rounded-lg border border-gray-200 p-3 sm:p-4">
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <p className="text-sm font-bold text-gray-900">Pago {index + 1}</p>
-                    {paymentRows.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removePaymentRow(row.key)}
-                        className="text-gray-500 hover:text-gray-800"
-                        aria-label="Eliminar pago"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col gap-3 sm:grid sm:grid-cols-2">
-                    <label className="block min-w-0 text-sm">
-                      <span className="mb-1 block text-gray-700">Método de pago</span>
-                      <select
-                        value={row.id_payment_method}
-                        onChange={(e) => handlePaymentMethodChange(row.key, e.target.value)}
-                        className="w-full max-w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:border-black focus:outline-none sm:text-sm"
-                      >
-                        <option value="">Seleccionar…</option>
-                        {checkoutPaymentMethods.map((method) => (
-                          <option key={method.id} value={String(method.id)}>
-                            {method.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block min-w-0 text-sm">
-                      <span className="mb-1 block text-gray-700">Monto (S/)</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={row.amount}
-                        readOnly={index === 0}
-                        onChange={(e) => updateRowAmount(row.key, e.target.value)}
-                        className={`w-full max-w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base focus:border-black focus:outline-none sm:text-sm ${
-                          index === 0 ? 'cursor-default bg-gray-100 text-gray-700' : ''
-                        }`}
-                      />
-                    </label>
-                  </div>
-
-                  <PaymentMethodCheckoutInfo method={selectedMethod} />
-
-                  <div className="mt-3 min-w-0">
-                    <p className="mb-1 text-sm text-gray-700">Comprobante(s)</p>
-                    <label className="inline-flex w-full max-w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto sm:justify-start">
-                      <Upload className="h-4 w-4" />
-                      Adjuntar comprobante(s)
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/jpg"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => handleFilesChange(row.key, e)}
-                      />
-                    </label>
-                    {row.files.length > 0 && (
-                      <ul className="mt-2 space-y-1 text-xs text-gray-600">
-                        {row.files.map((file) => (
-                          <li key={`${row.key}-${file.name}-${file.size}`}>{file.name}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-gray-200 px-4 py-3 text-sm">
-            <div className="flex justify-between font-bold text-gray-900">
-              <span>Monto requerido</span>
-              <span>S/ {expectedAmount.toFixed(2)}</span>
-            </div>
-            <div className="mt-1 flex justify-between font-bold text-gray-900">
-              <span>Suma de pagos</span>
-              <span>S/ {paidTotal.toFixed(2)}</span>
-            </div>
-            {!amountMatches && paidTotal > 0 && (
-              <p className="mt-2 text-xs text-red-600">
-                La suma de los pagos debe ser exactamente S/ {expectedAmount.toFixed(2)}.
-              </p>
-            )}
-            <p className="mt-2 text-xs text-gray-500">
-              Al enviar por WhatsApp tu pedido quedará pendiente de verificación en la tienda.
-            </p>
-          </div>
-
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 sm:px-5 sm:py-4">
+          {renderStepContent()}
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
 
         <div className="border-t px-4 py-3 sm:px-5 sm:py-4">
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-xs font-bold text-white hover:bg-gray-800 disabled:opacity-50 sm:py-3.5 sm:text-sm"
-          >
-            <MessageCircle className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
-            {submitting ? 'Registrando pedido…' : 'Enviar por WhatsApp'}
-          </button>
-          <p className="mt-2 text-center text-[11px] text-gray-500 sm:text-xs">
-            Primero guardamos tu pedido y comprobantes; luego se abre WhatsApp con el resumen.
-          </p>
+          {isLastStep ? (
+            <>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!canSubmit}
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-xs font-bold text-white hover:bg-gray-800 disabled:opacity-50 sm:py-3.5 sm:text-sm"
+              >
+                <MessageCircle className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
+                {submitting ? 'Registrando pedido…' : 'Enviar por WhatsApp'}
+              </button>
+              <p className="mt-2 text-center text-[11px] text-gray-500 sm:text-xs">
+                Registramos tu pedido y luego se abre WhatsApp con el resumen.
+              </p>
+            </>
+          ) : (
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+              {isFirstStep ? (
+                <button
+                  type="button"
+                  onClick={requestClose}
+                  disabled={submitting || cancelling}
+                  className="rounded-full border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={goBack}
+                  disabled={submitting}
+                  className="inline-flex items-center justify-center gap-1 rounded-full border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Atrás
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={submitting}
+                className="rounded-full bg-black px-6 py-2.5 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
+              >
+                Continuar
+              </button>
+            </div>
+          )}
+
+          {!isLastStep && isFirstStep && (
+            <p className="mt-2 text-center text-[11px] text-gray-500 sm:text-xs">
+              Al cancelar liberamos el stock reservado de tu pedido.
+            </p>
+          )}
         </div>
       </div>
 
@@ -561,13 +879,6 @@ export default function ReserveOrderModal({
           onConfirmCancel={confirmCancelReservation}
         />
       )}
-
-      <PosSurchargeConfirmModal
-        open={showPosSurchargeModal}
-        baseTotal={orderTotal}
-        onConfirm={confirmPosSurcharge}
-        onCancel={cancelPosSurcharge}
-      />
     </div>,
     document.body,
   )

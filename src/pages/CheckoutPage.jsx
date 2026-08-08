@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Tag, MapPin, User, Plus } from 'lucide-react'
+import { Tag, MapPin, User, Plus, Minus, Trash2 } from 'lucide-react'
 import { useCartStore } from '../stores/cartStore'
 import { useAuthStore } from '../stores/authStore'
 import { useCheckoutDraftStore } from '../stores/checkoutDraftStore'
@@ -13,8 +13,9 @@ import {
   buildEligibleDiscountMap,
 } from '../api/discountCoupons'
 import { getDeliveryFeeForAddress, computeOrderTotal, formatShippingDisplay } from '../utils/deliveryFee'
-import { getCartLineTotal } from '../utils/pricing'
+import { getDecantCartOptions, getMaxCartQuantity } from '../utils/pricing'
 import { getLineDisplayTotal, getLinePromoDiscount, useCartTotals } from '../hooks/useCartTotals'
+import { useUserPricing } from '../hooks/useUserPricing'
 import { buildWhatsAppMessage, openWhatsAppOrder } from '../utils/orderMessage'
 import { mapApiClientOrder } from '../utils/clientOrderMapper'
 import { reserveCheckoutOrder } from '../api/clientOrders'
@@ -30,8 +31,9 @@ import CheckoutAddressConfirmModal, {
 
 export default function CheckoutPage() {
   const navigate = useNavigate()
-  const { items, clearCart, clearEditingOrder, editingOrderId, editingDiscountCode } = useCartStore()
+  const { items, clearCart, clearEditingOrder, editingOrderId, editingDiscountCode, removeItem, updateQuantity } = useCartStore()
   const { subtotal, grossSubtotal, decantPromoDiscount, promoResult } = useCartTotals()
+  const { role } = useUserPricing()
   const { user, isAuthenticated, accessToken, updateAddress, syncAddresses } = useAuthStore()
   const openLoginModal = useUiStore((s) => s.openLoginModal)
   const setAuthIntent = useUiStore((s) => s.setAuthIntent)
@@ -73,6 +75,27 @@ export default function CheckoutPage() {
     () => buildEligibleDiscountMap(appliedCode?.eligible_items),
     [appliedCode?.eligible_items],
   )
+
+  useEffect(() => {
+    items.forEach((item) => {
+      const isDecant = Boolean(item.isDecant || item.idProductDecant)
+      const maxQuantity = getMaxCartQuantity(
+        item.stock,
+        role,
+        isDecant,
+        isDecant
+          ? getDecantCartOptions(item, {
+              items,
+              productId: item.id,
+              excludeDecantId: item.idProductDecant ?? null,
+            })
+          : null,
+      )
+      if (Number.isFinite(maxQuantity) && item.quantity > maxQuantity) {
+        updateQuantity(item.id, maxQuantity, item.idProductDecant ?? null)
+      }
+    })
+  }, [items, role, updateQuantity])
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -310,7 +333,7 @@ export default function CheckoutPage() {
     setReserveError('')
   }
 
-  const handleOrderCreated = async (apiOrder) => {
+  const handleOrderCreated = async (apiOrder, { balancePaymentPreference } = {}) => {
     const mapped = mapApiClientOrder(apiOrder)
 
     const message = buildWhatsAppMessage({
@@ -331,6 +354,7 @@ export default function CheckoutPage() {
       amountPaid: mapped.amountPaid,
       balanceDue: mapped.balanceDue,
       payments: mapped.payments,
+      balancePaymentPreference,
       status: mapped.status,
     })
 
@@ -419,6 +443,19 @@ export default function CheckoutPage() {
             <ul className="max-h-[min(28rem,55vh)] divide-y overflow-y-auto px-5">
               {items.map((item, lineIndex) => {
                 const isDecant = Boolean(item.isDecant || item.idProductDecant)
+                const maxQuantity = getMaxCartQuantity(
+                  item.stock,
+                  role,
+                  isDecant,
+                  isDecant
+                    ? getDecantCartOptions(item, {
+                        items,
+                        productId: item.id,
+                        excludeDecantId: item.idProductDecant ?? null,
+                      })
+                    : null,
+                )
+                const atMaxStock = Number.isFinite(maxQuantity) && item.quantity >= maxQuantity
                 const linePromoDiscount = getLinePromoDiscount(lineIndex, promoResult)
                 const lineTotal = getLineDisplayTotal(item, lineIndex, promoResult)
                 const discountInfo = eligibleDiscountByProductId.get(Number(item.id))
@@ -433,10 +470,39 @@ export default function CheckoutPage() {
                     ) : (
                       <div className="h-20 w-16 shrink-0 rounded bg-gray-100" />
                     )}
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900">{item.name}</p>
                       <p className="text-xs text-gray-500">{item.brand}</p>
-                      <p className="mt-1 text-sm text-gray-600">Cantidad: {item.quantity}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.id, item.quantity - 1, item.idProductDecant ?? null)}
+                          className="rounded border border-gray-300 p-1.5 hover:bg-gray-50"
+                          aria-label="Disminuir cantidad"
+                        >
+                          <Minus className="h-3.5 w-3.5" />
+                        </button>
+                        <span className="min-w-[1.5rem] text-center text-sm font-semibold text-gray-900">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.id, item.quantity + 1, item.idProductDecant ?? null)}
+                          disabled={atMaxStock}
+                          className="rounded border border-gray-300 p-1.5 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          aria-label="Aumentar cantidad"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.id, item.idProductDecant ?? null)}
+                          className="ml-1 rounded p-1.5 text-gray-400 hover:bg-gray-50 hover:text-red-600"
+                          aria-label="Eliminar producto"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                       {isDecant && linePromoDiscount > 0 && (
                         <p className="mt-1 text-xs font-bold text-black">
                           Descuento promoción: - S/ {linePromoDiscount.toFixed(2)}

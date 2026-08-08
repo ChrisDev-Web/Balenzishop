@@ -1,6 +1,7 @@
 import {
   DELIVERY_TYPES,
   isHomeDeliveryType,
+  isOwnDeliveryType,
 } from './deliveryTypes'
 
 export function parseShalonLabelParts(label) {
@@ -119,6 +120,7 @@ export function sortAddresses(addresses) {
 
 export function mapAddressFormToPayload(form) {
   const isDelivery = isHomeDeliveryType(form.deliveryType)
+  const isOwnDelivery = isOwnDeliveryType(form.deliveryType)
 
   const payload = {
     id_province: Number(form.idProvince),
@@ -131,8 +133,8 @@ export function mapAddressFormToPayload(form) {
   if (isDelivery) {
     payload.full_address = form.fullAddress?.trim() || ''
     payload.google_maps_link = form.googleMapsLink?.trim() || null
-    payload.geo_lat = form.geoLat != null ? Number(form.geoLat) : null
-    payload.geo_lng = form.geoLng != null ? Number(form.geoLng) : null
+    payload.geo_lat = isOwnDelivery || form.geoLat == null ? null : Number(form.geoLat)
+    payload.geo_lng = isOwnDelivery || form.geoLng == null ? null : Number(form.geoLng)
   } else {
     payload.id_shalon = Number(form.idShalon)
   }

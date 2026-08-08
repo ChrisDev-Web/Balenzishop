@@ -1,10 +1,14 @@
 import { createPortal } from 'react-dom'
 import { MapPin, Plus, Star } from 'lucide-react'
 
-import { getDeliveryProviderLabel, isHomeDeliveryType } from '../../utils/deliveryTypes'
+import { getDeliveryProviderLabel, isHomeDeliveryType, isOwnDeliveryType } from '../../utils/deliveryTypes'
 
 function getDeliverySummary(address) {
   if (!address) return ''
+
+  if (isOwnDeliveryType(address.deliveryType)) {
+    return address.googleMapsLink || address.fullAddress || getDeliveryProviderLabel(address.deliveryType)
+  }
 
   if (isHomeDeliveryType(address.deliveryType)) {
     return address.fullAddress || getDeliveryProviderLabel(address.deliveryType)
@@ -29,6 +33,10 @@ function getScopeLabel(address) {
 
 export function formatCheckoutAddressLine(address) {
   if (!address) return '—'
+
+  if (isOwnDeliveryType(address.deliveryType)) {
+    return address.googleMapsLink || address.fullAddress || getDeliveryProviderLabel(address.deliveryType)
+  }
 
   if (isHomeDeliveryType(address.deliveryType)) {
     return address.fullAddress || `${address.district}, ${address.city}`
@@ -93,7 +101,9 @@ export default function CheckoutAddressConfirmModal({
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-gray-900">
-                        {address.district}, {address.city}
+                        {isOwnDeliveryType(address.deliveryType)
+                          ? getDeliveryProviderLabel(address.deliveryType)
+                          : `${address.district}, ${address.city}`}
                       </span>
                       {address.isPrimary && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-black px-2 py-0.5 text-xs font-medium text-white">

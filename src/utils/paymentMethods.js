@@ -3,6 +3,7 @@ import http from '../api/client'
 export const PAYMENT_METHOD_TYPE_WALLET = 'digital_wallet'
 export const PAYMENT_METHOD_TYPE_TRANSFER = 'bank_transfer'
 export const PAYMENT_METHOD_TYPE_POS = 'pos'
+export const PAYMENT_METHOD_TYPE_CASH = 'cash'
 
 export function resolvePaymentMethodType(method) {
   if (method?.type) {
@@ -19,7 +20,15 @@ export function resolvePaymentMethodType(method) {
     return PAYMENT_METHOD_TYPE_TRANSFER
   }
 
+  if (name.includes('efectivo')) {
+    return PAYMENT_METHOD_TYPE_CASH
+  }
+
   return null
+}
+
+export function isCashPaymentMethod(method) {
+  return resolvePaymentMethodType(method) === PAYMENT_METHOD_TYPE_CASH
 }
 
 export function findPaymentMethodById(paymentMethods, id) {

@@ -8,6 +8,8 @@ import {
   extractSocialHandle,
   formatWhatsAppDisplay,
 } from '../../utils/companyBranding'
+import { markCheckoutLegalView } from '../../utils/checkoutReservationStorage'
+import { isCheckoutReservationExemptPath } from '../../utils/checkoutReservationGuard'
 
 const LEGAL_LINKS = [
   { label: 'Términos y condiciones', to: '/terminos-y-condiciones' },
@@ -63,6 +65,12 @@ function TikTokIcon({ className }) {
   )
 }
 
+function markLegalNavigation(path) {
+  if (isCheckoutReservationExemptPath(path)) {
+    markCheckoutLegalView()
+  }
+}
+
 function FooterLink({ link }) {
   const className =
     'text-sm text-white/65 transition-colors duration-200 hover:text-white'
@@ -82,7 +90,12 @@ function FooterLink({ link }) {
   }
 
   return (
-    <Link to={link.to} className={className}>
+    <Link
+      to={link.to}
+      className={className}
+      onMouseDown={() => markLegalNavigation(link.to)}
+      onClick={() => markLegalNavigation(link.to)}
+    >
       {link.label}
     </Link>
   )
@@ -225,10 +238,20 @@ export default function Footer() {
       <div className="mx-auto flex max-w-7xl flex-col items-center gap-3 px-6 py-6 text-center text-[11px] text-white/35 sm:flex-row sm:justify-between lg:px-8">
         <p>© {new Date().getFullYear()} {companyName}. Todos los derechos reservados.</p>
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:justify-end">
-          <Link to="/terminos-y-condiciones" className="transition-colors hover:text-white/70">
+          <Link
+            to="/terminos-y-condiciones"
+            className="transition-colors hover:text-white/70"
+            onMouseDown={() => markLegalNavigation('/terminos-y-condiciones')}
+            onClick={() => markLegalNavigation('/terminos-y-condiciones')}
+          >
             Términos y condiciones
           </Link>
-          <Link to="/politica-de-privacidad" className="transition-colors hover:text-white/70">
+          <Link
+            to="/politica-de-privacidad"
+            className="transition-colors hover:text-white/70"
+            onMouseDown={() => markLegalNavigation('/politica-de-privacidad')}
+            onClick={() => markLegalNavigation('/politica-de-privacidad')}
+          >
             Política de privacidad
           </Link>
           <span className="hidden text-white/20 sm:inline" aria-hidden="true">

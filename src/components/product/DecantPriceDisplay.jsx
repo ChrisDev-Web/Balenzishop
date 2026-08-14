@@ -11,8 +11,8 @@ export default function DecantPriceDisplay({
   const lineTotal = Math.round(price * qty * 100) / 100
 
   return (
-    <div className="min-w-0 space-y-1">
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+    <div className={`min-w-0 space-y-1${isDetail ? ' flex flex-col items-center lg:items-start' : ''}`}>
+      <div className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5${isDetail ? ' justify-center lg:justify-start' : ''}`}>
         <span
           className={
             isDetail

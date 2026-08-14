@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Eye, Loader2, X } from 'lucide-react'
 import ImageZoomPreview from './ImageZoomPreview.jsx'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
 function formatTrackingDate(value) {
   if (!value) return null
@@ -40,10 +41,12 @@ export default function ShalomTrackingModal({
     { id: 'receipt', label: 'Boleta Shalon' },
   ]
 
+  useBodyScrollLock(true)
+
   return createPortal(
     <>
       <div className="fixed inset-0 z-[210] flex items-end justify-center p-0 sm:items-center sm:p-4">
-        <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+        <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
         <div
           role="dialog"
           aria-labelledby="shalom-tracking-title"

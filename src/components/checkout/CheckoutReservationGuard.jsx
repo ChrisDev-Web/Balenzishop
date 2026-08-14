@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchCheckoutDraft } from '../../api/clientOrders'
 import { useAuthStore } from '../../stores/authStore'
@@ -9,6 +9,12 @@ import {
   readPendingCheckoutDraft,
   savePendingCheckoutDraft,
 } from '../../utils/checkoutReservationStorage'
+import {
+  isCheckoutReservationGuardSuspended,
+  normalizeAppPathname,
+  shouldRedirectActiveCheckoutDraft,
+  syncCheckoutLegalViewFromUrl,
+} from '../../utils/checkoutReservationGuard'
 import CancelCheckoutConfirmModal, {
   cancelActiveCheckoutDraft,
 } from './CancelCheckoutConfirmModal'
@@ -28,10 +34,24 @@ export default function CheckoutReservationGuard() {
   const [cancelError, setCancelError] = useState('')
   const [cancelling, setCancelling] = useState(false)
 
+  const currentPath = normalizeAppPathname(location.pathname)
+  const guardSuspended = isCheckoutReservationGuardSuspended(currentPath)
+
+  useLayoutEffect(() => {
+    syncCheckoutLegalViewFromUrl()
+
+    if (isCheckoutReservationGuardSuspended(normalizeAppPathname(location.pathname))) {
+      dismissPromptCancel()
+    }
+  }, [location.pathname, dismissPromptCancel])
+
   useEffect(() => {
     if (!draftOrderId) return undefined
 
     const handleBeforeUnload = (event) => {
+      const pathNow = normalizeAppPathname(window.location.pathname)
+      if (isCheckoutReservationGuardSuspended(pathNow)) return
+
       markPendingCheckoutDraftInterrupted()
       event.preventDefault()
       event.returnValue = ''
@@ -64,8 +84,12 @@ export default function CheckoutReservationGuard() {
           return
         }
 
+        syncCheckoutLegalViewFromUrl()
+
+        const pathAtResume = normalizeAppPathname(window.location.pathname)
+        const onLegalPage = isCheckoutReservationGuardSuspended(pathAtResume)
         const stored = readPendingCheckoutDraft(user.id)
-        const shouldPromptCancel = Boolean(stored?.interrupted)
+        const shouldPromptCancel = !onLegalPage && Boolean(stored?.interrupted)
 
         savePendingCheckoutDraft({
           orderId: draft.id_client_order,
@@ -74,7 +98,7 @@ export default function CheckoutReservationGuard() {
 
         setActiveDraft(draft.id_client_order, { promptCancelOnOpen: shouldPromptCancel })
 
-        if (location.pathname !== '/pedido') {
+        if (!onLegalPage && shouldRedirectActiveCheckoutDraft(pathAtResume)) {
           navigate('/pedido', { replace: true })
         }
       } catch {
@@ -96,7 +120,6 @@ export default function CheckoutReservationGuard() {
     accessToken,
     clearActiveDraft,
     isAuthenticated,
-    location.pathname,
     navigate,
     resumeChecked,
     setActiveDraft,
@@ -106,7 +129,11 @@ export default function CheckoutReservationGuard() {
 
   useEffect(() => {
     if (!draftOrderId || !resumeChecked) return
-    if (location.pathname === '/pedido') return
+
+    const pathNow = normalizeAppPathname(window.location.pathname)
+
+    if (pathNow === '/pedido') return
+    if (isCheckoutReservationGuardSuspended(pathNow)) return
 
     setActiveDraft(draftOrderId, { promptCancelOnOpen: true })
     navigate('/pedido', { replace: true })
@@ -115,7 +142,8 @@ export default function CheckoutReservationGuard() {
   const resumeConfirmOpen = Boolean(
     draftOrderId
     && promptCancelOnOpen
-    && location.pathname === '/pedido',
+    && currentPath === '/pedido'
+    && !guardSuspended,
   )
 
   const handleContinueResume = () => {
@@ -150,6 +178,10 @@ export default function CheckoutReservationGuard() {
     } finally {
       setCancelling(false)
     }
+  }
+
+  if (guardSuspended) {
+    return null
   }
 
   return (

@@ -1,12 +1,16 @@
-export default function DecantSizeSelector({ decants, selectedId, onSelect, disabled = false }) {
+export default function DecantSizeSelector({ decants, selectedId, onSelect, disabled = false, centered = false }) {
   if (!decants?.length) return null
 
   return (
-    <div className="decant-size-selector">
+    <div className={`decant-size-selector${centered ? ' text-center lg:text-left' : ''}`}>
       <p className="decant-size-selector__label text-sm font-semibold uppercase tracking-wide text-gray-700">
         Tamaño
       </p>
-      <div className="decant-size-selector__options mt-3 flex flex-wrap gap-2.5 sm:gap-3">
+      <div
+        className={`decant-size-selector__options mt-3 flex flex-wrap gap-2.5 sm:gap-3${
+          centered ? ' justify-center lg:justify-start' : ''
+        }`}
+      >
         {decants.map((decant) => {
           const isSelected = selectedId === decant.idProductDecant
 

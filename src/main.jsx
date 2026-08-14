@@ -6,8 +6,10 @@ import { initPersistentCache } from './core/cache/moduleCache'
 import { clearUserSessionsCache } from './utils/clearUserSessions'
 import { preconnectMediaOrigin } from './utils/mediaUrl'
 import { processPreviewAccessFromUrl } from './utils/maintenanceAccess'
+import { syncCheckoutLegalViewFromUrl } from './utils/checkoutReservationGuard'
 
 processPreviewAccessFromUrl()
+syncCheckoutLegalViewFromUrl()
 preconnectMediaOrigin()
 
 const SESSIONS_RESET_KEY = 'balenzi-sessions-reset'

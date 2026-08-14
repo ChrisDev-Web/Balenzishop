@@ -1,4 +1,5 @@
 import { formatOrderDate } from './orderMessage'
+import { normalizeMediaUrl } from './mediaUrl'
 
 const STATUS_MAP = {
   Pendiente: 'Pendiente',
@@ -32,9 +33,10 @@ export function mapApiClientOrder(order) {
     statusRaw: order.status,
     paymentMode: order.payment_mode,
     items: details.map((detail) => ({
-      id: detail.id_product,
+      id: detail.id_client_order_detail ?? detail.id_product,
       name: detail.product_name,
       brand: detail.brand_name,
+      image: detail.product_photo ? normalizeMediaUrl(detail.product_photo) : '',
       price: Number(detail.unit_price),
       quantity: Number(detail.quantity),
       lineSubtotal: Number(detail.line_subtotal),

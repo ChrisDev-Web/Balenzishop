@@ -1,10 +1,18 @@
 import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
 import { useCompanyStore } from '../../stores/companyStore'
 import { DEFAULT_COMPANY_NAME } from '../../utils/companyBranding'
+import { markCheckoutLegalView } from '../../utils/checkoutReservationStorage'
+import { syncCheckoutLegalViewFromUrl } from '../../utils/checkoutReservationGuard'
 
 export default function LegalPageLayout({ title, lastUpdated, children }) {
   const company = useCompanyStore((s) => s.company)
   const companyName = company?.name || DEFAULT_COMPANY_NAME
+
+  useEffect(() => {
+    syncCheckoutLegalViewFromUrl()
+    markCheckoutLegalView()
+  }, [])
 
   return (
     <div className="bg-[#fafafa] py-10 md:py-14">

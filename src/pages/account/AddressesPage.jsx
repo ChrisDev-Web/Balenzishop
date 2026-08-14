@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Star, Trash2, MapPin, Eye, Pencil, Map } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
-import { AUTH_INTENT, getRouteAfterAddress } from '../../utils/authFlow'
+import { AUTH_INTENT, getRouteAfterAddress, resolveReturnTo } from '../../utils/authFlow'
 import { LIMA_CITY } from '../../data/shalonLocations'
 import {
   listDistrictsPublic,
@@ -60,6 +60,7 @@ export default function AddressesPage() {
   const [searchParams] = useSearchParams()
   const flujo = searchParams.get('flujo')
   const isAddingNew = searchParams.get('nueva') === '1'
+  const returnToParam = searchParams.get('returnTo')
   const {
     user,
     addAddress,
@@ -96,6 +97,8 @@ export default function AddressesPage() {
   const [showLimaProviderModal, setShowLimaProviderModal] = useState(false)
   const [deliveryScope, setDeliveryScope] = useState(null)
   const [limaDeliveryType, setLimaDeliveryType] = useState(null)
+  const setupWizardStartedRef = useRef(false)
+  const scrollToFormOnRevealRef = useRef(false)
 
   const addresses = user?.addresses || []
   const isSetupFlow = flujo === 'pedido' || flujo === 'onboarding'
@@ -105,6 +108,65 @@ export default function AddressesPage() {
   const isOwnDelivery = isLimaScope && isOwnDeliveryType(form.deliveryType)
   const isBalenziHomeDelivery = isLimaDelivery && !isOwnDelivery
   const isShalonPickup = isProvinciaScope || (isLimaScope && limaDeliveryType === 'shalon')
+
+  const resetFormState = useCallback(() => {
+    setForm(emptyForm)
+    setDeliveryScope(null)
+    setLimaDeliveryType(null)
+    setShowLimaProviderModal(false)
+    setEditingAddressId(null)
+    setError('')
+  }, [])
+
+  const resolveWizardCancelDestination = useCallback(() => {
+    const fallback = flujo === 'pedido' ? '/catalogo' : '/mi-cuenta'
+    return resolveReturnTo(returnToParam || authReturnTo, fallback)
+  }, [flujo, returnToParam, authReturnTo])
+
+  const cancelAddressWizard = useCallback(() => {
+    setShowZoneModal(false)
+    setShowLimaTypeModal(false)
+    setShowLimaProviderModal(false)
+    setShowForm(false)
+    resetFormState()
+    setupWizardStartedRef.current = false
+
+    if (isSetupFlow) {
+      navigate(resolveWizardCancelDestination(), { replace: true })
+      return
+    }
+
+    if (isAddingNew) {
+      navigate('/mi-cuenta/direcciones', { replace: true })
+    }
+  }, [isSetupFlow, isAddingNew, navigate, resetFormState, resolveWizardCancelDestination])
+
+  const revealAddressForm = useCallback(() => {
+    scrollToFormOnRevealRef.current = true
+    setShowForm(true)
+  }, [])
+
+  useEffect(() => {
+    if (!showForm || !scrollToFormOnRevealRef.current) return
+    if (showZoneModal || showLimaTypeModal || showLimaProviderModal) return
+
+    scrollToFormOnRevealRef.current = false
+
+    const timeoutId = window.setTimeout(() => {
+      document.getElementById('address-form')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    }, 80)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [showForm, showZoneModal, showLimaTypeModal, showLimaProviderModal])
+
+  const startAddressWizard = useCallback(() => {
+    resetFormState()
+    setShowForm(false)
+    setShowZoneModal(true)
+  }, [resetFormState])
 
   const regions = useMemo(
     () => [...regionOptions].sort((a, b) => a.name.localeCompare(b.name, 'es')),
@@ -326,27 +388,32 @@ export default function AddressesPage() {
   ])
 
   useEffect(() => {
-    if (isSetupFlow && addresses.length === 0 && !isLoadingAddresses) {
-      setShowForm(true)
-      setShowZoneModal(true)
+    if (!isSetupFlow || isLoadingAddresses) return
+
+    const shouldStartWizard = addresses.length === 0 || isAddingNew
+    if (!shouldStartWizard) {
+      setupWizardStartedRef.current = false
+      return
     }
-  }, [isSetupFlow, addresses.length, isLoadingAddresses])
 
-  useEffect(() => {
-    if (!isSetupFlow || !isAddingNew || isLoadingAddresses) return
+    if (setupWizardStartedRef.current || showZoneModal || showLimaTypeModal || showLimaProviderModal) {
+      return
+    }
 
-    setShowForm(true)
+    setupWizardStartedRef.current = true
+    resetFormState()
+    setShowForm(false)
     setShowZoneModal(true)
-  }, [isSetupFlow, isAddingNew, isLoadingAddresses])
-
-  const resetFormState = () => {
-    setForm(emptyForm)
-    setDeliveryScope(null)
-    setLimaDeliveryType(null)
-    setShowLimaProviderModal(false)
-    setEditingAddressId(null)
-    setError('')
-  }
+  }, [
+    isSetupFlow,
+    isLoadingAddresses,
+    addresses.length,
+    isAddingNew,
+    showZoneModal,
+    showLimaTypeModal,
+    showLimaProviderModal,
+    resetFormState,
+  ])
 
   const resolveDeliveryTypeFromAddress = (address) => {
     if (address.deliveryScope === 'lima') {
@@ -388,6 +455,7 @@ export default function AddressesPage() {
           }),
     }))
     setShowLimaProviderModal(false)
+    revealAddressForm()
   }
 
   const openEditForm = (address) => {
@@ -422,6 +490,7 @@ export default function AddressesPage() {
     }
 
     setLimaDeliveryType('shalon')
+    revealAddressForm()
   }
 
   const handleLimaDeliveryTypeSelect = (type) => {
@@ -446,18 +515,16 @@ export default function AddressesPage() {
       geoLng: null,
     }))
     setShowLimaTypeModal(false)
+    revealAddressForm()
   }
 
   const openAddressForm = () => {
     if (showForm && !editingAddressId) {
-      setShowForm(false)
-      resetFormState()
+      cancelAddressWizard()
       return
     }
 
-    resetFormState()
-    setShowForm(true)
-    setShowZoneModal(true)
+    startAddressWizard()
   }
 
   const handleRegionSelect = (value, option) => {
@@ -692,7 +759,7 @@ export default function AddressesPage() {
       {showZoneModal && (
         <DeliveryZoneModal
           onSelect={handleZoneSelect}
-          onClose={() => setShowZoneModal(false)}
+          onClose={cancelAddressWizard}
         />
       )}
 
@@ -703,14 +770,14 @@ export default function AddressesPage() {
             setShowLimaProviderModal(false)
             setShowLimaTypeModal(true)
           }}
-          onClose={() => setShowLimaProviderModal(false)}
+          onClose={cancelAddressWizard}
         />
       )}
 
       {showLimaTypeModal && (
         <LimaDeliveryTypeModal
           onSelect={handleLimaDeliveryTypeSelect}
-          onClose={() => setShowLimaTypeModal(false)}
+          onClose={cancelAddressWizard}
         />
       )}
 
@@ -740,7 +807,7 @@ export default function AddressesPage() {
         <form
           id="address-form"
           onSubmit={handleSubmit}
-          className="mt-6 rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
+          className="mt-6 scroll-mt-24 rounded-lg border border-gray-200 bg-white p-6 shadow-sm"
         >
           <h2 className="font-semibold text-gray-900">
             {editingAddressId
@@ -777,7 +844,7 @@ export default function AddressesPage() {
           {!deliveryScope && (
             <button
               type="button"
-              onClick={() => setShowZoneModal(true)}
+              onClick={startAddressWizard}
               className="mt-3 text-sm font-medium text-black hover:underline"
             >
               Elegir Lima o provincia
@@ -868,46 +935,41 @@ export default function AddressesPage() {
             {isShalonPickup && (
               <div className="sm:col-span-2">
                 <label className="block text-sm text-gray-600">Sede Shalon *</label>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1">
-                    <SearchableCombobox
-                      value={form.idShalon}
-                      selectedLabel={form.shalon}
-                      placeholder={
-                        form.idDistrict
-                          ? 'Escribe para buscar sede Shalon'
-                          : 'Primero elige un distrito'
-                      }
-                      searchPlaceholder="Busca por nombre o dirección (ej. PRO, Los Olivos)…"
-                      options={shalonComboboxOptions}
-                      isLoading={isLoadingShalons}
-                      disabled={!form.idDistrict}
-                      searchMode="contains"
-                      emptyMessage="No hay Shalons que coincidan en este distrito."
-                      onChange={handleShalonSelect}
-                    />
-                  </div>
-                  {form.shalon && (
-                    <a
-                      href={buildShalonMapsUrl({
-                        name: form.shalonName,
-                        district: form.district,
-                        city: form.city,
-                        region: form.region,
-                        shalonLabel: form.shalon,
-                        geoLat: form.shalonLat,
-                        geoLng: form.shalonLng,
-                      })}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="Ver Shalon en Google Maps"
-                      className="mt-1 flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:border-black hover:bg-gray-50 hover:text-black"
-                    >
-                      <Map className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Ver en mapa</span>
-                    </a>
-                  )}
-                </div>
+                <SearchableCombobox
+                  value={form.idShalon}
+                  selectedLabel={form.shalon}
+                  placeholder={
+                    form.idDistrict
+                      ? 'Escribe para buscar sede Shalon'
+                      : 'Primero elige un distrito'
+                  }
+                  searchPlaceholder="Busca por nombre o dirección (ej. PRO, Los Olivos)…"
+                  options={shalonComboboxOptions}
+                  isLoading={isLoadingShalons}
+                  disabled={!form.idDistrict}
+                  searchMode="contains"
+                  emptyMessage="No hay Shalons que coincidan en este distrito."
+                  onChange={handleShalonSelect}
+                />
+                {form.shalon && (
+                  <a
+                    href={buildShalonMapsUrl({
+                      name: form.shalonName,
+                      district: form.district,
+                      city: form.city,
+                      region: form.region,
+                      shalonLabel: form.shalon,
+                      geoLat: form.shalonLat,
+                      geoLng: form.shalonLng,
+                    })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-black hover:bg-gray-50 hover:text-black"
+                  >
+                    <Map className="h-4 w-4 shrink-0" />
+                    Ver ubicación Shalom
+                  </a>
+                )}
               </div>
             )}
 
@@ -951,13 +1013,21 @@ export default function AddressesPage() {
                     ? 'Guardar y continuar al pedido'
                     : 'Guardar y continuar'}
             </button>
-            {!isSetupFlow && (
+            {!isSetupFlow ? (
               <button
                 type="button"
                 onClick={() => {
                   setShowForm(false)
                   resetFormState()
                 }}
+                className="rounded-full border px-6 py-2 text-sm text-gray-600"
+              >
+                Cancelar
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={cancelAddressWizard}
                 className="rounded-full border px-6 py-2 text-sm text-gray-600"
               >
                 Cancelar

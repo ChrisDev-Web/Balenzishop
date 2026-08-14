@@ -10,6 +10,7 @@ import {
   getInitialCalendarMonth,
   isDeliveryDateSelectable,
 } from '../../utils/rainauDeliveryDates'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
 export default function RainauDeliveryDateModal({
   open,
@@ -40,6 +41,8 @@ export default function RainauDeliveryDateModal({
       setPendingDate('')
     }
   }, [open, dates, lookup, minDate, maxDate, pendingDate])
+
+  useBodyScrollLock(open)
 
   if (!open) return null
 
@@ -87,7 +90,6 @@ export default function RainauDeliveryDateModal({
     <div className="fixed inset-0 z-[260] flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
         className="absolute inset-0 bg-black/50"
-        onClick={onClose}
         aria-hidden="true"
       />
       <div

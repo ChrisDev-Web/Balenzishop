@@ -58,3 +58,19 @@ export function formatShippingDisplay({ deliveryFee }) {
 
   return 'Con cargo'
 }
+
+export function getShippingChargeHintMessage(deliveryMode) {
+  if (deliveryMode === DELIVERY_MODES.CUSTOMER_DELIVERY) {
+    return 'El envío lo paga usted al repartidor.'
+  }
+
+  if (deliveryMode === DELIVERY_MODES.DELIVERY) {
+    return 'El costo del envío se define según su zona.'
+  }
+
+  return 'El costo lo define Shalom al recoger su pedido.'
+}
+
+export function isShippingChargeHintApplicable({ deliveryFee } = {}) {
+  return formatShippingDisplay({ deliveryFee }) === 'Con cargo'
+}

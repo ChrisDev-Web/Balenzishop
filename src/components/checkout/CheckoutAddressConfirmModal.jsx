@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom'
-import { MapPin, Plus, Star } from 'lucide-react'
+import { MapPin, Plus, Star, X } from 'lucide-react'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
 import { getDeliveryProviderLabel, isHomeDeliveryType, isOwnDeliveryType } from '../../utils/deliveryTypes'
 
@@ -52,9 +53,12 @@ export default function CheckoutAddressConfirmModal({
   onSelectAddress,
   onConfirm,
   onAddNew,
+  onClose,
   isConfirming = false,
   error = '',
 }) {
+  useBodyScrollLock(open)
+
   if (!open) return null
 
   return createPortal(
@@ -67,19 +71,30 @@ export default function CheckoutAddressConfirmModal({
         className="relative z-10 flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[88vh] sm:rounded-2xl"
       >
         <div className="border-b px-5 py-5">
-          <div className="flex items-start gap-3">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-light text-brand">
-              <MapPin className="h-5 w-5" />
-            </span>
-            <div>
-              <h2 id="checkout-address-title" className="text-lg font-bold text-gray-900">
-                ¿Tu dirección de entrega es la correcta?
-              </h2>
-              <p className="mt-1 text-sm leading-relaxed text-gray-600">
-                Antes de reservar, confirma dónde recibirás tu pedido. Si viajaste o cambiaste de
-                ciudad, elige otra dirección guardada o agrega una nueva.
-              </p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-light text-brand">
+                <MapPin className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 id="checkout-address-title" className="text-lg font-bold text-gray-900">
+                  ¿Tu dirección de entrega es la correcta?
+                </h2>
+                <p className="mt-1 text-sm leading-relaxed text-gray-600">
+                  Antes de reservar, confirma dónde recibirás tu pedido. Si viajaste o cambiaste de
+                  ciudad, elige otra dirección guardada o agrega una nueva.
+                </p>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isConfirming}
+              className="shrink-0 rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
+              aria-label="Cerrar"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
         </div>
 

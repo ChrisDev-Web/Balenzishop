@@ -1,18 +1,20 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Tag, MapPin, User, Plus, Minus, Trash2 } from 'lucide-react'
+import { Tag, MapPin, User, Plus, Minus, Trash2, ChevronDown } from 'lucide-react'
 import { useCartStore } from '../stores/cartStore'
 import { useAuthStore } from '../stores/authStore'
 import { useCheckoutDraftStore } from '../stores/checkoutDraftStore'
 import { useUiStore } from '../stores/uiStore'
-import { AUTH_INTENT } from '../utils/authFlow'
+import { AUTH_INTENT, captureAuthReturnTo } from '../utils/authFlow'
 import { fetchActivePaymentMethods } from '../api/paymentMethods'
 import {
   validateDiscountCoupon,
   mapValidationToAppliedCoupon,
   buildEligibleDiscountMap,
 } from '../api/discountCoupons'
-import { getDeliveryFeeForAddress, computeOrderTotal, formatShippingDisplay } from '../utils/deliveryFee'
+import { fetchLiveMinoristaPricingStatus } from '../api/catalogSettings'
+import { getDeliveryFeeForAddress, computeOrderTotal } from '../utils/deliveryFee'
+import ShippingChargeDisplay from '../components/checkout/ShippingChargeDisplay'
 import { getDecantCartOptions, getMaxCartQuantity } from '../utils/pricing'
 import { getLineDisplayTotal, getLinePromoDiscount, useCartTotals } from '../hooks/useCartTotals'
 import { useUserPricing } from '../hooks/useUserPricing'
@@ -45,6 +47,7 @@ export default function CheckoutPage() {
   const [showReserveModal, setShowReserveModal] = useState(false)
   const draftOrderId = useCheckoutDraftStore((state) => state.draftOrderId)
   const promptCancelOnOpen = useCheckoutDraftStore((state) => state.promptCancelOnOpen)
+  const resumeChecked = useCheckoutDraftStore((state) => state.resumeChecked)
   const setActiveDraft = useCheckoutDraftStore((state) => state.setActiveDraft)
   const clearActiveDraft = useCheckoutDraftStore((state) => state.clearActiveDraft)
   const [reserveError, setReserveError] = useState('')
@@ -59,17 +62,24 @@ export default function CheckoutPage() {
   const [selectedAddressId, setSelectedAddressId] = useState(null)
   const [addressConfirmError, setAddressConfirmError] = useState('')
   const [isConfirmingAddress, setIsConfirmingAddress] = useState(false)
+  const [clientSectionOpen, setClientSectionOpen] = useState(false)
+  const [deliverySectionOpen, setDeliverySectionOpen] = useState(false)
+  const [livePricingEnabled, setLivePricingEnabled] = useState(false)
   const hasPromptedAddressRef = useRef(false)
 
   const isEditing = !!editingOrderId
   const addresses = user?.addresses || []
   const primaryAddress = addresses.find((a) => a.isPrimary) || addresses[0]
-  const discount = appliedCode?.discount || 0
+  const discount = livePricingEnabled ? 0 : (appliedCode?.discount || 0)
   const delivery = getDeliveryFeeForAddress(primaryAddress)
   const deliveryFee = delivery.fee
   const total = computeOrderTotal(subtotal, discount, deliveryFee, delivery.mode)
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0)
   const totalQuantity = totalItems
+  const clientFullName = [user?.firstName, user?.lastNamePaternal, user?.lastNameMaternal].filter(Boolean).join(' ') || '—'
+  const deliverySummary = primaryAddress
+    ? `${primaryAddress.district}, ${primaryAddress.city}`
+    : 'Sin dirección'
 
   const eligibleDiscountByProductId = useMemo(
     () => buildEligibleDiscountMap(appliedCode?.eligible_items),
@@ -107,9 +117,14 @@ export default function CheckoutPage() {
       return
     }
     if (user?.profileComplete && !user.addresses?.length) {
-      navigate('/mi-cuenta/direcciones?flujo=pedido', { replace: true })
+      const returnPath = captureAuthReturnTo() || '/catalogo'
+      setAuthIntent(AUTH_INTENT.CHECKOUT, returnPath)
+      navigate(
+        `/mi-cuenta/direcciones?flujo=pedido&returnTo=${encodeURIComponent(returnPath)}`,
+        { replace: true },
+      )
     }
-  }, [isAuthenticated, user, navigate, openLoginModal])
+  }, [isAuthenticated, user, navigate, openLoginModal, setAuthIntent])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -118,10 +133,20 @@ export default function CheckoutPage() {
   }, [isAuthenticated, syncAddresses])
 
   useEffect(() => {
-    if (!user?.profileComplete || addresses.length === 0) return
+    if (!user?.profileComplete || addresses.length === 0 || !resumeChecked) return
 
-    if (draftOrderId && !promptCancelOnOpen) {
+    if (draftOrderId) {
+      hasPromptedAddressRef.current = true
+      setShowAddressConfirmModal(false)
       setAddressConfirmed(true)
+      if (primaryAddress?.id) {
+        setSelectedAddressId(primaryAddress.id)
+      }
+      return
+    }
+
+    if (promptCancelOnOpen) {
+      setShowAddressConfirmModal(false)
       return
     }
 
@@ -131,7 +156,14 @@ export default function CheckoutPage() {
     setSelectedAddressId(primaryAddress?.id || null)
     setShowAddressConfirmModal(true)
     setAddressConfirmed(false)
-  }, [user?.profileComplete, addresses.length, primaryAddress?.id, draftOrderId, promptCancelOnOpen])
+  }, [
+    user?.profileComplete,
+    addresses.length,
+    primaryAddress?.id,
+    draftOrderId,
+    promptCancelOnOpen,
+    resumeChecked,
+  ])
 
   useEffect(() => {
     let cancelled = false
@@ -153,7 +185,32 @@ export default function CheckoutPage() {
   }, [])
 
   useEffect(() => {
-    if (!editingDiscountCode || !accessToken || items.length === 0) return
+    let cancelled = false
+
+    fetchLiveMinoristaPricingStatus()
+      .then((response) => {
+        if (cancelled) return
+        setLivePricingEnabled(Boolean(response?.data?.enabled))
+      })
+      .catch(() => {
+        if (!cancelled) setLivePricingEnabled(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!livePricingEnabled) return
+
+    setAppliedCode(null)
+    setCodeInput('')
+    setCodeError('')
+  }, [livePricingEnabled])
+
+  useEffect(() => {
+    if (!editingDiscountCode || !accessToken || items.length === 0 || livePricingEnabled) return
 
     let cancelled = false
 
@@ -182,7 +239,7 @@ export default function CheckoutPage() {
     return () => {
       cancelled = true
     }
-  }, [editingDiscountCode, accessToken, items])
+  }, [editingDiscountCode, accessToken, items, livePricingEnabled])
 
   useEffect(() => {
     if (draftOrderId && !promptCancelOnOpen) {
@@ -191,6 +248,10 @@ export default function CheckoutPage() {
   }, [draftOrderId, promptCancelOnOpen])
 
   const handleApplyCode = async () => {
+    if (livePricingEnabled) {
+      setCodeError('Los cupones no están disponibles mientras los Precios Live estén activos.')
+      return
+    }
     if (!accessToken) {
       setCodeError('Inicia sesión para aplicar cupones')
       return
@@ -259,9 +320,22 @@ export default function CheckoutPage() {
     }
   }
 
+  const handleCloseAddressConfirmModal = () => {
+    if (isConfirmingAddress) return
+    setAddressConfirmError('')
+    if (primaryAddress?.id) {
+      setSelectedAddressId(primaryAddress.id)
+      setAddressConfirmed(true)
+    }
+    setShowAddressConfirmModal(false)
+  }
+
   const handleAddNewAddress = () => {
-    setAuthIntent(AUTH_INTENT.CHECKOUT, '/pedido')
-    navigate('/mi-cuenta/direcciones?flujo=pedido&nueva=1')
+    const returnPath = captureAuthReturnTo() || '/pedido'
+    setAuthIntent(AUTH_INTENT.CHECKOUT, returnPath)
+    navigate(
+      `/mi-cuenta/direcciones?flujo=pedido&nueva=1&returnTo=${encodeURIComponent(returnPath)}`,
+    )
   }
 
   const handleOpenAddressConfirmModal = () => {
@@ -284,7 +358,7 @@ export default function CheckoutPage() {
       const response = await reserveCheckoutOrder(
         {
           items,
-          discountCode: appliedCode?.code || null,
+          discountCode: livePricingEnabled ? null : (appliedCode?.code || null),
           delivery: {
             id_client_direction: primaryAddress?.idClientDirection
               ? Number(primaryAddress.idClientDirection)
@@ -535,36 +609,84 @@ export default function CheckoutPage() {
           </div>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-gray-200 bg-white p-5">
-              <div className="flex items-center gap-2 text-gray-900">
-                <User className="h-5 w-5 text-brand" />
-                <h3 className="font-semibold">Datos del cliente</h3>
-              </div>
-              <ul className="mt-3 space-y-1 text-sm text-gray-600">
-                <li>{[user.firstName, user.lastNamePaternal, user.lastNameMaternal].filter(Boolean).join(' ') || '—'}</li>
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <button
+                type="button"
+                onClick={() => setClientSectionOpen((open) => !open)}
+                className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left md:pointer-events-none"
+                aria-expanded={clientSectionOpen}
+              >
+                <div className="flex min-w-0 items-center gap-2 text-gray-900">
+                  <User className="h-5 w-5 shrink-0 text-brand" />
+                  <div className="min-w-0">
+                    <h3 className="font-semibold">Datos del cliente</h3>
+                    <p className={`truncate text-xs text-gray-500 md:hidden ${clientSectionOpen ? 'hidden' : 'block'}`}>
+                      {clientFullName}
+                    </p>
+                  </div>
+                </div>
+                <ChevronDown
+                  className={`h-5 w-5 shrink-0 text-gray-400 transition-transform md:hidden ${
+                    clientSectionOpen ? 'rotate-180' : ''
+                  }`}
+                  aria-hidden
+                />
+              </button>
+              <ul
+                className={`space-y-1 border-t border-gray-100 px-5 pb-4 pt-3 text-sm text-gray-600 ${
+                  clientSectionOpen ? 'block' : 'hidden'
+                } md:mt-3 md:block md:border-t-0 md:px-5 md:pb-5 md:pt-0`}
+              >
+                <li>{clientFullName}</li>
                 {user.documentId && <li>{user.documentTypeName || 'Documento'}: {user.documentId}</li>}
                 <li>{user.email}</li>
                 <li>{user.phone || '—'}</li>
               </ul>
             </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2 text-gray-900">
-                  <MapPin className="h-5 w-5 text-brand" />
-                  <h3 className="font-semibold">Entrega</h3>
-                </div>
+
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <div className="flex items-start justify-between gap-3 px-5 py-4">
                 <button
                   type="button"
-                  onClick={handleOpenAddressConfirmModal}
-                  className="shrink-0 text-xs font-semibold text-black hover:underline"
+                  onClick={() => setDeliverySectionOpen((open) => !open)}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left text-gray-900 md:pointer-events-none"
+                  aria-expanded={deliverySectionOpen}
                 >
-                  Cambiar
+                  <MapPin className="h-5 w-5 shrink-0 text-brand" />
+                  <div className="min-w-0">
+                    <h3 className="font-semibold">Entrega</h3>
+                    <p className={`truncate text-xs text-gray-500 md:hidden ${deliverySectionOpen ? 'hidden' : 'block'}`}>
+                      {deliverySummary}
+                    </p>
+                  </div>
                 </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenAddressConfirmModal}
+                    className="text-xs font-semibold text-black hover:underline"
+                  >
+                    Cambiar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeliverySectionOpen((open) => !open)}
+                    className="rounded p-0.5 text-gray-400 md:hidden"
+                    aria-label={deliverySectionOpen ? 'Ocultar entrega' : 'Ver entrega'}
+                  >
+                    <ChevronDown
+                      className={`h-5 w-5 transition-transform ${deliverySectionOpen ? 'rotate-180' : ''}`}
+                      aria-hidden
+                    />
+                  </button>
+                </div>
               </div>
-              <ul className="mt-3 space-y-1 text-sm text-gray-600">
-                <li className="font-medium text-gray-900">
-                  {primaryAddress.district}, {primaryAddress.city}
-                </li>
+              <ul
+                className={`space-y-1 border-t border-gray-100 px-5 pb-4 pt-3 text-sm text-gray-600 ${
+                  deliverySectionOpen ? 'block' : 'hidden'
+                } md:mt-3 md:block md:border-t-0 md:px-5 md:pb-5 md:pt-0`}
+              >
+                <li className="font-medium text-gray-900">{deliverySummary}</li>
                 <li className="text-xs text-gray-500">{getScopeLabel(primaryAddress)}</li>
                 <li>{formatCheckoutAddressLine(primaryAddress)}</li>
               </ul>
@@ -575,6 +697,12 @@ export default function CheckoutPage() {
         <div className="lg:col-span-2">
           <div className="sticky top-24 rounded-xl border border-gray-200 bg-white p-5">
             <h2 className="font-semibold text-gray-900">Cupón de descuento</h2>
+            {livePricingEnabled ? (
+              <p className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600">
+                Los cupones de descuento no están disponibles mientras los Precios Live estén activos.
+              </p>
+            ) : (
+              <>
             <div className="mt-3 flex gap-2">
               <div className="relative flex-1">
                 <Tag className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -613,6 +741,8 @@ export default function CheckoutPage() {
                 ✓ {appliedCode.code} aplicado — {appliedCode.label}
               </p>
             )}
+              </>
+            )}
 
             <div className="mt-6 space-y-2 border-t pt-4 text-sm">
               <div className="flex justify-between text-gray-600">
@@ -631,11 +761,13 @@ export default function CheckoutPage() {
                   <span className="font-bold">- S/ {discount.toFixed(2)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-gray-600">
-                <span>Envío</span>
-                <span className="font-bold text-gray-900">
-                  {formatShippingDisplay({ deliveryFee })}
-                </span>
+              <div className="flex items-center justify-between gap-3 text-gray-600">
+                <span className="shrink-0">Envío</span>
+                <ShippingChargeDisplay
+                  deliveryFee={deliveryFee}
+                  deliveryMode={delivery.mode}
+                  className="min-w-0 font-bold text-gray-900"
+                />
               </div>
               <div className="flex justify-between border-t pt-2 text-lg">
                 <span className="font-bold text-gray-900">Total</span>
@@ -678,12 +810,13 @@ export default function CheckoutPage() {
       </div>
 
       <CheckoutAddressConfirmModal
-        open={showAddressConfirmModal}
+        open={showAddressConfirmModal && !draftOrderId && !promptCancelOnOpen}
         addresses={addresses}
         selectedAddressId={selectedAddressId}
         onSelectAddress={setSelectedAddressId}
         onConfirm={handleConfirmAddress}
         onAddNew={handleAddNewAddress}
+        onClose={handleCloseAddressConfirmModal}
         isConfirming={isConfirmingAddress}
         error={addressConfirmError}
       />
@@ -696,7 +829,7 @@ export default function CheckoutPage() {
         items={items}
         subtotal={subtotal}
         discount={discount}
-        discountCode={appliedCode?.code || null}
+        discountCode={livePricingEnabled ? null : (appliedCode?.code || null)}
         total={total}
         totalQuantity={totalQuantity}
         deliveryFee={deliveryFee}

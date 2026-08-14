@@ -50,3 +50,11 @@ export function formatDocumentInputById(documentTypes, idDocumentType, value) {
   const label = selected?.name || ''
   return formatDocumentInput(label, value)
 }
+
+export function resolveDefaultDocumentTypeId(documentTypes = []) {
+  if (!documentTypes.length) return ''
+
+  const dniType = documentTypes.find((type) => type.name?.toLowerCase().includes('dni'))
+
+  return String((dniType ?? documentTypes[0]).id)
+}

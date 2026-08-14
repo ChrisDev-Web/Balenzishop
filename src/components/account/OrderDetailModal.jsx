@@ -1,5 +1,7 @@
 import { createPortal } from 'react-dom'
 import { X, MapPin, Package } from 'lucide-react'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
+import ShippingChargeDisplay from '../checkout/ShippingChargeDisplay'
 
 const STATUS_STYLES = {
   Pendiente: 'bg-amber-100 text-amber-800',
@@ -16,13 +18,15 @@ function formatPaymentMode(mode) {
 }
 
 export default function OrderDetailModal({ order, onClose }) {
+  useBodyScrollLock(Boolean(order))
+
   if (!order) return null
 
   const totalItems = order.items?.reduce((sum, i) => sum + i.quantity, 0) || 0
 
   return createPortal(
     <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
       <div
         role="dialog"
         aria-labelledby="order-modal-title"
@@ -60,8 +64,17 @@ export default function OrderDetailModal({ order, onClose }) {
             </div>
             <ul className="divide-y">
               {order.items?.map((item) => (
-                <li key={item.id} className="flex items-start justify-between gap-3 px-4 py-3">
-                  <div className="min-w-0">
+                <li key={item.id} className="flex items-start gap-3 px-4 py-3">
+                  {item.image ? (
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="h-14 w-12 shrink-0 rounded object-contain bg-gray-50 sm:h-16 sm:w-14"
+                    />
+                  ) : (
+                    <div className="h-14 w-12 shrink-0 rounded bg-gray-100 sm:h-16 sm:w-14" aria-hidden />
+                  )}
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-900">{item.name}</p>
                     {item.brand && <p className="text-xs text-gray-500">{item.brand}</p>}
                     <p className="mt-0.5 text-xs text-gray-500">
@@ -87,13 +100,13 @@ export default function OrderDetailModal({ order, onClose }) {
                 <span className="font-bold">- S/ {order.discount.toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between text-gray-600">
-              <span>Envío</span>
-              {order.deliveryFee > 0 ? (
-                <span className="font-bold text-gray-900">S/ {order.deliveryFee.toFixed(2)}</span>
-              ) : (
-                <span className="font-bold text-gray-900">Con cargo</span>
-              )}
+            <div className="flex items-center justify-between gap-3 text-gray-600">
+              <span className="shrink-0">Envío</span>
+              <ShippingChargeDisplay
+                deliveryFee={order.deliveryFee}
+                deliveryMode={order.deliveryMode}
+                className="min-w-0 font-bold text-gray-900"
+              />
             </div>
             <div className="flex justify-between border-t border-gray-200 pt-2 font-bold text-gray-900">
               <span>Total</span>

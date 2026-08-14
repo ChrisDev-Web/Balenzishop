@@ -31,7 +31,7 @@ function savePendingRating(productId, rating) {
   )
 }
 
-export default function ProductStarVote({ productId, onRated }) {
+export default function ProductStarVote({ productId, onRated, centered = false }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const accessToken = useAuthStore((s) => s.accessToken)
   const openLoginModal = useUiStore((s) => s.openLoginModal)
@@ -103,7 +103,7 @@ export default function ProductStarVote({ productId, onRated }) {
   }
 
   return (
-    <div className="mt-5 flex flex-col items-start gap-2">
+    <div className={`mt-5 flex flex-col gap-2 ${centered ? 'items-center lg:items-start' : 'items-start'}`}>
       <p className="text-sm font-semibold text-gray-800">Califica este producto</p>
       <StarRating
         value={rating}

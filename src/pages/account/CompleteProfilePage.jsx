@@ -7,6 +7,7 @@ import { getRouteAfterLogin, getRouteAfterProfile, isAuthSetupRoute } from '../.
 import {
   formatDocumentInputById,
   getDocumentDigits,
+  resolveDefaultDocumentTypeId,
   validateDocumentById,
 } from '../../utils/documentValidation'
 
@@ -57,7 +58,7 @@ export default function CompleteProfilePage() {
     if (!form.idDocumentType && documentTypes.length > 0) {
       setForm((prev) => ({
         ...prev,
-        idDocumentType: String(documentTypes[0].id),
+        idDocumentType: resolveDefaultDocumentTypeId(documentTypes),
       }))
     }
   }, [documentTypes, form.idDocumentType])

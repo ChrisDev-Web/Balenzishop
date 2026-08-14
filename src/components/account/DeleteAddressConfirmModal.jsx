@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom'
 import { MapPin } from 'lucide-react'
 import { formatAddressCityLabel } from '../../utils/addressFormHelpers'
 import { isHomeDeliveryType } from '../../utils/deliveryTypes'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
 export default function DeleteAddressConfirmModal({
   address,
@@ -10,6 +11,8 @@ export default function DeleteAddressConfirmModal({
   onCancel,
   onConfirm,
 }) {
+  useBodyScrollLock(Boolean(address))
+
   if (!address) return null
 
   const detail = isHomeDeliveryType(address.deliveryType)
@@ -20,7 +23,6 @@ export default function DeleteAddressConfirmModal({
     <div className="fixed inset-0 z-[250] flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div
         className="absolute inset-0 bg-black/50"
-        onClick={isProcessing ? undefined : onCancel}
         aria-hidden="true"
       />
       <div

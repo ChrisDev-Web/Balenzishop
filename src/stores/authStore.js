@@ -6,6 +6,9 @@ import {
   fetchCurrentClient,
   updateClientProfile,
   logoutClient,
+  sendClientPasswordResetCode,
+  verifyClientPasswordResetCode,
+  resetClientPassword,
 } from '../api/clients'
 import {
   createClientDirection,
@@ -125,6 +128,66 @@ export const useAuthStore = create(
           return {
             success: false,
             error: err.message || 'No se pudo registrar la cuenta',
+            fieldErrors: err.fieldErrors ?? {},
+          }
+        }
+      },
+
+      sendPasswordResetCode: async (email) => {
+        try {
+          const response = await sendClientPasswordResetCode(email)
+          return {
+            success: true,
+            expiresAt: response.data?.expires_at ?? null,
+            resendAvailableAt: response.data?.resend_available_at ?? null,
+          }
+        } catch (err) {
+          return {
+            success: false,
+            error: err.message || 'No se pudo enviar el código',
+          }
+        }
+      },
+
+      verifyPasswordResetCode: async (email, code) => {
+        try {
+          const response = await verifyClientPasswordResetCode(email, code)
+          return {
+            success: true,
+            resetToken: response.data?.reset_token ?? '',
+          }
+        } catch (err) {
+          return {
+            success: false,
+            error: err.message || 'El código no es válido',
+          }
+        }
+      },
+
+      resetPasswordWithToken: async ({ email, resetToken, password, passwordConfirm }) => {
+        try {
+          const response = await resetClientPassword({
+            email,
+            reset_token: resetToken,
+            password,
+            password_confirm: passwordConfirm,
+          })
+          const { client, access_token, refresh_token } = response.data
+          let user = applySession(set, client, {
+            access_token,
+            refresh_token,
+          })
+          try {
+            user = await loadDirectionsForUser(access_token, user)
+            set({ user })
+          } catch {
+            // Mantener sesión aunque falle la carga inicial de direcciones
+          }
+          return { success: true, needsProfile: !user.profileComplete }
+        } catch (err) {
+          return {
+            success: false,
+            error: err.message || 'No se pudo restablecer la contraseña',
             fieldErrors: err.fieldErrors ?? {},
           }
         }

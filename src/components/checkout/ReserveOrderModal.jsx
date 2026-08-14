@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Plus, Trash2, Upload, MessageCircle, ChevronLeft, CreditCard } from 'lucide-react'
-import { Link } from 'react-router-dom'
 import { submitCheckoutOrder } from '../../api/clientOrders'
-import { calculateReservationAmount, formatReservationHint } from '../../utils/reservation'
+import { calculateReservationAmount } from '../../utils/reservation'
 import { findPaymentMethodById } from '../../utils/paymentMethods'
 import {
   allowsCashBalancePayment,
@@ -12,7 +11,8 @@ import {
   isPosPaymentMethod,
   calculatePosSurcharge,
 } from '../../utils/paymentSurcharge'
-import { computeOrderTotal, DELIVERY_MODES, formatShippingDisplay } from '../../utils/deliveryFee'
+import { computeOrderTotal, DELIVERY_MODES } from '../../utils/deliveryFee'
+import ShippingChargeDisplay from './ShippingChargeDisplay'
 import { DELIVERY_TYPES, isOwnDeliveryType } from '../../utils/deliveryTypes'
 import { useRainauAvailableDeliveryDates } from '../../hooks/useRainauAvailableDeliveryDates'
 import PaymentMethodCheckoutInfo from './PaymentMethodCheckoutInfo'
@@ -20,7 +20,15 @@ import RainauDeliveryDatePicker from './RainauDeliveryDatePicker'
 import CancelCheckoutConfirmModal, {
   cancelActiveCheckoutDraft,
 } from './CancelCheckoutConfirmModal'
+import CheckoutProofPolicyModal from './CheckoutProofPolicyModal'
+import CheckoutProofPolicyConfirmModal from './CheckoutProofPolicyConfirmModal'
 import { createClientId } from '../../utils/createClientId'
+import {
+  hasAcceptedProofPolicy,
+  markProofPolicyAccepted,
+} from '../../utils/proofPolicyStorage'
+import { useAuthStore } from '../../stores/authStore'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
 const PAYMENT_MODE_RESERVATION = 'reserva'
 const PAYMENT_MODE_FULL = 'completo'
@@ -110,6 +118,7 @@ export default function ReserveOrderModal({
   paymentMethods,
   onOrderCreated,
 }) {
+  const clientId = useAuthStore((state) => state.user?.id)
   const [step, setStep] = useState(STEP_SUMMARY)
   const [paymentMode, setPaymentMode] = useState(PAYMENT_MODE_RESERVATION)
   const [paymentRows, setPaymentRows] = useState([createPaymentRow()])
@@ -118,6 +127,8 @@ export default function ReserveOrderModal({
   const [cancelling, setCancelling] = useState(false)
   const [error, setError] = useState('')
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+  const [showProofPolicyModal, setShowProofPolicyModal] = useState(false)
+  const [showProofPolicyConfirm, setShowProofPolicyConfirm] = useState(false)
   const [calendarPickerOpen, setCalendarPickerOpen] = useState(false)
   const [scheduledDeliveryDate, setScheduledDeliveryDate] = useState('')
 
@@ -179,10 +190,10 @@ export default function ReserveOrderModal({
     [items],
   )
 
-  const reservationHint = useMemo(
-    () => formatReservationHint(items),
-    [items],
-  )
+  const reservationSummaryNotice = useMemo(() => {
+    const paymentStep = steps.indexOf(STEP_PAYMENT) + 1
+    return `En el paso ${paymentStep} te indicamos cuánto reservar por cada producto de tu pedido.`
+  }, [steps])
 
   const orderTotal = useMemo(
     () => computeOrderTotal(subtotal, discount, effectiveDeliveryFee, deliveryMode),
@@ -231,6 +242,8 @@ export default function ReserveOrderModal({
     setCancelling(false)
     setError('')
     setShowCancelConfirm(false)
+    setShowProofPolicyModal(false)
+    setShowProofPolicyConfirm(false)
     setCalendarPickerOpen(false)
     setScheduledDeliveryDate('')
   }, [open])
@@ -253,6 +266,8 @@ export default function ReserveOrderModal({
   useEffect(() => {
     setRemainderMethodId('')
   }, [paymentMode])
+
+  useBodyScrollLock(open)
 
   if (!open) return null
 
@@ -335,8 +350,20 @@ export default function ReserveOrderModal({
         setError('Completa el método de pago, el monto y adjunta al menos un comprobante.')
         return
       }
-      setStep(STEP_FINAL)
+      if (clientId && hasAcceptedProofPolicy(clientId)) {
+        setStep(STEP_FINAL)
+        return
+      }
+      setShowProofPolicyConfirm(true)
     }
+  }
+
+  function handleAcceptProofPolicy() {
+    if (clientId) {
+      markProofPolicyAccepted(clientId)
+    }
+    setShowProofPolicyConfirm(false)
+    setStep(STEP_FINAL)
   }
 
   async function confirmCancelReservation() {
@@ -459,16 +486,20 @@ export default function ReserveOrderModal({
                 <span>- S/ {discount.toFixed(2)}</span>
               </div>
             )}
-            <div className="mt-1 flex justify-between text-gray-700">
-              <span>Envío ({deliveryLabel || 'Delivery'})</span>
-              <span>{formatShippingDisplay({ deliveryFee: effectiveDeliveryFee || deliveryFee })}</span>
+            <div className="mt-1 flex items-center justify-between gap-3 text-gray-700">
+              <span className="shrink-0">Envío ({deliveryLabel || 'Delivery'})</span>
+              <ShippingChargeDisplay
+                deliveryFee={effectiveDeliveryFee || deliveryFee}
+                deliveryMode={deliveryMode}
+                className="min-w-0"
+              />
             </div>
             <div className="mt-2 flex justify-between border-t border-gray-200 pt-2 font-bold text-gray-900">
               <span>Total</span>
               <span>S/ {orderTotal.toFixed(2)}</span>
             </div>
             <p className="mt-2 text-xs text-gray-500">
-              Reserva estimada: S/ {reservationAmount.toFixed(2)} ({reservationHint})
+              {reservationSummaryNotice}
             </p>
           </div>
         </div>
@@ -641,9 +672,16 @@ export default function ReserveOrderModal({
 
             <p className="text-[11px] leading-snug text-amber-800">
               {PROOF_WARNING}{' '}
-              <Link to="/terminos-y-condiciones" className="font-semibold underline hover:text-amber-900">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setShowProofPolicyModal(true)
+                }}
+                className="font-semibold underline hover:text-amber-900"
+              >
                 Ver términos
-              </Link>
+              </button>
             </p>
 
             {!amountMatches && paidTotal > 0 && (
@@ -776,7 +814,7 @@ export default function ReserveOrderModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={requestClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
       <div
         role="dialog"
         aria-labelledby="reserve-order-title"
@@ -879,6 +917,17 @@ export default function ReserveOrderModal({
           onConfirmCancel={confirmCancelReservation}
         />
       )}
+
+      <CheckoutProofPolicyModal
+        open={showProofPolicyModal}
+        onClose={() => setShowProofPolicyModal(false)}
+      />
+
+      <CheckoutProofPolicyConfirmModal
+        open={showProofPolicyConfirm}
+        onAccept={handleAcceptProofPolicy}
+        onDecline={() => setShowProofPolicyConfirm(false)}
+      />
     </div>,
     document.body,
   )

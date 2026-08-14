@@ -1,4 +1,5 @@
 import { cancelCheckoutReservation } from '../../api/clientOrders'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
 export default function CancelCheckoutConfirmModal({
   open,
@@ -7,6 +8,8 @@ export default function CancelCheckoutConfirmModal({
   onContinue,
   onConfirmCancel,
 }) {
+  useBodyScrollLock(open)
+
   if (!open) return null
 
   return (

@@ -59,8 +59,6 @@ function mapDecant(item) {
     image: normalizeMediaUrl(item.photo || ''),
     price: salePrice,
     basePrice: salePrice,
-    stock: Number(item.available_units ?? 0),
-    availableMl: Number(item.available_ml ?? 0),
   }
 }
 
@@ -68,6 +66,7 @@ export function mapCatalogProductDetail(item) {
   const product = mapCatalogProduct(item)
   const specs = item.specifications ?? {}
   const decants = (item.decants ?? []).map(mapDecant)
+  const decantImage = decants.find((decant) => decant.image)?.image ?? null
 
   return {
     ...product,
@@ -78,6 +77,7 @@ export function mapCatalogProductDetail(item) {
     specRows: mapSpecificationsToRows(specs),
     similarProducts: (item.similar_products ?? []).map(mapCatalogProduct),
     decants,
+    decantImage,
     netContentMl: item.net_content_ml ?? null,
     hasDecants: decants.length > 0,
   }

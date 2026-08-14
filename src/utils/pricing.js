@@ -176,21 +176,7 @@ export function getDecantMlUsedInCart(cartItems, productId, excludeDecantId = nu
 
 export function getMaxCartQuantity(stock, role, isDecant = false, decantOptions = null) {
   if (isDecant) {
-    const sizeMl = Number(decantOptions?.decantSizeMl) || 0
-    let availableMl = Number(decantOptions?.availableMl) || 0
-
-    if (decantOptions?.items && decantOptions?.productId != null) {
-      const usedMl = getDecantMlUsedInCart(
-        decantOptions.items,
-        decantOptions.productId,
-        decantOptions.excludeDecantId,
-      )
-      availableMl = Math.max(0, availableMl - usedMl)
-    }
-
-    if (sizeMl <= 0 || availableMl <= 0) return 0
-
-    return Math.floor(availableMl / sizeMl)
+    return Infinity
   }
 
   if (stock == null || stock === '') return Infinity

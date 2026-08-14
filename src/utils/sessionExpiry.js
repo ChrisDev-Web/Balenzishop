@@ -4,6 +4,9 @@ const AUTH_EXEMPT_PATHS = [
   'clients/login',
   'clients/register',
   'clients/logout',
+  'clients/password/send-code',
+  'clients/password/verify-code',
+  'clients/password/reset',
 ]
 
 function isAuthExemptRequest(url = '') {

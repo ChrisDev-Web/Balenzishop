@@ -30,7 +30,7 @@ export default function HomeHero({ backgroundImage, priority = true }) {
             ref={handleImageRef}
             src={backgroundImage}
             alt=""
-            className={`home-hero-img pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ease-out xl:relative xl:block xl:max-h-[85vh] xl:w-full xl:object-[58%_center] ${
+            className={`home-hero-img pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ease-out xl:relative xl:block xl:max-h-[85vh] xl:w-full ${
               imageReady ? `opacity-100 ${priority ? 'hero-banner-image-enter' : ''}` : 'opacity-0'
             }`}
             loading={priority || cachedHint ? 'eager' : 'lazy'}

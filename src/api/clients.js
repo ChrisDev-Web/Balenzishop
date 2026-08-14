@@ -21,3 +21,15 @@ export async function updateClientProfile(payload, token) {
 export async function logoutClient(refreshToken, token) {
   return apiPost('clients/logout', { refresh_token: refreshToken }, token)
 }
+
+export async function sendClientPasswordResetCode(email) {
+  return apiPost('clients/password/send-code', { email })
+}
+
+export async function verifyClientPasswordResetCode(email, code) {
+  return apiPost('clients/password/verify-code', { email, code })
+}
+
+export async function resetClientPassword(payload) {
+  return apiPost('clients/password/reset', payload)
+}

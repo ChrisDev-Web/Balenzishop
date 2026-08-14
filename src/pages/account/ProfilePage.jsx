@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { useDocumentTypes } from '../../hooks/useDocumentTypes'
+import ChangePasswordModal from '../../components/auth/ChangePasswordModal'
 import {
   formatDocumentInputById,
   getDocumentDigits,
@@ -23,6 +24,7 @@ export default function ProfilePage() {
   })
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -279,17 +281,40 @@ export default function ProfilePage() {
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setEditing(true)}
-                className="rounded-full bg-black px-8 py-2.5 text-sm font-semibold text-white hover:bg-gray-800"
-              >
-                Editar datos
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="rounded-full bg-black px-8 py-2.5 text-sm font-semibold text-white hover:bg-gray-800"
+                >
+                  Editar datos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMessage('')
+                    setChangePasswordOpen(true)
+                  }}
+                  className="rounded-full border border-gray-900 px-8 py-2.5 text-sm font-semibold text-gray-900 hover:bg-gray-50"
+                >
+                  Cambiar contraseña
+                </button>
+              </div>
             )}
           </div>
         </form>
       </div>
+
+      {changePasswordOpen && user?.email && (
+        <ChangePasswordModal
+          email={user.email}
+          onClose={() => setChangePasswordOpen(false)}
+          onSuccess={() => {
+            setChangePasswordOpen(false)
+            setMessage('Contraseña actualizada correctamente')
+          }}
+        />
+      )}
     </div>
   )
 }

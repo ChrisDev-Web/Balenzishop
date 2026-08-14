@@ -20,11 +20,14 @@ import { DELIVERY_TYPES, getDeliveryProviderLabel, isHomeDeliveryType, isOwnDeli
 import SearchableCombobox from '../ui/SearchableCombobox'
 import DeliveryLocationPicker from './DeliveryLocationPicker'
 import OwnDeliveryPickupPointField from './OwnDeliveryPickupPointField'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
 const readonlyClass =
   'mt-1 w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700'
 
 export default function AddressModal({ address, initialMode = 'view', onClose, onEdit }) {
+  useBodyScrollLock(true)
+
   const { updateAddress } = useAuthStore()
   const [editing, setEditing] = useState(initialMode === 'edit')
   const [form, setForm] = useState(buildFormFromAddress(address))
@@ -371,7 +374,7 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
 
   return createPortal(
     <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
       <div
         role="dialog"
         aria-labelledby="address-modal-title"

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useCartStore } from '../../stores/cartStore'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
-import { getRouteAfterLogin, AUTH_INTENT } from '../../utils/authFlow'
+import { getRouteAfterLogin, AUTH_INTENT, captureAuthReturnTo } from '../../utils/authFlow'
 import { getCartLineTotal, getDecantCartOptions, getMaxCartQuantity } from '../../utils/pricing'
 import { useUserPricing } from '../../hooks/useUserPricing'
 import { getLineDisplayTotal, getLinePromoDiscount, useCartTotals } from '../../hooks/useCartTotals'
@@ -17,6 +17,7 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
   const { subtotal, decantPromoDiscount, promoResult } = useCartTotals()
   const { isAuthenticated, user } = useAuthStore()
   const openLoginModal = useUiStore((s) => s.openLoginModal)
+  const setAuthIntent = useUiStore((s) => s.setAuthIntent)
   const authReturnTo = useUiStore((s) => s.authReturnTo)
   const { isMayorista, minQuantity, role } = useUserPricing()
 
@@ -80,7 +81,9 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
       return
     }
 
-    navigate(getRouteAfterLogin(user, AUTH_INTENT.CHECKOUT, authReturnTo))
+    const returnPath = captureAuthReturnTo() || authReturnTo
+    setAuthIntent(AUTH_INTENT.CHECKOUT, returnPath)
+    navigate(getRouteAfterLogin(user, AUTH_INTENT.CHECKOUT, returnPath))
   }
 
   return (

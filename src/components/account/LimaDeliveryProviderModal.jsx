@@ -1,11 +1,14 @@
 import { createPortal } from 'react-dom'
 import { ArrowLeft, ShieldCheck, UserRound, X } from 'lucide-react'
 import { BALENZI_DELIVERY_LABEL } from '../../utils/deliveryTypes'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
 export default function LimaDeliveryProviderModal({ onSelect, onBack, onClose }) {
+  useBodyScrollLock(true)
+
   return createPortal(
     <div className="fixed inset-0 z-[220] flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
       <div
         role="dialog"
         aria-modal="true"

@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom'
 import { CreditCard } from 'lucide-react'
 import { calculatePosSurcharge } from '../../utils/paymentSurcharge'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
 export default function PosSurchargeConfirmModal({
   open,
@@ -8,6 +9,8 @@ export default function PosSurchargeConfirmModal({
   onConfirm,
   onCancel,
 }) {
+  useBodyScrollLock(open)
+
   if (!open) return null
 
   const surcharge = calculatePosSurcharge(baseTotal)
@@ -15,7 +18,7 @@ export default function PosSurchargeConfirmModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[230] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onCancel} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
       <div
         role="dialog"
         aria-labelledby="pos-surcharge-title"

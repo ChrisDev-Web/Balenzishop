@@ -43,7 +43,7 @@ export default function HomePage() {
               Sobre Balenzi Perfumes
             </h2>
             <div className="mt-6 h-px w-14 bg-gray-900" aria-hidden="true" />
-            <div className="mt-8 space-y-5 text-sm leading-relaxed text-gray-600 sm:text-[15px] sm:leading-7">
+            <div className="mt-8 space-y-5 text-justify text-sm leading-relaxed text-gray-600 sm:text-[15px] sm:leading-7">
               <p>
                 Somos una tienda especializada en perfumería de alta calidad. Seleccionamos fragancias
                 originales para mujer y hombre, con foco en marcas de tendencia como Lattafa y otras

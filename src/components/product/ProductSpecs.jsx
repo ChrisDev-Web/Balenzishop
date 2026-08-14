@@ -50,7 +50,7 @@ export default function ProductSpecs({ specs = [], description = '' }) {
               ))}
             </dl>
           ) : hasDescription ? (
-            <p className="mx-auto max-w-2xl whitespace-pre-line text-sm leading-relaxed text-gray-700">
+            <p className="mx-auto max-w-2xl text-justify whitespace-pre-line text-sm leading-relaxed text-gray-700">
               {description}
             </p>
           ) : (

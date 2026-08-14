@@ -1,10 +1,13 @@
 import { createPortal } from 'react-dom'
 import { X, Truck, Store } from 'lucide-react'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
 export default function LimaDeliveryTypeModal({ onSelect, onClose }) {
+  useBodyScrollLock(true)
+
   return createPortal(
     <div className="fixed inset-0 z-[210] flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
       <div
         role="dialog"
         aria-modal="true"

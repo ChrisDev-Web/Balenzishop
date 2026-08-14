@@ -1,4 +1,4 @@
-export default function ProductGallery({ items, activeIndex = 0, onActiveChange, name, overlay = null }) {
+export default function ProductGallery({ items, activeIndex = 0, onActiveChange, name, heading = null, overlay = null }) {
   const gallery = (items ?? []).filter((item) => item?.image)
   const safeIndex = gallery.length === 0 ? 0 : Math.max(0, Math.min(activeIndex, gallery.length - 1))
   const current = gallery[safeIndex]
@@ -37,20 +37,23 @@ export default function ProductGallery({ items, activeIndex = 0, onActiveChange,
         </div>
       )}
 
-      <div className="product-gallery__stage">
-        {overlay && <div className="product-gallery__overlay">{overlay}</div>}
-        <div className="product-gallery__frame">
-          {currentImage ? (
-            <img
-              key={currentImage}
-              src={currentImage}
-              alt={name}
-              className="product-gallery__image product-gallery__image--fade-in"
-              decoding="async"
-            />
-          ) : (
-            <div className="product-gallery__image product-gallery__image--empty" aria-hidden />
-          )}
+      <div className="product-gallery__stage-wrap">
+        <div className="product-gallery__stage">
+          {overlay && <div className="product-gallery__overlay">{overlay}</div>}
+          {heading && <p className="product-gallery__heading">{heading}</p>}
+          <div className="product-gallery__frame">
+            {currentImage ? (
+              <img
+                key={currentImage}
+                src={currentImage}
+                alt={name}
+                className="product-gallery__image product-gallery__image--fade-in"
+                decoding="async"
+              />
+            ) : (
+              <div className="product-gallery__image product-gallery__image--empty" aria-hidden />
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Minus, Plus, X } from 'lucide-react'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
 const MIN_SCALE = 1
 const MAX_SCALE = 4
@@ -146,6 +147,8 @@ export default function ImageZoomPreview({ src, alt = 'Vista previa', open, onCl
     isTouchPanningRef.current = false
     setIsTouchPanning(false)
   }
+
+  useBodyScrollLock(open && Boolean(src))
 
   if (!open || !src) return null
 

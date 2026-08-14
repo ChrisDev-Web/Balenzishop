@@ -10,9 +10,12 @@ import { getRouteAfterLogin, AUTH_INTENT, isAuthSetupRoute } from '../../utils/a
 import {
   formatDocumentInputById,
   getDocumentDigits,
+  resolveDefaultDocumentTypeId,
   validateDocumentById,
 } from '../../utils/documentValidation'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 import PasswordInput from '../ui/PasswordInput'
+import ForgotPasswordFlow from './ForgotPasswordFlow'
 import { mapRegisterApiFieldErrors } from '../../utils/registerValidation'
 
 const inputClass =
@@ -48,7 +51,7 @@ export default function LoginModal({ isOpen, onClose }) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const { loginWithEmail, registerWithEmail } = useAuthStore()
+  const { loginWithEmail, registerWithEmail, sendPasswordResetCode, verifyPasswordResetCode, resetPasswordWithToken } = useAuthStore()
   const { documentTypes, loading: documentTypesLoading } = useDocumentTypes({ enabled: isOpen })
   const authIntent = useUiStore((s) => s.authIntent)
   const authReturnTo = useUiStore((s) => s.authReturnTo)
@@ -59,10 +62,12 @@ export default function LoginModal({ isOpen, onClose }) {
     if (!registerForm.idDocumentType && documentTypes.length > 0) {
       setRegisterForm((prev) => ({
         ...prev,
-        idDocumentType: String(documentTypes[0].id),
+        idDocumentType: resolveDefaultDocumentTypeId(documentTypes),
       }))
     }
   }, [documentTypes, registerForm.idDocumentType])
+
+  useBodyScrollLock(isOpen)
 
   if (!isOpen) return null
 
@@ -90,6 +95,48 @@ export default function LoginModal({ isOpen, onClose }) {
     }
 
     navigate(nextRoute)
+  }
+
+  const handlePasswordResetSuccess = (needsProfile) => {
+    onClose()
+    reset()
+    setError('')
+
+    if (needsProfile) {
+      navigate('/mi-cuenta/completar-perfil')
+      return
+    }
+
+    const currentUser = useAuthStore.getState().user
+    useCartStore.getState().syncWithUserRole(currentUser?.role)
+    finishAuthFlow()
+    navigate('/')
+  }
+
+  const handleSendResetCode = async (resetEmail) => {
+    return sendPasswordResetCode(resetEmail)
+  }
+
+  const handleVerifyResetCode = async (resetEmail, code) => {
+    setError('')
+    setLoading(true)
+    const result = await verifyPasswordResetCode(resetEmail, code)
+    setLoading(false)
+    return result
+  }
+
+  const handleResetPassword = async (payload) => {
+    setError('')
+    setLoading(true)
+    const result = await resetPasswordWithToken(payload)
+    setLoading(false)
+
+    if (result.success) {
+      handlePasswordResetSuccess(result.needsProfile)
+      return
+    }
+
+    setError(result.error)
   }
 
   const handleEmailLogin = async (e) => {
@@ -204,7 +251,7 @@ export default function LoginModal({ isOpen, onClose }) {
 
   return createPortal(
     <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={() => { onClose(); reset() }} />
+      <div className="absolute inset-0 bg-black/50" />
       <div
         className={`relative z-10 max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-white p-8 shadow-2xl sm:max-h-[90vh] sm:rounded-2xl ${
           view === 'register' ? 'max-w-3xl' : 'max-w-md'
@@ -278,12 +325,22 @@ export default function LoginModal({ isOpen, onClose }) {
                   onChange={(e) => setPassword(e.target.value)}
                   className={inputClass}
                 />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError('')
+                    setView('forgot')
+                  }}
+                  className="mt-2 text-sm font-medium text-gray-600 underline hover:text-gray-900 hover:no-underline"
+                >
+                  ¿Has olvidado tu contraseña?
+                </button>
               </div>
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button
                 type="submit"
                 disabled={loading}
-                className="btn-fill w-full rounded-full py-3 text-sm disabled:opacity-50"
+                className="btn-fill btn-fill--solid w-full rounded-full py-3 text-sm disabled:opacity-50"
               >
                 {loading ? 'Ingresando...' : 'Ingresar'}
               </button>
@@ -292,6 +349,21 @@ export default function LoginModal({ isOpen, onClose }) {
               ← Volver
             </button>
           </>
+        )}
+
+        {view === 'forgot' && (
+          <ForgotPasswordFlow
+            initialEmail={email}
+            loading={loading}
+            error={error}
+            onBack={() => {
+              setError('')
+              setView('login')
+            }}
+            onSendCode={handleSendResetCode}
+            onVerifyCode={handleVerifyResetCode}
+            onResetPassword={handleResetPassword}
+          />
         )}
 
         {view === 'register' && (

@@ -7,6 +7,7 @@ import { allowsCashBalancePayment, filterCheckoutPaymentMethods } from '../../ut
 import { DELIVERY_MODES } from '../../utils/deliveryFee'
 import PaymentMethodCheckoutInfo from '../checkout/PaymentMethodCheckoutInfo'
 import { createClientId } from '../../utils/createClientId'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
 function createPaymentRow(balanceDue) {
   return {
@@ -54,6 +55,8 @@ export default function BalancePaymentModal({
     setSubmitting(false)
     setError('')
   }, [open, balanceDue])
+
+  useBodyScrollLock(open && Boolean(order))
 
   if (!open || !order) return null
 
@@ -120,7 +123,7 @@ export default function BalancePaymentModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
       <div
         role="dialog"
         aria-labelledby="balance-payment-title"

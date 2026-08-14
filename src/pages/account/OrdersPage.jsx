@@ -1,11 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Search, ShoppingBag, Eye, Wallet, Truck } from 'lucide-react'
+import { Search, ShoppingBag, Eye, Truck } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { fetchMyClientOrders, fetchClientOrderDetail, fetchShalomTracking } from '../../api/clientOrders'
-import { fetchActivePaymentMethods } from '../../api/paymentMethods'
 import { mapApiClientOrders, mapApiClientOrder } from '../../utils/clientOrderMapper'
-import { buildBalancePaymentWhatsAppMessage, formatOrderDate, openWhatsAppOrder } from '../../utils/orderMessage'
-import BalancePaymentModal from '../../components/account/BalancePaymentModal'
 import OrderDetailModal from '../../components/account/OrderDetailModal'
 import ShalomTrackingModal from '../../components/account/ShalomTrackingModal'
 import Pagination from '../../components/catalog/Pagination'
@@ -38,7 +35,7 @@ const periods = [
 ]
 
 export default function OrdersPage() {
-  const { accessToken, user } = useAuthStore()
+  const { accessToken } = useAuthStore()
   const [activeTab, setActiveTab] = useState('all')
   const [search, setSearch] = useState('')
   const [period, setPeriod] = useState('3m')
@@ -49,28 +46,11 @@ export default function OrdersPage() {
   const [trackingLoading, setTrackingLoading] = useState(false)
   const [trackingError, setTrackingError] = useState('')
   const [trackingTimeline, setTrackingTimeline] = useState([])
-  const [balanceOrder, setBalanceOrder] = useState(null)
-  const [paymentMethods, setPaymentMethods] = useState([])
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
 
   const activeTabConfig = tabs.find((t) => t.key === activeTab)
-
-  function reloadOrders() {
-    if (!accessToken) return Promise.resolve()
-
-    return fetchMyClientOrders(accessToken, { page: 1, page_size: 50 })
-      .then((response) => {
-        setOrders(mapApiClientOrders(response.data?.items ?? []))
-      })
-  }
-
-  useEffect(() => {
-    fetchActivePaymentMethods()
-      .then((methods) => setPaymentMethods(methods ?? []))
-      .catch(() => {})
-  }, [])
 
   useEffect(() => {
     if (!accessToken) {
@@ -121,23 +101,6 @@ export default function OrdersPage() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [page])
-
-  async function handleBalancePaymentSubmitted(apiOrder, { payments }) {
-    const mapped = mapApiClientOrder(apiOrder)
-    const message = buildBalancePaymentWhatsAppMessage({
-      orderId: mapped.orderNumber,
-      date: formatOrderDate(new Date()),
-      total: mapped.total,
-      balanceDue: mapped.balanceDue,
-      amountPaid: mapped.amountPaid,
-      payments,
-      customer: user,
-    })
-
-    await openWhatsAppOrder(message)
-    await reloadOrders()
-    setBalanceOrder(null)
-  }
 
   async function handleViewOrder(order) {
     setSelectedOrder(order)
@@ -277,7 +240,6 @@ export default function OrdersPage() {
             <ul className="space-y-3">
               {paginatedOrders.map((order) => {
                 const itemCount = order.items?.reduce((sum, i) => sum + i.quantity, 0) || 0
-                const canPayBalance = order.canSubmitBalancePayment
                 const canViewTracking = Boolean(order.shalom?.canViewTracking)
 
                 return (
@@ -304,16 +266,6 @@ export default function OrdersPage() {
                         <p className="text-xs text-gray-500">{itemCount} ítem{itemCount !== 1 ? 's' : ''}</p>
                         <p className="text-sm font-bold text-gray-900">S/ {order.total?.toFixed(2)}</p>
                       </div>
-                      {canPayBalance && (
-                        <button
-                          type="button"
-                          onClick={() => setBalanceOrder(order)}
-                          className="flex w-full items-center justify-center gap-1.5 rounded-full bg-black px-3.5 py-2.5 text-xs font-semibold text-white hover:bg-gray-800 sm:w-auto sm:py-1.5"
-                        >
-                          <Wallet className="h-3.5 w-3.5" />
-                          Pago restante
-                        </button>
-                      )}
                       {canViewTracking && (
                         <button
                           type="button"
@@ -354,18 +306,6 @@ export default function OrdersPage() {
           </>
         )}
       </section>
-
-      {balanceOrder && (
-        <BalancePaymentModal
-          open={Boolean(balanceOrder)}
-          onClose={() => setBalanceOrder(null)}
-          order={balanceOrder}
-          accessToken={accessToken}
-          paymentMethods={paymentMethods}
-          customer={user}
-          onSubmitted={handleBalancePaymentSubmitted}
-        />
-      )}
 
       {selectedOrder && (
         <OrderDetailModal

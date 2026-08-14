@@ -14,7 +14,7 @@ import ProductSpecs from '../components/product/ProductSpecs'
 import DecantSizeSelector from '../components/product/DecantSizeSelector'
 import { getCategoryBreadcrumbFromProduct } from '../utils/catalogProductMapper'
 import { catalogLink } from '../utils/catalogLinks'
-import { getCatalogPricePresentation, getPromoDiscountLabel, getDecantCartOptions, getMaxCartQuantity } from '../utils/pricing'
+import { getCatalogPricePresentation, getPromoDiscountLabel, getMaxCartQuantity } from '../utils/pricing'
 import CatalogPriceDisplay from '../components/product/CatalogPriceDisplay'
 import DecantPriceDisplay from '../components/product/DecantPriceDisplay.jsx'
 import LiveDiscountBadge from '../components/product/LiveDiscountBadge'
@@ -26,7 +26,6 @@ function buildDisplayProduct(product, selectedDecant) {
       idProductDecant: null,
       isDecant: false,
       decantSizeMl: null,
-      availableMl: null,
     }
   }
 
@@ -36,53 +35,72 @@ function buildDisplayProduct(product, selectedDecant) {
     image: selectedDecant.image || product.image,
     price: selectedDecant.price,
     basePrice: selectedDecant.basePrice,
-    stock: selectedDecant.stock,
     idProductDecant: selectedDecant.idProductDecant,
     isDecant: true,
     decantSizeMl: selectedDecant.sizeMl,
-    availableMl: selectedDecant.availableMl ?? product.decants?.[0]?.availableMl ?? null,
   }
 }
 
 function buildGalleryItems(product, showDecants) {
   const bottleImage = product.image
-  if (!bottleImage && !showDecants) return []
+  const decantImage = product.decantImage || product.decants?.[0]?.image || null
 
-  const items = [
-    {
+  if (!bottleImage && !decantImage && !showDecants) return []
+
+  const items = []
+
+  if (bottleImage) {
+    items.push({
       id: 'bottle',
       image: bottleImage,
       decant: null,
       label: 'Frasco',
-    },
-  ]
-
-  if (showDecants) {
-    for (const decant of product.decants ?? []) {
-      items.push({
-        id: decant.idProductDecant,
-        image: decant.image || bottleImage,
-        decant,
-        label: `${decant.sizeMl} ml`,
-      })
-    }
+    })
   }
 
-  return items.filter((item) => item.image)
+  if (showDecants && decantImage) {
+    items.push({
+      id: 'decant',
+      image: decantImage,
+      decant: true,
+      label: 'Decant',
+    })
+  }
+
+  return items
 }
 
 function resolveGalleryIndex(galleryItems, selectedDecant) {
-  if (!selectedDecant) return 0
+  if (!selectedDecant) {
+    return 0
+  }
 
-  const index = galleryItems.findIndex(
-    (item) => item.decant?.idProductDecant === selectedDecant.idProductDecant,
-  )
+  const index = galleryItems.findIndex((item) => item.id === 'decant')
 
   return index >= 0 ? index : 0
 }
 
-function handleGallerySelection(item, setSelectedDecant) {
-  setSelectedDecant(item.decant ?? null)
+function handleGallerySelection(item, setSelectedDecant, productDecants) {
+  if (item.id === 'decant') {
+    setSelectedDecant((current) => current ?? productDecants?.[0] ?? null)
+    return
+  }
+
+  setSelectedDecant(null)
+}
+
+function formatDetailStockLabel(stock) {
+  const units = Math.max(0, Number(stock) || 0)
+
+  if (units <= 0) {
+    return { text: 'Sin stock', tone: 'out' }
+  }
+
+  if (units > 7) {
+    return { text: 'EN STOCK', tone: 'in' }
+  }
+
+  return { text: `STOCK DISPONIBLE: ${units}`, tone: 'in' }
 }
 
 export default function ProductDetailPage() {
@@ -118,6 +136,10 @@ export default function ProductDetailPage() {
     [galleryItems, selectedDecant],
   )
 
+  const galleryHeading = selectedDecant
+    ? `DECANT - ${selectedDecant.sizeMl}ML`
+    : null
+
   const cartItems = useCartStore((s) => s.items)
 
   const cartItem = cartItems.find(
@@ -146,28 +168,15 @@ export default function ProductDetailPage() {
   const isDecantView = Boolean(displayProduct.isDecant)
   const pricePresentation = isDecantView ? null : getCatalogPricePresentation(displayProduct, role)
   const promoDiscountLabel = isDecantView ? null : getPromoDiscountLabel(displayProduct, role)
-  const decantPoolMl = product.decants?.[0]?.availableMl ?? null
   const maxQuantity = getMaxCartQuantity(
     displayProduct.stock,
     role,
     isDecantView,
-    isDecantView
-      ? getDecantCartOptions(
-          {
-            ...displayProduct,
-            availableMl: displayProduct.availableMl ?? decantPoolMl,
-          },
-          {
-            items: cartItems,
-            productId: id,
-            excludeDecantId: displayProduct.idProductDecant ?? null,
-          },
-        )
-      : null,
   )
   const canAddToCart = isDecantView
-    ? Boolean(selectedDecant) && maxQuantity > 0 && (!cartItem || cartItem.quantity < maxQuantity)
+    ? Boolean(selectedDecant)
     : maxQuantity > 0 && (!cartItem || cartItem.quantity < maxQuantity)
+  const stockLabel = !isDecantView ? formatDetailStockLabel(displayProduct.stock) : null
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 lg:px-6 lg:py-8">
@@ -188,13 +197,16 @@ export default function ProductDetailPage() {
           <ProductGallery
             items={galleryItems}
             activeIndex={activeGalleryIndex}
-            onActiveChange={(_index, item) => handleGallerySelection(item, setSelectedDecant)}
+            onActiveChange={(_index, item) =>
+              handleGallerySelection(item, setSelectedDecant, product.decants)
+            }
             name={displayProduct.name}
+            heading={galleryHeading}
             overlay={promoDiscountLabel ? <LiveDiscountBadge label={promoDiscountLabel} /> : null}
           />
         </div>
 
-        <div className="product-detail__summary flex flex-col">
+        <div className="product-detail__summary flex flex-col items-center text-center lg:items-start lg:text-left">
           <p className="product-detail__brand text-sm font-bold uppercase tracking-wider text-gray-500">
             {product.brand || '\u00A0'}
           </p>
@@ -207,18 +219,21 @@ export default function ProductDetailPage() {
           </p>
 
           {showDecants && (
-            <div className="mt-4">
+            <div className="mt-4 w-full">
               <DecantSizeSelector
                 decants={product.decants ?? []}
                 selectedId={selectedDecant?.idProductDecant ?? null}
-                onSelect={setSelectedDecant}
+                onSelect={(decant) => {
+                  setSelectedDecant(decant)
+                }}
+                centered
               />
             </div>
           )}
 
-          <div className="product-detail__pricing mt-8 space-y-4 border-t border-gray-200 pt-6">
+          <div className="product-detail__pricing mt-8 w-full space-y-4 border-t border-gray-200 pt-6">
             {!isDecantView && promoDiscountLabel && (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-start">
                 <LiveDiscountBadge label={promoDiscountLabel} />
               </div>
             )}
@@ -236,14 +251,14 @@ export default function ProductDetailPage() {
                 showUnit
               />
             )}
-            {!isDecantView && (
-              <p className={`text-sm font-bold ${displayProduct.stock > 0 ? 'text-black' : 'text-red-600'}`}>
-                Stock disponible: {displayProduct.stock} unidades
+            {stockLabel && (
+              <p className={`text-sm font-bold ${stockLabel.tone === 'in' ? 'text-black' : 'text-red-600'}`}>
+                {stockLabel.text}
               </p>
             )}
           </div>
 
-          <div className="product-detail__actions mt-6 flex flex-col items-start gap-0">
+          <div className="product-detail__actions mt-6 flex w-full flex-col items-center gap-0 lg:items-start">
             <button
               type="button"
               onClick={(event) => canAddToCart && addToCart(displayProduct, event)}
@@ -252,7 +267,7 @@ export default function ProductDetailPage() {
             >
               {isMayorista ? `Agregar (${minQuantity} und.)` : 'Agregar'}
             </button>
-            <ProductStarVote productId={product.id} onRated={scrollToReviews} />
+            <ProductStarVote productId={product.id} onRated={scrollToReviews} centered />
           </div>
         </div>
       </div>

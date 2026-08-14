@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { useCartStore } from '../../stores/cartStore'
 import LoginModal from '../auth/LoginModal'
 import CartDropdown from '../cart/CartDropdown'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 import { useUiStore } from '../../stores/uiStore'
 import { useCartAnimationStore } from '../../stores/cartAnimationStore'
 import { useCompanyStore } from '../../stores/companyStore'
@@ -178,6 +179,8 @@ export default function Navbar() {
   const count = totalItems()
   const logoUrl = company?.logo || DEFAULT_NAVBAR_LOGO
   const logoAlt = company?.name || DEFAULT_COMPANY_NAME
+
+  useBodyScrollLock(sidebarOpen || isOpen)
 
   useEffect(() => {
     if (!accountOpen) return undefined

@@ -1,3 +1,5 @@
+import { isApiCatalogSort } from './catalogSort.js'
+
 export function buildCatalogApiParams(filters = {}, page = 1, pageSize = 20) {
   const params = {
     page,
@@ -18,6 +20,10 @@ export function buildCatalogApiParams(filters = {}, page = 1, pageSize = 20) {
 
   if (filters.maxPrice != null) {
     params.max_price = filters.maxPrice
+  }
+
+  if (isApiCatalogSort(filters.sort)) {
+    params.sort = filters.sort
   }
 
   const descriptionTerms = [

@@ -24,7 +24,6 @@ export function filterPerfumes(perfumes, filters) {
         p.name.toLowerCase().includes(search)
       if (!match) return false
     }
-    if (filters.recommended && !p.recommended) return false
     if (filters.search) {
       const q = filters.search.toLowerCase()
       const match =
@@ -56,7 +55,7 @@ export function buildCatalogSearchParams(filters) {
   if (filters.aroma) params.set('aroma', filters.aroma)
   if (filters.minPrice != null) params.set('minPrice', String(filters.minPrice))
   if (filters.maxPrice != null) params.set('maxPrice', String(filters.maxPrice))
-  if (filters.recommended) params.set('recommended', 'true')
+  if (filters.sort) params.set('sort', filters.sort)
   if (filters.search) params.set('q', filters.search)
   return params
 }
@@ -71,7 +70,7 @@ export function parseCatalogFilters(searchParams) {
     aroma: searchParams.get('aroma') || null,
     minPrice: searchParams.get('minPrice') ? Number(searchParams.get('minPrice')) : null,
     maxPrice: searchParams.get('maxPrice') ? Number(searchParams.get('maxPrice')) : null,
-    recommended: searchParams.get('recommended') === 'true' || null,
+    sort: searchParams.get('sort') || null,
     search: searchParams.get('q')?.trim() || null,
   }
 }

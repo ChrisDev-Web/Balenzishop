@@ -1,8 +1,8 @@
 import { Search } from 'lucide-react'
 
-export default function CatalogProductSearch({ value, onChange, disabled = false }) {
+export default function CatalogProductSearch({ value, onChange, disabled = false, className = '' }) {
   return (
-    <div className="relative mb-4 md:mb-5">
+    <div className={`relative ${className}`.trim()}>
       <Search
         className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
         aria-hidden

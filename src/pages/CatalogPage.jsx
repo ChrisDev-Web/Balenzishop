@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { buildCatalogSearchParams, parseCatalogFilters } from '../utils/filterPerfumes'
+import { CATALOG_SORT } from '../utils/catalogSort.js'
 import { useActiveCategories } from '../hooks/useActiveCategories'
 import { useActiveBrands } from '../hooks/useActiveBrands'
 import { useCatalogProducts } from '../hooks/useCatalogProducts'
 import FilterSidebar from '../components/catalog/FilterSidebar'
 import CatalogProductSearch from '../components/catalog/CatalogProductSearch'
+import CatalogSortSelect from '../components/catalog/CatalogSortSelect'
 import ProductCard from '../components/catalog/ProductCard'
 import ProductGridSkeleton from '../components/catalog/ProductGridSkeleton'
 import Pagination from '../components/catalog/Pagination'
@@ -50,6 +52,15 @@ export default function CatalogPage() {
     setSearchParams(buildCatalogSearchParams(newFilters))
   }
 
+  const handleSortChange = (nextSort) => {
+    handleFilterChange({
+      ...filters,
+      sort: nextSort || null,
+    })
+  }
+
+  const expandBrandFilter = filters.sort === CATALOG_SORT.BRAND
+
   useEffect(() => {
     const trimmed = searchDraft.trim()
     const current = urlSearch.trim()
@@ -91,6 +102,7 @@ export default function CatalogPage() {
             filters={filters}
             onChange={handleFilterChange}
             maxPrice={DEFAULT_MAX_PRICE}
+            expandBrandSection={expandBrandFilter}
             categories={categories}
             categoriesReady={categoriesReady}
             categoriesError={categoriesError}
@@ -103,7 +115,17 @@ export default function CatalogPage() {
         </div>
 
         <div className="catalog-page__results">
-          <CatalogProductSearch value={searchDraft} onChange={setSearchDraft} />
+          <div className="catalog-page__toolbar mb-4 flex flex-col gap-3 md:mb-5 sm:flex-row sm:items-center sm:gap-4">
+            <CatalogProductSearch
+              value={searchDraft}
+              onChange={setSearchDraft}
+              className="min-w-0 flex-1"
+            />
+            <CatalogSortSelect
+              value={filters.sort ?? ''}
+              onChange={handleSortChange}
+            />
+          </div>
 
           {error && (
             <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">

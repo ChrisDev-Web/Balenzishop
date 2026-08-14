@@ -15,6 +15,16 @@ import CatalogPriceDisplay from '../product/CatalogPriceDisplay'
 import LiveDiscountBadge from '../product/LiveDiscountBadge'
 import { productLink } from '../../utils/productUtils'
 
+function formatCatalogVolume(perfume) {
+  const ml = Number(perfume.netContentMl)
+  if (Number.isFinite(ml) && ml > 0) {
+    return `${ml} ml`
+  }
+
+  const content = (perfume.netContent || '').trim()
+  return content
+}
+
 function ProductCard({ perfume, priority = false }) {
   const addToCart = useAddToCart()
   const cartItem = useCartStore((s) => s.items.find((item) => item.id === perfume.id))
@@ -27,6 +37,7 @@ function ProductCard({ perfume, priority = false }) {
   const promoDiscountLabel = getPromoDiscountLabel(perfume, role)
   const maxQuantity = getMaxCartQuantity(perfume.stock, role)
   const canAddToCart = maxQuantity > 0 && (!cartItem || cartItem.quantity < maxQuantity)
+  const volumeLabel = formatCatalogVolume(perfume)
 
   const handleAdd = (e) => {
     e.preventDefault()
@@ -92,7 +103,9 @@ function ProductCard({ perfume, priority = false }) {
         <h3 className="mt-0.5 line-clamp-2 min-h-[2.2em] text-[11px] font-semibold leading-tight text-gray-900 sm:min-h-0 sm:text-xs md:text-sm md:leading-snug">
           {perfume.name}
         </h3>
-        <p className="mt-0.5 hidden line-clamp-1 text-xs text-gray-400 md:block">{perfume.aroma}</p>
+        <p className="mt-0.5 hidden line-clamp-1 text-xs text-gray-400 md:block">
+          {volumeLabel || '\u00A0'}
+        </p>
 
         <div className="mt-auto space-y-1.5 pt-1.5 sm:space-y-2 sm:pt-2 md:space-y-2.5 md:pt-4">
           <div className="min-w-0">

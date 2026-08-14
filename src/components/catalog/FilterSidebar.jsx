@@ -1,19 +1,19 @@
 import { ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { aromaOptions } from '../../data/perfumes'
 
 const sections = [
   { key: 'category', label: 'Categoría' },
   { key: 'brand', label: 'Marcas' },
   { key: 'price', label: 'Precio' },
-  { key: 'recommendations', label: 'Recomendaciones' },
+  { key: 'aroma', label: 'Aroma' },
 ]
 
 const defaultOpen = {
   category: false,
   brand: false,
   price: false,
-  recommendations: false,
+  aroma: false,
 }
 
 function countActiveFilters(filters) {
@@ -23,7 +23,6 @@ function countActiveFilters(filters) {
   if (filters.minPrice != null) n += 1
   if (filters.maxPrice != null) n += 1
   if (filters.aroma) n += 1
-  if (filters.recommended) n += 1
   return n
 }
 
@@ -31,6 +30,7 @@ export default function FilterSidebar({
   filters,
   onChange,
   maxPrice,
+  expandBrandSection = false,
   categories = [],
   categoriesReady = false,
   categoriesError = null,
@@ -42,6 +42,14 @@ export default function FilterSidebar({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  useEffect(() => {
+    if (!expandBrandSection) return
+
+    setOpen((prev) => ({ ...prev, brand: true }))
+    setMobileOpen(true)
+    onBrandsRefresh?.()
+  }, [expandBrandSection, onBrandsRefresh])
 
   const toggle = (key) => {
     setOpen((prev) => {
@@ -193,7 +201,7 @@ export default function FilterSidebar({
             </div>
           )}
 
-          {open[key] && key === 'recommendations' && (
+          {open[key] && key === 'aroma' && (
             <div className="mt-3 space-y-3">
               <input
                 type="text"
@@ -218,15 +226,6 @@ export default function FilterSidebar({
                   </button>
                 ))}
               </div>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
-                <input
-                  type="checkbox"
-                  checked={!!filters.recommended}
-                  onChange={(e) => onChange({ ...filters, recommended: e.target.checked || null })}
-                  className="accent-gray-900"
-                />
-                Solo recomendados
-              </label>
             </div>
           )}
         </div>

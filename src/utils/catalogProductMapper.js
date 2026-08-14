@@ -36,6 +36,8 @@ export function mapCatalogProduct(item) {
     hasFakePrice,
     isLivePrice,
     aroma: item.scent ?? '',
+    netContent: item.net_content ?? '',
+    netContentMl: item.net_content_ml ?? null,
     description: item.brief_description || item.description || '',
     fullDescription: item.description ?? '',
     category: String(item.id_category ?? ''),

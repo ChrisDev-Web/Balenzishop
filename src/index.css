@@ -142,7 +142,7 @@ html {
   content: '';
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: -1;
   background-color: #000;
   transform: scaleX(0);
   transform-origin: left center;
@@ -152,7 +152,7 @@ html {
 
 .btn-fill > * {
   position: relative;
-  z-index: 1;
+  z-index: 0;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -641,6 +641,16 @@ html {
 .catalog-page__results {
   width: 100%;
   min-width: 0;
+}
+
+.catalog-page__toolbar {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .catalog-sort-select select {
+    max-width: 16rem;
+  }
 }
 
 @media (min-width: 1024px) {

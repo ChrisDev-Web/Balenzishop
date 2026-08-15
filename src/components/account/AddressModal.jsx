@@ -41,6 +41,7 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
   const [isLoadingProvinces, setIsLoadingProvinces] = useState(false)
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false)
   const [isLoadingShalons, setIsLoadingShalons] = useState(false)
+  const [locationMapTrigger, setLocationMapTrigger] = useState(0)
 
   const deliveryScope = address.deliveryScope || null
   const isLimaScope = deliveryScope === 'lima'
@@ -271,7 +272,15 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
       district: selected?.name || '',
       idShalon: '',
       shalon: '',
+      fullAddress: '',
+      googleMapsLink: '',
+      geoLat: null,
+      geoLng: null,
     }))
+
+    if (selected && isBalenziHomeDelivery) {
+      setLocationMapTrigger((current) => current + 1)
+    }
   }
 
   const handleShalonSelect = (value, option) => {
@@ -291,7 +300,7 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
       geoLat,
       geoLng,
       googleMapsLink,
-      fullAddress,
+      ...(fullAddress !== undefined ? { fullAddress } : {}),
     }))
   }
 
@@ -321,7 +330,7 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
       }
 
       if (!form.fullAddress?.trim()) {
-        setError('Indica la dirección completa')
+        setError('Escriba su dirección completa')
         return
       }
     } else if (isOwnDelivery) {
@@ -569,6 +578,8 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
                   value={{ lat: form.geoLat, lng: form.geoLng }}
                   googleMapsLink={form.googleMapsLink}
                   fullAddress={form.fullAddress}
+                  districtName={form.district}
+                  mapOpenTrigger={locationMapTrigger}
                   onChange={handleDeliveryLocationChange}
                   isSaving={isSaving}
                 />

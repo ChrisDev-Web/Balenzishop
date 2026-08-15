@@ -93,6 +93,41 @@ export function getDefaultMapCenter() {
   return { ...LIMA_CENTER }
 }
 
+export async function geocodeDistrictCenter(districtName, cityName = 'Lima Metropolitana') {
+  const trimmedDistrict = (districtName ?? '').trim()
+  if (!trimmedDistrict) return getDefaultMapCenter()
+
+  const query = `${trimmedDistrict}, ${cityName}, Perú`
+  const url = new URL('https://nominatim.openstreetmap.org/search')
+  url.searchParams.set('format', 'jsonv2')
+  url.searchParams.set('q', query)
+  url.searchParams.set('limit', '1')
+  url.searchParams.set('countrycodes', 'pe')
+  url.searchParams.set('accept-language', 'es')
+
+  const response = await fetch(url.toString(), {
+    headers: { Accept: 'application/json' },
+  })
+
+  if (!response.ok) {
+    throw new Error('No se pudo ubicar el distrito en el mapa.')
+  }
+
+  const results = await response.json()
+  const first = results?.[0]
+  if (!first) {
+    throw new Error(`No se encontró "${trimmedDistrict}" en el mapa.`)
+  }
+
+  const lat = Number(first.lat)
+  const lng = Number(first.lon)
+  if (!isLocationInPeru({ lat, lng })) {
+    return getDefaultMapCenter()
+  }
+
+  return { lat, lng }
+}
+
 export async function getCurrentPosition() {
   if (!navigator.geolocation) {
     throw new Error('Tu navegador no soporta geolocalización.')

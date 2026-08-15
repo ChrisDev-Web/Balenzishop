@@ -1,70 +1,135 @@
-import { useEffect, useRef, useState } from 'react'
-import { Crosshair, Eye, EyeOff } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { MapPin, X } from 'lucide-react'
 import L from 'leaflet'
-import markerIconUrl from 'leaflet/dist/images/marker-icon.png'
-import markerIconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png'
-import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png'
 import 'leaflet/dist/leaflet.css'
 import {
   buildGoogleMapsLink,
-  getCurrentPosition,
+  geocodeDistrictCenter,
+  getDefaultMapCenter,
   normalizeMapLocation,
   resolveMapLocation,
-  reverseGeocode,
 } from '../../utils/deliveryLocation'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
+import DeliveryMapCenterPin from './DeliveryMapCenterPin'
 
-const markerIcon = L.icon({
-  iconUrl: markerIconUrl,
-  iconRetinaUrl: markerIconRetinaUrl,
-  shadowUrl: markerShadowUrl,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-})
-
+/** OpenStreetMap estándar. */
 const MAP_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+const DEFAULT_ZOOM = 16
+const ADDRESS_PLACEHOLDER = 'Escriba su dirección completa aquí'
+
+function readMapCenter(map) {
+  const center = map.getCenter()
+  return { lat: center.lat, lng: center.lng }
+}
 
 export default function DeliveryLocationPicker({
   value,
   googleMapsLink = '',
   fullAddress = '',
+  districtName = '',
+  mapOpenTrigger = 0,
   onChange,
   disabled = false,
   isSaving = false,
 }) {
   const mapContainerRef = useRef(null)
   const mapRef = useRef(null)
-  const markerRef = useRef(null)
+  const lastTriggerRef = useRef(0)
+  const geocodeRequestRef = useRef(0)
+  const mapSessionRef = useRef(0)
+  const pendingPanRef = useRef(null)
 
   const [addressInput, setAddressInput] = useState(fullAddress)
-  const [showPreview, setShowPreview] = useState(false)
-  const [isLocating, setIsLocating] = useState(false)
-  const [isResolving, setIsResolving] = useState(false)
+  const [mapModalOpen, setMapModalOpen] = useState(false)
+  const [mapReady, setMapReady] = useState(false)
+  const [isGeocoding, setIsGeocoding] = useState(false)
   const [error, setError] = useState('')
 
   const currentLocation = normalizeMapLocation(value)
-  const mapCenter = resolveMapLocation(value)
+  const hasConfirmedLocation = Boolean(currentLocation)
+
+  useBodyScrollLock(mapModalOpen)
 
   useEffect(() => {
     setAddressInput(fullAddress)
   }, [fullAddress])
 
+  const closeMapModal = useCallback(() => {
+    geocodeRequestRef.current += 1
+    mapSessionRef.current += 1
+    pendingPanRef.current = null
+    setMapModalOpen(false)
+    setMapReady(false)
+  }, [])
+
   useEffect(() => {
     if (isSaving) {
-      setShowPreview(false)
+      closeMapModal()
     }
-  }, [isSaving])
+  }, [isSaving, closeMapModal])
+
+  const panMapTo = useCallback((location, zoom = DEFAULT_ZOOM) => {
+    const normalized = normalizeMapLocation(location)
+    if (!normalized) return
+
+    const map = mapRef.current
+    if (!map) {
+      pendingPanRef.current = { lat: normalized.lat, lng: normalized.lng, zoom }
+      return
+    }
+
+    pendingPanRef.current = null
+    map.setView([normalized.lat, normalized.lng], zoom, { animate: true })
+  }, [])
+
+  const openMapModal = useCallback(async () => {
+    if (disabled) return
+
+    setError('')
+    setMapModalOpen(true)
+    setMapReady(false)
+    mapSessionRef.current += 1
+
+    const existing = normalizeMapLocation(value)
+    const requestId = geocodeRequestRef.current + 1
+    geocodeRequestRef.current = requestId
+
+    if (existing) return
+
+    setIsGeocoding(true)
+    try {
+      const center = await geocodeDistrictCenter(districtName)
+      if (requestId !== geocodeRequestRef.current) return
+      panMapTo(center)
+    } catch (geocodeError) {
+      if (requestId !== geocodeRequestRef.current) return
+      setError(geocodeError.message || 'No se pudo centrar el mapa en el distrito.')
+      panMapTo(getDefaultMapCenter(), 13)
+    } finally {
+      if (requestId === geocodeRequestRef.current) {
+        setIsGeocoding(false)
+      }
+    }
+  }, [disabled, districtName, value, panMapTo])
 
   useEffect(() => {
-    if (!showPreview || !mapContainerRef.current) return undefined
+    if (!mapOpenTrigger || mapOpenTrigger === lastTriggerRef.current) return
+    lastTriggerRef.current = mapOpenTrigger
+    openMapModal()
+  }, [mapOpenTrigger, openMapModal])
+
+  useEffect(() => {
+    if (!mapModalOpen || !mapContainerRef.current) return undefined
 
     const container = mapContainerRef.current
-    const initial = mapCenter
+    const sessionId = mapSessionRef.current
+    const startCenter = resolveMapLocation(value)
     let map = null
-    let marker = null
     let disposed = false
 
     const initMap = () => {
-      if (disposed || !container.isConnected) return
+      if (disposed || !container.isConnected || sessionId !== mapSessionRef.current) return
 
       if (container._leaflet_id) {
         container.replaceChildren()
@@ -72,10 +137,13 @@ export default function DeliveryLocationPicker({
       }
 
       map = L.map(container, {
-        center: [initial.lat, initial.lng],
-        zoom: currentLocation ? 16 : 13,
+        center: [startCenter.lat, startCenter.lng],
+        zoom: DEFAULT_ZOOM,
         scrollWheelZoom: true,
+        zoomControl: false,
       })
+
+      L.control.zoom({ position: 'bottomright' }).addTo(map)
 
       L.tileLayer(MAP_TILE_URL, {
         subdomains: 'abc',
@@ -83,18 +151,7 @@ export default function DeliveryLocationPicker({
         attribution: '&copy; OpenStreetMap',
       }).addTo(map)
 
-      marker = L.marker([initial.lat, initial.lng], {
-        draggable: !disabled,
-        icon: markerIcon,
-      }).addTo(map)
-
-      marker.on('dragend', async () => {
-        const { lat, lng } = marker.getLatLng()
-        await applyLocation({ lat, lng })
-      })
-
       mapRef.current = map
-      markerRef.current = marker
 
       const refreshMapSize = () => {
         if (!disposed && map) {
@@ -102,26 +159,34 @@ export default function DeliveryLocationPicker({
         }
       }
 
-      map.whenReady(refreshMapSize)
-      ;[100, 300, 600].forEach((delay) => window.setTimeout(refreshMapSize, delay))
+      map.whenReady(() => {
+        if (disposed || sessionId !== mapSessionRef.current) return
+        refreshMapSize()
+
+        if (pendingPanRef.current) {
+          const { lat, lng, zoom } = pendingPanRef.current
+          map.setView([lat, lng], zoom, { animate: false })
+          pendingPanRef.current = null
+        }
+
+        setMapReady(true)
+      })
+
+      ;[50, 150, 350, 700].forEach((delay) => {
+        window.setTimeout(refreshMapSize, delay)
+      })
     }
 
-    const timer = window.setTimeout(initMap, 50)
+    const timer = window.setTimeout(initMap, 0)
 
     return () => {
       disposed = true
       window.clearTimeout(timer)
       map?.remove()
       mapRef.current = null
-      markerRef.current = null
+      setMapReady(false)
     }
-  }, [showPreview, disabled, mapCenter.lat, mapCenter.lng, currentLocation])
-
-  useEffect(() => {
-    if (!showPreview || !mapRef.current || !markerRef.current || !currentLocation) return
-    markerRef.current.setLatLng([currentLocation.lat, currentLocation.lng])
-    mapRef.current.setView([currentLocation.lat, currentLocation.lng], 16, { animate: true })
-  }, [currentLocation, showPreview])
+  }, [mapModalOpen, value])
 
   function buildInternalMapsLink(location) {
     const normalized = normalizeMapLocation(location)
@@ -129,45 +194,28 @@ export default function DeliveryLocationPicker({
     return buildGoogleMapsLink(normalized.lat, normalized.lng)
   }
 
-  async function applyLocation(location) {
+  function applyLocation(location) {
     const normalized = normalizeMapLocation(location)
     if (!normalized) {
       setError('Selecciona una ubicación dentro de Perú.')
-      return
+      return false
     }
 
     setError('')
-    let nextAddress = addressInput
-
-    setIsResolving(true)
-    try {
-      nextAddress = await reverseGeocode(normalized.lat, normalized.lng)
-      setAddressInput(nextAddress)
-    } catch (resolveError) {
-      setError(resolveError.message || 'No se pudo obtener la dirección escrita.')
-    } finally {
-      setIsResolving(false)
-    }
-
     onChange?.({
       geoLat: normalized.lat,
       geoLng: normalized.lng,
       googleMapsLink: buildInternalMapsLink(normalized),
-      fullAddress: nextAddress,
     })
+
+    return true
   }
 
-  async function handleUseCurrentLocation() {
-    setError('')
-    setIsLocating(true)
-    try {
-      const location = await getCurrentPosition()
-      setShowPreview(true)
-      await applyLocation(location)
-    } catch (locateError) {
-      setError(locateError.message || 'No se pudo usar tu ubicación actual.')
-    } finally {
-      setIsLocating(false)
+  function handleConfirmMapLocation() {
+    if (!mapRef.current) return
+    const applied = applyLocation(readMapCenter(mapRef.current))
+    if (applied) {
+      closeMapModal()
     }
   }
 
@@ -182,41 +230,92 @@ export default function DeliveryLocationPicker({
     })
   }
 
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
+  const mapModal = mapModalOpen ? createPortal(
+    <div className="fixed inset-0 z-[270] flex h-[100dvh] flex-col bg-white">
+      <div className="relative z-10 flex shrink-0 items-start justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <div>
+          <h3 className="text-base font-bold text-gray-900">Ubica tu dirección</h3>
+          <p className="mt-0.5 text-xs text-gray-500">
+            {districtName
+              ? `Centro de ${districtName}. Mueve el mapa hasta que el pin quede en tu calle.`
+              : 'Mueve el mapa hasta que el pin quede en tu calle.'}
+          </p>
+        </div>
         <button
           type="button"
-          onClick={handleUseCurrentLocation}
-          disabled={disabled || isLocating}
-          className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+          onClick={closeMapModal}
+          className="rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          aria-label="Cerrar mapa"
         >
-          <Crosshair className="h-3.5 w-3.5" />
-          {isLocating ? 'Obteniendo ubicación…' : 'Usar mi ubicación actual'}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowPreview((prev) => !prev)}
-          disabled={disabled}
-          className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-        >
-          {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-          {showPreview ? 'Ocultar vista previa' : 'Ver vista previa en mapa'}
+          <X className="h-5 w-5" />
         </button>
       </div>
 
-      {showPreview && (
-        <div className="leaflet-map-root overflow-hidden rounded-lg border border-gray-200">
-          <div
-            ref={mapContainerRef}
-            className="h-56 w-full"
-            style={{ minHeight: '14rem' }}
-          />
-          <p className="border-t bg-gray-50 px-3 py-2 text-xs text-gray-500">
-            Arrastra el pin a Los Olivos si hace falta y guarda la dirección.
-          </p>
+      <div className="relative min-h-0 flex-1 bg-[#e8e6e1]">
+        <div
+          ref={mapContainerRef}
+          className="leaflet-map-root leaflet-map-root--fullscreen absolute inset-0 z-0"
+        />
+
+        <div className="pointer-events-none absolute inset-0 z-[500] flex items-center justify-center">
+          <div className="-translate-y-7">
+            <DeliveryMapCenterPin />
+          </div>
         </div>
-      )}
+
+        {(!mapReady || isGeocoding) && (
+          <div className="absolute left-1/2 top-4 z-[600] -translate-x-1/2 rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-md">
+            {!mapReady ? 'Cargando mapa…' : 'Ubicando distrito…'}
+          </div>
+        )}
+      </div>
+
+      <div className="relative z-10 shrink-0 border-t border-gray-200 bg-white px-4 py-4">
+        <p className="text-xs text-gray-500">
+          Confirma el punto en el mapa. Luego escribe tu dirección completa en el formulario.
+        </p>
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={handleConfirmMapLocation}
+            disabled={disabled || !mapReady || isGeocoding}
+            className="flex-1 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-60"
+          >
+            Confirmar ubicación
+          </button>
+          <button
+            type="button"
+            onClick={closeMapModal}
+            className="rounded-full border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  ) : null
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
+        <p className="text-xs text-gray-600">
+          {hasConfirmedLocation
+            ? 'Ubicación marcada en el mapa. Puedes ajustarla si hace falta.'
+            : districtName
+              ? `Al elegir ${districtName}, abre el mapa para marcar tu calle exacta.`
+              : 'Elige un distrito para marcar tu ubicación en el mapa.'}
+        </p>
+        <button
+          type="button"
+          onClick={openMapModal}
+          disabled={disabled || !districtName}
+          className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+        >
+          <MapPin className="h-3.5 w-3.5" />
+          {hasConfirmedLocation ? 'Ajustar en mapa' : 'Marcar en mapa'}
+        </button>
+      </div>
 
       <div>
         <label className="block text-sm text-gray-600">Dirección completa *</label>
@@ -224,16 +323,15 @@ export default function DeliveryLocationPicker({
           value={addressInput}
           onChange={handleAddressChange}
           rows={3}
-          disabled={disabled || isResolving}
-          placeholder="Se completará automáticamente al fijar la ubicación. Puedes editarla si hace falta."
+          required
+          disabled={disabled}
+          placeholder={ADDRESS_PLACEHOLDER}
           className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-900 focus:outline-none disabled:bg-gray-100"
         />
-        {isResolving && (
-          <p className="mt-1 text-xs text-gray-500">Obteniendo dirección escrita…</p>
-        )}
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+      {mapModal}
     </div>
   )
 }

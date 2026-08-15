@@ -851,12 +851,27 @@ html {
 }
 
 /* Leaflet + Tailwind: evita mapa gris sin tiles visibles */
+.leaflet-map-root {
+  background: #e8e6e1;
+}
+
 .leaflet-map-root .leaflet-container {
   width: 100%;
   height: 100%;
   min-height: 14rem;
   z-index: 0;
   font-family: inherit;
+  background: #e8e6e1;
+}
+
+.leaflet-map-root.leaflet-map-root--fullscreen {
+  width: 100%;
+  height: 100%;
+}
+
+.leaflet-map-root.leaflet-map-root--fullscreen .leaflet-container {
+  min-height: 100%;
+  height: 100% !important;
 }
 
 .leaflet-map-root .leaflet-tile-pane img,

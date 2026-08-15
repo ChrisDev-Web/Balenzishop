@@ -91,6 +91,7 @@ export default function AddressesPage() {
   const [isLoadingProvinces, setIsLoadingProvinces] = useState(false)
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false)
   const [isLoadingShalons, setIsLoadingShalons] = useState(false)
+  const [locationMapTrigger, setLocationMapTrigger] = useState(0)
 
   const [showZoneModal, setShowZoneModal] = useState(false)
   const [showLimaTypeModal, setShowLimaTypeModal] = useState(false)
@@ -584,6 +585,10 @@ export default function AddressesPage() {
       geoLat: null,
       geoLng: null,
     }))
+
+    if (selected && isBalenziHomeDelivery) {
+      setLocationMapTrigger((current) => current + 1)
+    }
   }
 
   const handleDeliveryLocationChange = ({ geoLat, geoLng, googleMapsLink, fullAddress }) => {
@@ -592,7 +597,7 @@ export default function AddressesPage() {
       geoLat,
       geoLng,
       googleMapsLink,
-      fullAddress,
+      ...(fullAddress !== undefined ? { fullAddress } : {}),
     }))
   }
 
@@ -636,7 +641,7 @@ export default function AddressesPage() {
       }
 
       if (!form.fullAddress?.trim()) {
-        setError('Indica la dirección completa')
+        setError('Escriba su dirección completa')
         return
       }
     } else if (isOwnDelivery) {
@@ -979,6 +984,8 @@ export default function AddressesPage() {
                   value={{ lat: form.geoLat, lng: form.geoLng }}
                   googleMapsLink={form.googleMapsLink}
                   fullAddress={form.fullAddress}
+                  districtName={form.district}
+                  mapOpenTrigger={locationMapTrigger}
                   onChange={handleDeliveryLocationChange}
                   isSaving={isSaving}
                 />

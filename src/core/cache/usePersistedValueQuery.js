@@ -13,7 +13,7 @@ function buildInitialValueState(namespace, stableCacheKey, queryKey, defaultValu
   }
 
   return {
-    key: queryKey,
+    key: '',
     value: cachedEntry.value ?? defaultValue,
     error: cachedEntry.error ?? '',
   }

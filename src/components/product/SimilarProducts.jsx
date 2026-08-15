@@ -20,8 +20,8 @@ export default function SimilarProducts({ products = [], categoryLink }) {
   }
 
   return (
-    <section className="mt-16 border-t border-gray-200 pt-10">
-      <div className="flex items-center gap-4">
+    <section className="mt-16 min-w-0 max-w-full overflow-hidden border-t border-gray-200 pt-10">
+      <div className="flex min-w-0 flex-wrap items-center gap-3 gap-y-2 sm:gap-4">
         <h2 className="text-xl font-bold text-gray-900">Productos similares</h2>
         {categoryLink && (
           <Link
@@ -53,7 +53,7 @@ export default function SimilarProducts({ products = [], categoryLink }) {
 
       <div
         ref={scrollRef}
-        className="mt-6 flex gap-4 overflow-x-auto pb-4 scrollbar-thin"
+        className="similar-products__track mt-6 flex w-full min-w-0 max-w-full gap-4 overflow-x-auto overscroll-x-contain pb-4 [-ms-overflow-style:none] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5"
       >
         {products.map((p) => {
           const pricePresentation = getCatalogPricePresentation(p, role)

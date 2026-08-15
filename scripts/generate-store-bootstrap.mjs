@@ -18,6 +18,18 @@ const STORE_NS = {
   sectionShowcase: 'store.sectionShowcase',
 }
 
+const BOOTSTRAP_SCHEMA_VERSION = 2
+
+const DEFAULT_CATALOG_FILTERS_KEY = JSON.stringify({
+  categories: null,
+  brands: null,
+  aroma: null,
+  minPrice: null,
+  maxPrice: null,
+  sort: null,
+  search: null,
+})
+
 const SECTIONS = ['inicio', 'mujeres', 'hombres', 'promociones']
 const SECTION_CATEGORY = {
   mujeres: 'Damas',
@@ -101,6 +113,8 @@ function mapCatalogProduct(item) {
     hasFakePrice,
     isLivePrice,
     aroma: item.scent ?? '',
+    netContent: item.net_content ?? '',
+    netContentMl: item.net_content_ml ?? null,
     description: item.brief_description || item.description || '',
     fullDescription: item.description ?? '',
     category: String(item.id_category ?? ''),
@@ -161,7 +175,7 @@ async function buildBootstrapEntries() {
     error: '',
   })
 
-  pushEntry(entries, STORE_NS.catalogProducts, `false|{}|1|20`, {
+  pushEntry(entries, STORE_NS.catalogProducts, `false|${DEFAULT_CATALOG_FILTERS_KEY}|1|20`, {
     items: catalogItems,
     meta: catalogMeta,
     error: '',
@@ -207,7 +221,7 @@ async function main() {
   try {
     const entries = await buildBootstrapEntries()
     const payload = {
-      version: 1,
+      version: BOOTSTRAP_SCHEMA_VERSION,
       generatedAt: new Date().toISOString(),
       entries,
     }

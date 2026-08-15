@@ -1,8 +1,15 @@
+import { useEffect, useState } from 'react'
+
 export default function ProductGallery({ items, activeIndex = 0, onActiveChange, name, heading = null, overlay = null }) {
   const gallery = (items ?? []).filter((item) => item?.image)
   const safeIndex = gallery.length === 0 ? 0 : Math.max(0, Math.min(activeIndex, gallery.length - 1))
   const current = gallery[safeIndex]
   const currentImage = current?.image
+  const [imgError, setImgError] = useState(false)
+
+  useEffect(() => {
+    setImgError(false)
+  }, [currentImage])
 
   return (
     <div className="product-gallery flex w-full min-w-0 gap-3 sm:gap-4">
@@ -42,14 +49,21 @@ export default function ProductGallery({ items, activeIndex = 0, onActiveChange,
           {overlay && <div className="product-gallery__overlay">{overlay}</div>}
           {heading && <p className="product-gallery__heading">{heading}</p>}
           <div className="product-gallery__frame">
-            {currentImage ? (
+            {currentImage && !imgError ? (
               <img
                 key={currentImage}
                 src={currentImage}
                 alt={name}
                 className="product-gallery__image product-gallery__image--fade-in"
+                loading="eager"
                 decoding="async"
+                fetchPriority="high"
+                onError={() => setImgError(true)}
               />
+            ) : currentImage && imgError ? (
+              <div className="product-gallery__fallback" role="img" aria-label={name}>
+                {name}
+              </div>
             ) : (
               <div className="product-gallery__image product-gallery__image--empty" aria-hidden />
             )}

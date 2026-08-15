@@ -17,12 +17,10 @@ import TermsPage from './pages/legal/TermsPage'
 import PrivacyPage from './pages/legal/PrivacyPage'
 import RequireAuth from './components/auth/RequireAuth'
 import PresenceTracker from './hooks/usePresenceHeartbeat'
-import MaintenanceGate from './components/maintenance/MaintenanceGate'
 
 export default function App() {
   return (
     <div className="flex min-h-dvh flex-1 flex-col">
-      <MaintenanceGate>
       <BrowserRouter>
         <PresenceTracker />
         <CheckoutReservationGuard />
@@ -54,7 +52,6 @@ export default function App() {
         </Route>
         </Routes>
       </BrowserRouter>
-      </MaintenanceGate>
     </div>
   )
 }

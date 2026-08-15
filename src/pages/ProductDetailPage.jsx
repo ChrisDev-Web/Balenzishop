@@ -179,7 +179,7 @@ export default function ProductDetailPage() {
   const stockLabel = !isDecantView ? formatDetailStockLabel(displayProduct.stock) : null
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 lg:px-6 lg:py-8">
+    <div className="product-detail-page mx-auto w-full min-w-0 max-w-7xl px-3 py-6 min-[400px]:px-4 lg:px-6 lg:py-8">
       <nav className="mb-6 flex flex-wrap items-center gap-1 text-xs text-gray-500 sm:text-sm">
         <Link to="/" className="flex items-center hover:text-black">
           <Home className="h-4 w-4" />

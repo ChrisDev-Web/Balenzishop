@@ -69,10 +69,16 @@ export function clearCacheNamespace(namespace, keyPrefix = '') {
 }
 
 export function clearAllModuleCache() {
-  if (entries.size === 0) return
   entries.clear()
   notifyListeners()
   void clearCacheBlob()
+}
+
+export async function resetPersistentCache() {
+  entries.clear()
+  notifyListeners()
+  await clearCacheBlob()
+  hydratePromise = null
 }
 
 export function getModuleCacheVersion() {
@@ -94,8 +100,11 @@ function seedEntry(namespace, key, value) {
   })
 }
 
+const EXPECTED_BOOTSTRAP_VERSION = 2
+
 function applyBootstrapPayload(payload) {
   if (!payload || !Array.isArray(payload.entries)) return
+  if ((payload.version ?? 1) < EXPECTED_BOOTSTRAP_VERSION) return
 
   for (const entry of payload.entries) {
     if (!entry?.namespace || entry.key == null || !entry.value) continue

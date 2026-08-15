@@ -324,7 +324,7 @@ export default function ProductReviews({ productId, sectionRef }) {
   }, [meta.last_page])
 
   return (
-    <section ref={sectionRef} className="product-reviews">
+    <section ref={sectionRef} className="product-reviews min-w-0 max-w-full">
       <h2 className="product-reviews__title">Opiniones de este producto</h2>
 
       <div className="product-reviews__summary">

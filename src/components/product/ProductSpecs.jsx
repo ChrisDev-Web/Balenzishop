@@ -10,7 +10,7 @@ export default function ProductSpecs({ specs = [], description = '' }) {
   const hasDescription = Boolean(description?.trim())
 
   return (
-    <section className="mt-16 border-t border-gray-200 pt-10">
+    <section className="mt-16 min-w-0 max-w-full border-t border-gray-200 pt-10">
       <h2 className="text-center text-2xl font-bold text-gray-800">Sobre este producto</h2>
 
       <div className="mx-auto mt-8 max-w-3xl">

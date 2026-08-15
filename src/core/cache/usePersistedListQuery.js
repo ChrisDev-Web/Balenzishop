@@ -13,7 +13,7 @@ function buildInitialListState(namespace, stableCacheKey, queryKey) {
   }
 
   return {
-    key: queryKey,
+    key: '',
     items: cachedEntry.items ?? [],
     meta: cachedEntry.meta ?? null,
     error: cachedEntry.error ?? '',

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
+import { syncAppBuildIfStale } from '../../utils/appBuildSync'
 import Navbar from './Navbar'
 import Footer from './Footer'
 import ScrollToTop from './ScrollToTop'
@@ -21,6 +22,10 @@ export default function Layout() {
   }, [bootstrapSession])
 
   useEffect(() => {
+    void syncAppBuildIfStale()
+  }, [])
+
+  useEffect(() => {
     bootstrapCompany()
   }, [bootstrapCompany])
 
@@ -36,7 +41,7 @@ export default function Layout() {
       <Navbar />
       <ShippingCutoffNotice />
       <PendingOrderBanner />
-      <main className="relative z-0 flex flex-1 flex-col">
+      <main className="relative z-0 flex min-w-0 flex-1 flex-col overflow-x-clip">
         <Outlet />
       </main>
       <Footer />

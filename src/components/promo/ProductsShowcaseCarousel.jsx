@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { productLink } from '../../utils/productUtils'
@@ -20,6 +20,81 @@ function useItemsPerView() {
   }, [])
 
   return count
+}
+
+const SWIPE_AXIS_THRESHOLD = 10
+const SWIPE_DISTANCE = 48
+
+function useDirectionLockSwipe(onSwipeLeft, onSwipeRight) {
+  const [viewport, setViewport] = useState(null)
+  const onSwipeLeftRef = useRef(onSwipeLeft)
+  const onSwipeRightRef = useRef(onSwipeRight)
+
+  onSwipeLeftRef.current = onSwipeLeft
+  onSwipeRightRef.current = onSwipeRight
+
+  const viewportRef = useCallback((node) => {
+    setViewport(node)
+  }, [])
+
+  useEffect(() => {
+    if (!viewport) return undefined
+
+    const state = { startX: 0, startY: 0, axis: null }
+
+    const onTouchStart = (event) => {
+      if (event.touches.length !== 1) return
+      state.startX = event.touches[0].clientX
+      state.startY = event.touches[0].clientY
+      state.axis = null
+    }
+
+    const onTouchMove = (event) => {
+      if (event.touches.length !== 1) return
+
+      const dx = event.touches[0].clientX - state.startX
+      const dy = event.touches[0].clientY - state.startY
+
+      if (!state.axis) {
+        if (Math.abs(dx) < SWIPE_AXIS_THRESHOLD && Math.abs(dy) < SWIPE_AXIS_THRESHOLD) return
+        state.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+      }
+
+      if (state.axis === 'x') {
+        event.preventDefault()
+      }
+    }
+
+    const onTouchEnd = (event) => {
+      if (state.axis !== 'x') {
+        state.axis = null
+        return
+      }
+
+      const dx = event.changedTouches[0].clientX - state.startX
+      if (dx >= SWIPE_DISTANCE) {
+        onSwipeRightRef.current?.()
+      } else if (dx <= -SWIPE_DISTANCE) {
+        onSwipeLeftRef.current?.()
+      }
+
+      state.axis = null
+    }
+
+    viewport.addEventListener('touchstart', onTouchStart, { passive: true })
+    viewport.addEventListener('touchmove', onTouchMove, { passive: false })
+    viewport.addEventListener('touchend', onTouchEnd, { passive: true })
+    viewport.addEventListener('touchcancel', onTouchEnd, { passive: true })
+
+    return () => {
+      viewport.removeEventListener('touchstart', onTouchStart)
+      viewport.removeEventListener('touchmove', onTouchMove)
+      viewport.removeEventListener('touchend', onTouchEnd)
+      viewport.removeEventListener('touchcancel', onTouchEnd)
+    }
+  }, [viewport])
+
+  return viewportRef
 }
 
 function ShowcaseProductImage({ src, alt }) {
@@ -54,7 +129,7 @@ function ShowcaseProductCard({ product, className = '', style }) {
     <Link
       to={productLink(product.id)}
       style={style}
-      className={`content-fade-in flex shrink-0 snap-start flex-col ${className}`}
+      className={`content-fade-in flex shrink-0 flex-col ${className}`}
     >
       <div className="flex h-56 items-center justify-center bg-stone-50 p-5 sm:h-72 md:h-80">
         <ShowcaseProductImage key={product.image} src={product.image} alt={product.name} />
@@ -106,14 +181,25 @@ export default function ProductsShowcaseCarousel({
   loading = false,
 }) {
   const itemsPerView = useItemsPerView()
-  const isMobile = itemsPerView === 2
   const [offset, setOffset] = useState(0)
 
   const showcaseProducts = products.slice(0, MAX_PRODUCTS)
+  const maxOffset = Math.max(0, showcaseProducts.length - itemsPerView)
 
   useEffect(() => {
     setOffset(0)
   }, [itemsPerView])
+
+  const goPrev = useCallback(
+    () => setOffset((current) => Math.max(0, current - 1)),
+    [],
+  )
+  const goNext = useCallback(
+    () => setOffset((current) => Math.min(maxOffset, current + 1)),
+    [maxOffset],
+  )
+
+  const viewportRef = useDirectionLockSwipe(goNext, goPrev)
 
   if (loading) {
     return <ProductsShowcaseSkeleton title={title} />
@@ -121,12 +207,8 @@ export default function ProductsShowcaseCarousel({
 
   if (!showcaseProducts.length) return null
 
-  const maxOffset = Math.max(0, showcaseProducts.length - itemsPerView)
   const canPrev = offset > 0
   const canNext = offset < maxOffset
-
-  const goPrev = () => setOffset((current) => Math.max(0, current - 1))
-  const goNext = () => setOffset((current) => Math.min(maxOffset, current + 1))
 
   const trackWidthPercent = (showcaseProducts.length / itemsPerView) * 100
   const itemWidthPercent = 100 / showcaseProducts.length
@@ -142,7 +224,7 @@ export default function ProductsShowcaseCarousel({
           <button
             type="button"
             onClick={goPrev}
-            className="absolute left-2 top-[calc(50%-1.5rem)] z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-800 shadow-sm transition hover:border-gray-900 hover:bg-gray-900 hover:text-white sm:left-4 md:flex md:h-10 md:w-10"
+            className="absolute left-1 top-[calc(50%-1.5rem)] z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-800 shadow-sm transition hover:border-gray-900 hover:bg-gray-900 hover:text-white sm:left-4 sm:h-9 sm:w-9 md:h-10 md:w-10"
             aria-label="Productos anteriores"
           >
             <ChevronLeft className="h-5 w-5" />
@@ -153,7 +235,7 @@ export default function ProductsShowcaseCarousel({
           <button
             type="button"
             onClick={goNext}
-            className="absolute right-2 top-[calc(50%-1.5rem)] z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-800 shadow-sm transition hover:border-gray-900 hover:bg-gray-900 hover:text-white sm:right-4 md:flex md:h-10 md:w-10"
+            className="absolute right-1 top-[calc(50%-1.5rem)] z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-800 shadow-sm transition hover:border-gray-900 hover:bg-gray-900 hover:text-white sm:right-4 sm:h-9 sm:w-9 md:h-10 md:w-10"
             aria-label="Siguientes productos"
           >
             <ChevronRight className="h-5 w-5" />
@@ -161,19 +243,14 @@ export default function ProductsShowcaseCarousel({
         )}
 
         <div
-          className={`w-full border-y border-gray-200 ${
-            isMobile
-              ? 'overflow-x-auto overscroll-x-contain snap-x snap-mandatory touch-pan-x [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
-              : 'overflow-hidden'
-          }`}
+          ref={viewportRef}
+          className="showcase-carousel__viewport w-full overflow-hidden border-y border-gray-200"
         >
           <div
-            className={`flex ${isMobile ? '' : 'transition-transform duration-500 ease-out will-change-transform'}`}
+            className="flex transition-transform duration-500 ease-out will-change-transform"
             style={{
               width: `${trackWidthPercent}%`,
-              transform: isMobile
-                ? undefined
-                : `translateX(-${(offset / showcaseProducts.length) * 100}%)`,
+              transform: `translateX(-${(offset / showcaseProducts.length) * 100}%)`,
             }}
           >
             {showcaseProducts.map((product, index) => (

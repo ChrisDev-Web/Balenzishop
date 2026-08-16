@@ -46,7 +46,7 @@ export function mapApiClientOrder(order) {
     subtotal: Number(order.subtotal),
     discount: Number(order.discount_amount),
     discountCode: order.discount_code,
-    deliveryFee: Number(order.delivery_fee),
+    deliveryFee: Number(order.display_delivery_fee ?? order.delivery_fee),
     deliveryMode: order.delivery_mode,
     deliveryLabel: order.delivery_label,
     total: Number(order.total_amount),

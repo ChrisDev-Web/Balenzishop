@@ -14,6 +14,7 @@ const STATUS_STYLES = {
 function formatPaymentMode(mode) {
   if (mode === 'reserva') return 'Solo reserva'
   if (mode === 'completo') return 'Pago completo'
+  if (mode === 'personalizado') return 'Pago personalizado'
   return mode || '—'
 }
 

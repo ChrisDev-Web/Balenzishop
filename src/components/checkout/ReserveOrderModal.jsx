@@ -30,8 +30,14 @@ import {
 import { useAuthStore } from '../../stores/authStore'
 import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
+import {
+  validateCustomPaymentAmount,
+  formatPaymentModeLabel,
+} from '../../utils/customPayment'
+
 const PAYMENT_MODE_RESERVATION = 'reserva'
 const PAYMENT_MODE_FULL = 'completo'
+const PAYMENT_MODE_CUSTOM = 'personalizado'
 
 const STEP_SUMMARY = 'summary'
 const STEP_DELIVERY = 'delivery'
@@ -78,7 +84,7 @@ function rebalancePaymentRows(rows, expectedAmount) {
   )
 }
 
-function getStepSubtitle(step, paymentMode, { isOwnDelivery = false } = {}) {
+function getStepSubtitle(step, paymentMode, { isOwnDelivery = false, balanceDue = 0 } = {}) {
   switch (step) {
     case STEP_SUMMARY:
       return 'Revisa los productos de tu pedido'
@@ -87,18 +93,19 @@ function getStepSubtitle(step, paymentMode, { isOwnDelivery = false } = {}) {
         ? 'Elige la fecha de encuentro en el punto de entrega'
         : 'Elige la fecha de entrega Balenzi'
     case STEP_PAYMENT:
-      return 'Indica si pagarás la reserva o el total'
+      return 'Indica si pagarás la reserva, un monto personalizado o el total'
     case STEP_FINAL:
-      return paymentMode === PAYMENT_MODE_RESERVATION
-        ? 'Elige cómo cancelarás el saldo restante'
-        : 'Confirma tu pedido antes de enviar'
+      return paymentMode === PAYMENT_MODE_FULL || balanceDue <= 0.009
+        ? 'Confirma tu pedido antes de enviar'
+        : 'Elige cómo cancelarás el saldo restante'
     default:
       return ''
   }
 }
 
-function formatPaymentModeLabel(mode) {
-  return mode === PAYMENT_MODE_FULL ? 'Pago completo' : 'Solo reserva'
+function hasBalanceAfterInitialPayment(mode, balance) {
+  return (mode === PAYMENT_MODE_RESERVATION || mode === PAYMENT_MODE_CUSTOM)
+    && balance > 0.009
 }
 
 export default function ReserveOrderModal({
@@ -121,6 +128,7 @@ export default function ReserveOrderModal({
   const clientId = useAuthStore((state) => state.user?.id)
   const [step, setStep] = useState(STEP_SUMMARY)
   const [paymentMode, setPaymentMode] = useState(PAYMENT_MODE_RESERVATION)
+  const [customPaymentAmount, setCustomPaymentAmount] = useState('')
   const [paymentRows, setPaymentRows] = useState([createPaymentRow()])
   const [remainderMethodId, setRemainderMethodId] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -200,10 +208,31 @@ export default function ReserveOrderModal({
     [subtotal, discount, effectiveDeliveryFee, deliveryMode],
   )
 
-  const expectedAmount = paymentMode === PAYMENT_MODE_FULL ? orderTotal : reservationAmount
-  const balanceDue = paymentMode === PAYMENT_MODE_RESERVATION
-    ? roundMoney(Math.max(0, orderTotal - reservationAmount))
-    : 0
+  const customPaymentValidation = useMemo(
+    () => (paymentMode === PAYMENT_MODE_CUSTOM
+      ? validateCustomPaymentAmount(customPaymentAmount, reservationAmount, orderTotal)
+      : { valid: true, amount: null, message: '' }),
+    [paymentMode, customPaymentAmount, reservationAmount, orderTotal],
+  )
+
+  const expectedAmount = useMemo(() => {
+    if (paymentMode === PAYMENT_MODE_FULL) return orderTotal
+    if (paymentMode === PAYMENT_MODE_CUSTOM) {
+      return customPaymentValidation.valid ? customPaymentValidation.amount : 0
+    }
+    return reservationAmount
+  }, [paymentMode, orderTotal, reservationAmount, customPaymentValidation])
+
+  const balanceDue = useMemo(() => {
+    if (paymentMode === PAYMENT_MODE_FULL) return 0
+    if (paymentMode === PAYMENT_MODE_CUSTOM && customPaymentValidation.valid) {
+      return roundMoney(Math.max(0, orderTotal - customPaymentValidation.amount))
+    }
+    if (paymentMode === PAYMENT_MODE_RESERVATION) {
+      return roundMoney(Math.max(0, orderTotal - reservationAmount))
+    }
+    return roundMoney(Math.max(0, orderTotal - reservationAmount))
+  }, [paymentMode, orderTotal, reservationAmount, customPaymentValidation])
 
   const paidTotal = useMemo(
     () => roundMoney(
@@ -224,9 +253,12 @@ export default function ReserveOrderModal({
 
   const canContinueFromDelivery = !requiresDeliveryDateStep || Boolean(scheduledDeliveryDate)
 
-  const canContinueFromPayment = amountMatches && allRowsValid
+  const canContinueFromPayment = amountMatches
+    && allRowsValid
+    && (paymentMode !== PAYMENT_MODE_CUSTOM || customPaymentValidation.valid)
 
   const canContinueFromFinal = paymentMode === PAYMENT_MODE_FULL
+    || balanceDue <= 0.009
     || Boolean(remainderMethodId)
 
   const canSubmit = canContinueFromFinal && !submitting && !cancelling && draftOrderId
@@ -236,6 +268,7 @@ export default function ReserveOrderModal({
 
     setStep(STEP_SUMMARY)
     setPaymentMode(PAYMENT_MODE_RESERVATION)
+    setCustomPaymentAmount('')
     setPaymentRows([createPaymentRow()])
     setRemainderMethodId('')
     setSubmitting(false)
@@ -265,6 +298,9 @@ export default function ReserveOrderModal({
 
   useEffect(() => {
     setRemainderMethodId('')
+    if (paymentMode !== PAYMENT_MODE_CUSTOM) {
+      setCustomPaymentAmount('')
+    }
   }, [paymentMode])
 
   useBodyScrollLock(open)
@@ -346,6 +382,10 @@ export default function ReserveOrderModal({
     }
 
     if (step === STEP_PAYMENT) {
+      if (paymentMode === PAYMENT_MODE_CUSTOM && !customPaymentValidation.valid) {
+        setError(customPaymentValidation.message || 'Indica un monto personalizado válido.')
+        return
+      }
       if (!canContinueFromPayment) {
         setError('Completa el método de pago, el monto y adjunta al menos un comprobante.')
         return
@@ -407,7 +447,7 @@ export default function ReserveOrderModal({
           paymentMode,
           payments,
           paymentProofs,
-          balancePaymentMethodId: paymentMode === PAYMENT_MODE_RESERVATION
+          balancePaymentMethodId: hasBalanceAfterInitialPayment(paymentMode, balanceDue)
             ? Number(remainderMethodId)
             : undefined,
           delivery: requiresScheduledDeliveryDate
@@ -525,7 +565,7 @@ export default function ReserveOrderModal({
     if (step === STEP_PAYMENT) {
       return (
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             <label className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm ${paymentMode === PAYMENT_MODE_RESERVATION ? 'border-black bg-gray-50' : 'border-gray-200'}`}>
               <span className="flex min-w-0 items-center gap-1.5">
                 <input
@@ -552,9 +592,42 @@ export default function ReserveOrderModal({
               </span>
               <span className="shrink-0 font-bold text-gray-900">S/ {orderTotal.toFixed(2)}</span>
             </label>
+            <label className={`flex cursor-pointer flex-col gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm sm:col-span-2 ${paymentMode === PAYMENT_MODE_CUSTOM ? 'border-black bg-gray-50' : 'border-gray-200'}`}>
+              <span className="flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="payment_mode"
+                  className="h-3.5 w-3.5 shrink-0"
+                  checked={paymentMode === PAYMENT_MODE_CUSTOM}
+                  onChange={() => setPaymentMode(PAYMENT_MODE_CUSTOM)}
+                />
+                <span className="font-semibold text-gray-900">Pago personalizado</span>
+              </span>
+              {paymentMode === PAYMENT_MODE_CUSTOM && (
+                <div>
+                  <label className="block text-[11px] text-gray-600">
+                    Monto a pagar ahora (mayor a S/ {reservationAmount.toFixed(2)}, máx. S/ {orderTotal.toFixed(2)})
+                  </label>
+                  <input
+                    type="number"
+                    min={roundMoney(reservationAmount + 0.1)}
+                    max={orderTotal}
+                    step="0.1"
+                    inputMode="decimal"
+                    placeholder="Ej. 250.50"
+                    value={customPaymentAmount}
+                    onChange={(event) => setCustomPaymentAmount(event.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm focus:border-black focus:outline-none"
+                  />
+                  {!customPaymentValidation.valid && customPaymentAmount.trim() !== '' && (
+                    <p className="mt-1 text-[11px] text-red-600">{customPaymentValidation.message}</p>
+                  )}
+                </div>
+              )}
+            </label>
           </div>
 
-          {paymentMode === PAYMENT_MODE_RESERVATION && (
+          {hasBalanceAfterInitialPayment(paymentMode, balanceDue) && (
             <p className="text-[11px] leading-snug text-gray-500">{RESERVATION_NOTICE}</p>
           )}
 
@@ -628,7 +701,7 @@ export default function ReserveOrderModal({
                       )}
                     </div>
 
-                    {paymentRows.length === 1 && (
+                    {paymentRows.length === 1 && expectedAmount > 0 && (
                       <p className="mt-1.5 text-[11px] text-gray-500">
                         Monto a pagar: <span className="font-semibold text-gray-800">S/ {expectedAmount.toFixed(2)}</span>
                       </p>
@@ -684,7 +757,7 @@ export default function ReserveOrderModal({
               </button>
             </p>
 
-            {!amountMatches && paidTotal > 0 && (
+            {!amountMatches && paidTotal > 0 && expectedAmount > 0 && (
               <p className="text-xs text-red-600">
                 La suma debe ser S/ {expectedAmount.toFixed(2)} (actual: S/ {paidTotal.toFixed(2)}).
               </p>
@@ -694,12 +767,16 @@ export default function ReserveOrderModal({
       )
     }
 
-    if (step === STEP_FINAL && paymentMode === PAYMENT_MODE_RESERVATION) {
+    if (step === STEP_FINAL && hasBalanceAfterInitialPayment(paymentMode, balanceDue)) {
+      const initialPaymentLabel = paymentMode === PAYMENT_MODE_CUSTOM
+        ? 'Pago personalizado'
+        : 'Reserva pagada'
+
       return (
         <div className="space-y-3">
           <div className="rounded-lg bg-gray-50 px-3 py-2 text-xs">
             <div className="flex justify-between gap-2">
-              <span className="text-gray-600">Reserva pagada</span>
+              <span className="text-gray-600">{initialPaymentLabel}</span>
               <span className="font-bold text-gray-900">
                 S/ {paidTotal.toFixed(2)}
                 {paymentRows[0] && (
@@ -761,7 +838,7 @@ export default function ReserveOrderModal({
       )
     }
 
-    if (step === STEP_FINAL && paymentMode === PAYMENT_MODE_FULL) {
+    if (step === STEP_FINAL && (paymentMode === PAYMENT_MODE_FULL || balanceDue <= 0.009)) {
       return (
         <div className="space-y-3">
           <ul className={`divide-y rounded-lg border border-gray-200 ${PRODUCT_LIST_SCROLL_CLASS}`}>
@@ -829,7 +906,10 @@ export default function ReserveOrderModal({
               Reservar pedido
             </h2>
             <p className="mt-0.5 text-xs text-gray-500 sm:text-sm">
-              {getStepSubtitle(step, paymentMode, { isOwnDelivery: requiresOwnDeliveryMeetingDate })}
+              {getStepSubtitle(step, paymentMode, {
+                isOwnDelivery: requiresOwnDeliveryMeetingDate,
+                balanceDue,
+              })}
             </p>
           </div>
           <button

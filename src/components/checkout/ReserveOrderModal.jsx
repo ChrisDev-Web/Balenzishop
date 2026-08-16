@@ -194,8 +194,8 @@ export default function ReserveOrderModal({
     : 0
 
   const reservationAmount = useMemo(
-    () => calculateReservationAmount(items),
-    [items],
+    () => calculateReservationAmount(items, { deliveryScope: primaryAddress?.deliveryScope }),
+    [items, primaryAddress?.deliveryScope],
   )
 
   const reservationSummaryNotice = useMemo(() => {

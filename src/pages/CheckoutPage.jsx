@@ -369,6 +369,7 @@ export default function CheckoutPage() {
             district: primaryAddress?.district || null,
             city: primaryAddress?.city || null,
             shalon: primaryAddress?.shalon || null,
+            delivery_scope: primaryAddress?.deliveryScope || null,
           },
         },
         accessToken,

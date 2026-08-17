@@ -183,11 +183,55 @@ export function mapShalonOption(item) {
   return {
     idShalon: item.id_shalon,
     idDistrict: item.id_district,
+    idProvince: item.id_province,
+    idRegion: item.id_region,
+    districtName: item.district_name || '',
+    provinceName: item.province_name || '',
+    regionName: item.region_name || '',
     name: item.name,
     address: item.address,
     latitude: item.latitude ?? null,
     longitude: item.longitude ?? null,
     label,
-    searchText: [item.name, item.address, label].filter(Boolean).join(' '),
+    searchText: [
+      item.name,
+      item.address,
+      label,
+      item.district_name,
+      item.province_name,
+      item.region_name,
+    ].filter(Boolean).join(' '),
+  }
+}
+
+export function applyShalonSelectionToForm(selected, { deliveryScope } = {}) {
+  if (!selected) {
+    return {
+      idShalon: '',
+      idRegion: '',
+      region: '',
+      idProvince: '',
+      city: '',
+      idDistrict: '',
+      district: '',
+      shalonName: '',
+      shalonLat: null,
+      shalonLng: null,
+      shalon: '',
+    }
+  }
+
+  return {
+    idShalon: String(selected.idShalon),
+    idRegion: selected.idRegion ? String(selected.idRegion) : '',
+    region: selected.regionName || '',
+    idProvince: selected.idProvince ? String(selected.idProvince) : '',
+    city: selected.provinceName || '',
+    idDistrict: selected.idDistrict ? String(selected.idDistrict) : '',
+    district: selected.districtName || '',
+    shalonName: selected.name || '',
+    shalonLat: selected.latitude ?? null,
+    shalonLng: selected.longitude ?? null,
+    shalon: selected.label || '',
   }
 }

@@ -9,17 +9,17 @@ import {
   listDistrictsPublic,
   listProvincesPublic,
   listRegionsPublic,
-  listShalonsPublic,
 } from '../../api/clientDirections'
 import {
   buildShalonMapsUrl,
+  applyShalonSelectionToForm,
   mapDistrictOption,
   mapProvinceOption,
   mapRegionOption,
-  mapShalonOption,
 } from '../../utils/addressMapper'
 import { buildFormFromAddress, formatAddressCityLabel } from '../../utils/addressFormHelpers'
 import SearchableCombobox from '../../components/ui/SearchableCombobox'
+import ShalonSearchCombobox from '../../components/account/ShalonSearchCombobox'
 import AddressModal from '../../components/account/AddressModal'
 import DeleteAddressConfirmModal from '../../components/account/DeleteAddressConfirmModal'
 import DeliveryZoneModal from '../../components/account/DeliveryZoneModal'
@@ -86,11 +86,9 @@ export default function AddressesPage() {
   const [regionOptions, setRegionOptions] = useState([])
   const [provinceOptions, setProvinceOptions] = useState([])
   const [districtOptions, setDistrictOptions] = useState([])
-  const [shalonOptions, setShalonOptions] = useState([])
   const [isLoadingRegions, setIsLoadingRegions] = useState(false)
   const [isLoadingProvinces, setIsLoadingProvinces] = useState(false)
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false)
-  const [isLoadingShalons, setIsLoadingShalons] = useState(false)
   const [locationMapTrigger, setLocationMapTrigger] = useState(0)
 
   const [showZoneModal, setShowZoneModal] = useState(false)
@@ -214,31 +212,8 @@ export default function AddressesPage() {
     [districts],
   )
 
-  const shalonComboboxOptions = useMemo(
-    () => shalonOptions.map((shalon) => ({
-      value: shalon.idShalon,
-      label: shalon.label,
-      searchText: shalon.searchText || shalon.label,
-      raw: shalon,
-    })),
-    [shalonOptions],
-  )
-
   useEffect(() => {
-    let ignore = false
-    setIsLoadingAddresses(true)
-    syncAddresses()
-      .catch(() => {})
-      .finally(() => {
-        if (!ignore) setIsLoadingAddresses(false)
-      })
-    return () => {
-      ignore = true
-    }
-  }, [syncAddresses])
-
-  useEffect(() => {
-    if (!isProvinciaScope) {
+    if (!isProvinciaScope || isShalonPickup) {
       setRegionOptions([])
       return undefined
     }
@@ -261,10 +236,23 @@ export default function AddressesPage() {
     return () => {
       ignore = true
     }
-  }, [isProvinciaScope])
+  }, [isProvinciaScope, isShalonPickup])
 
   useEffect(() => {
-    if (!isProvinciaScope || !form.idRegion) {
+    let ignore = false
+    setIsLoadingAddresses(true)
+    syncAddresses()
+      .catch(() => {})
+      .finally(() => {
+        if (!ignore) setIsLoadingAddresses(false)
+      })
+    return () => {
+      ignore = true
+    }
+  }, [syncAddresses])
+
+  useEffect(() => {
+    if (!isProvinciaScope || isShalonPickup || !form.idRegion) {
       setProvinceOptions([])
       return undefined
     }
@@ -287,10 +275,10 @@ export default function AddressesPage() {
     return () => {
       ignore = true
     }
-  }, [isProvinciaScope, form.idRegion])
+  }, [isProvinciaScope, isShalonPickup, form.idRegion])
 
   useEffect(() => {
-    if (!deliveryScope) {
+    if (isShalonPickup || !deliveryScope) {
       setDistrictOptions([])
       return undefined
     }
@@ -326,33 +314,7 @@ export default function AddressesPage() {
     return () => {
       ignore = true
     }
-  }, [deliveryScope, isProvinciaScope, isLimaScope, form.idProvince])
-
-  useEffect(() => {
-    if (!form.idDistrict) {
-      setShalonOptions([])
-      return undefined
-    }
-
-    let ignore = false
-    setIsLoadingShalons(true)
-
-    listShalonsPublic({ page: 1, page_size: 100, id_district: form.idDistrict })
-      .then((response) => {
-        if (ignore) return
-        setShalonOptions((response.data?.items ?? []).map(mapShalonOption))
-      })
-      .catch(() => {
-        if (!ignore) setShalonOptions([])
-      })
-      .finally(() => {
-        if (!ignore) setIsLoadingShalons(false)
-      })
-
-    return () => {
-      ignore = true
-    }
-  }, [form.idDistrict])
+  }, [deliveryScope, isProvinciaScope, isLimaScope, isShalonPickup, form.idProvince])
 
   useEffect(() => {
     if (!isOwnDelivery || form.idDistrict || districtOptions.length === 0) return
@@ -602,16 +564,11 @@ export default function AddressesPage() {
   }
 
   const handleShalonSelect = (value, option) => {
-    const selected = option?.raw
-      ?? shalonOptions.find((item) => String(item.idShalon) === String(value))
+    const selected = option?.raw ?? null
 
     setForm((prev) => ({
       ...prev,
-      idShalon: selected ? String(selected.idShalon) : '',
-      shalonName: selected?.name || '',
-      shalonLat: selected?.latitude ?? null,
-      shalonLng: selected?.longitude ?? null,
-      shalon: selected?.label || '',
+      ...applyShalonSelectionToForm(selected ? selected : null, { deliveryScope }),
     }))
   }
 
@@ -624,12 +581,20 @@ export default function AddressesPage() {
     e.preventDefault()
     setError('')
 
-    if (isProvinciaScope && !form.idRegion) {
+    if (isShalonPickup) {
+      if (!form.idShalon) {
+        setError('Selecciona la sede Shalon')
+        return
+      }
+
+      if (!form.idProvince || !form.idDistrict) {
+        setError('Selecciona una sede Shalon válida')
+        return
+      }
+    } else if (isProvinciaScope && !form.idRegion) {
       setError('Selecciona una región')
       return
-    }
-
-    if (!isOwnDelivery && (!form.idProvince || !form.idDistrict)) {
+    } else if (!isOwnDelivery && (!form.idProvince || !form.idDistrict)) {
       setError('Completa ciudad y distrito')
       return
     }
@@ -654,9 +619,6 @@ export default function AddressesPage() {
         setError('No se pudo cargar el punto de entrega')
         return
       }
-    } else if (!form.idShalon) {
-      setError('Selecciona la sede Shalon')
-      return
     }
 
     if (!deliveryScope || (isLimaScope && !limaDeliveryType)) {
@@ -867,7 +829,38 @@ export default function AddressesPage() {
           )}
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {isProvinciaScope && (
+            {isShalonPickup && (
+              <div className="sm:col-span-2">
+                <label className="block text-sm text-gray-600">Sede Shalon *</label>
+                <ShalonSearchCombobox
+                  value={form.idShalon}
+                  selectedLabel={form.shalon}
+                  onChange={handleShalonSelect}
+                  disabled={isSaving}
+                />
+                {form.shalon && (
+                  <a
+                    href={buildShalonMapsUrl({
+                      name: form.shalonName,
+                      district: form.district,
+                      city: form.city,
+                      region: form.region,
+                      shalonLabel: form.shalon,
+                      geoLat: form.shalonLat,
+                      geoLng: form.shalonLng,
+                    })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-black hover:bg-gray-50 hover:text-black"
+                  >
+                    <Map className="h-4 w-4 shrink-0" />
+                    Ver ubicación Shalom
+                  </a>
+                )}
+              </div>
+            )}
+
+            {!isShalonPickup && isProvinciaScope && (
               <div>
                 <label className="block text-sm text-gray-600">Región *</label>
                 <SearchableCombobox
@@ -883,7 +876,7 @@ export default function AddressesPage() {
               </div>
             )}
 
-            {!isOwnDelivery && (
+            {!isShalonPickup && !isOwnDelivery && (
               <>
                 <div>
                   <label className="block text-sm text-gray-600">Ciudad *</label>
@@ -936,47 +929,6 @@ export default function AddressesPage() {
             )}
 
             {isOwnDelivery && <OwnDeliveryPickupPointField />}
-
-            {isShalonPickup && (
-              <div className="sm:col-span-2">
-                <label className="block text-sm text-gray-600">Sede Shalon *</label>
-                <SearchableCombobox
-                  value={form.idShalon}
-                  selectedLabel={form.shalon}
-                  placeholder={
-                    form.idDistrict
-                      ? 'Escribe para buscar sede Shalon'
-                      : 'Primero elige un distrito'
-                  }
-                  searchPlaceholder="Busca por nombre o dirección (ej. PRO, Los Olivos)…"
-                  options={shalonComboboxOptions}
-                  isLoading={isLoadingShalons}
-                  disabled={!form.idDistrict}
-                  searchMode="contains"
-                  emptyMessage="No hay Shalons que coincidan en este distrito."
-                  onChange={handleShalonSelect}
-                />
-                {form.shalon && (
-                  <a
-                    href={buildShalonMapsUrl({
-                      name: form.shalonName,
-                      district: form.district,
-                      city: form.city,
-                      region: form.region,
-                      shalonLabel: form.shalon,
-                      geoLat: form.shalonLat,
-                      geoLng: form.shalonLng,
-                    })}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:border-black hover:bg-gray-50 hover:text-black"
-                  >
-                    <Map className="h-4 w-4 shrink-0" />
-                    Ver ubicación Shalom
-                  </a>
-                )}
-              </div>
-            )}
 
             {isBalenziHomeDelivery && form.idDistrict && (
               <div className="sm:col-span-2">

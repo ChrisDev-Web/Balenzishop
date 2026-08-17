@@ -59,8 +59,9 @@ export async function listProvincesPublic({ page = 1, page_size = 50, name, id_r
   return dedupedGet('provinces/list_active_public', params)
 }
 
-export async function listShalonsPublic({ page = 1, page_size = 50, id_district } = {}) {
+export async function listShalonsPublic({ page = 1, page_size = 50, id_district, search } = {}) {
   const params = { page, page_size }
   if (id_district) params.id_district = id_district
+  if (search?.trim()) params.search = search.trim()
   return dedupedGet('shalons/list_active_public', params)
 }

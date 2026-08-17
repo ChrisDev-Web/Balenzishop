@@ -16,6 +16,8 @@ export default function SearchableCombobox({
   disabled = false,
   emptyMessage = 'No hay opciones disponibles.',
   searchMode = 'prefix',
+  filterLocally = true,
+  onQueryChange,
   onChange,
 }) {
   const listboxId = useId()
@@ -29,12 +31,12 @@ export default function SearchableCombobox({
   const trimmedQuery = query.trim()
 
   const filteredOptions = useMemo(() => {
-    if (!trimmedQuery) return options
+    if (!filterLocally || !trimmedQuery) return options
     const matcher = searchMode === 'contains' ? matchesSearchContains : matchesSearchPrefix
     return options.filter((option) =>
       matcher(getOptionSearchText(option), trimmedQuery),
     )
-  }, [options, trimmedQuery, searchMode])
+  }, [options, trimmedQuery, searchMode, filterLocally])
 
   const displayValue = isOpen || !hasSelection ? query : selectedLabel
 
@@ -68,6 +70,7 @@ export default function SearchableCombobox({
     const nextQuery = event.target.value
     setQuery(nextQuery)
     setIsOpen(true)
+    onQueryChange?.(nextQuery)
     if (hasSelection) {
       onChange('')
     }

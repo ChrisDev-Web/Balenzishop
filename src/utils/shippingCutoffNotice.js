@@ -1,7 +1,8 @@
 export const SHIPPING_NOTICE_INTERVAL_MS = 2 * 60 * 60 * 1000
 export const SHIPPING_NOTICE_DISPLAY_MS = 15000
 export const SHIPPING_NOTICE_LAST_SHOWN_KEY = 'balenzishop_shipping_notice_last_shown'
-export const SHIPPING_CUTOFF_HOUR = 15
+export const SHIPPING_CUTOFF_HOUR = 14
+export const SHIPPING_CUTOFF_MINUTE = 30
 
 const LIMA_TIMEZONE = 'America/Lima'
 
@@ -22,7 +23,10 @@ export function getLimaTimeParts(date = new Date()) {
 export function isAfterShippingCutoff(date = new Date()) {
   const { hour, minute } = getLimaTimeParts(date)
 
-  return hour > SHIPPING_CUTOFF_HOUR || (hour === SHIPPING_CUTOFF_HOUR && minute >= 0)
+  if (hour > SHIPPING_CUTOFF_HOUR) return true
+  if (hour < SHIPPING_CUTOFF_HOUR) return false
+
+  return minute > SHIPPING_CUTOFF_MINUTE
 }
 
 export function getShippingNoticeContent(date = new Date()) {
@@ -37,7 +41,7 @@ export function getShippingNoticeContentBeforeCutoff() {
   return {
     title: 'Horario de despacho',
     message:
-      'Estimado cliente: todo pedido realizado como máximo hasta las 3:00 p. m. de hoy será enviado el mismo día. Pasada esa hora, su pedido será enviado el día de mañana.',
+      'Estimado cliente: todo pedido realizado como máximo hasta las 2:30 p. m. de hoy será enviado el mismo día. Pasada esa hora, su pedido será enviado el día de mañana.',
   }
 }
 
@@ -45,7 +49,7 @@ export function getShippingNoticeContentAfterCutoff() {
   return {
     title: 'Horario de despacho',
     message:
-      'Estimado cliente: todo pedido realizado a partir de las 3:00 p. m. será enviado el día de mañana.',
+      'Estimado cliente: todo pedido realizado a partir de las 2:30 p. m. será enviado el día de mañana.',
   }
 }
 

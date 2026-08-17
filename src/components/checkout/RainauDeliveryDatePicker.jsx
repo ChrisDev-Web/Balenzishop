@@ -21,6 +21,13 @@ const VARIANT_COPY = {
     changeLabel: 'Cambiar fecha de encuentro',
     scheduledPrefix: 'Encuentro programado',
   },
+  shalom: {
+    title: 'Fecha de envío a Shalom',
+    description: 'Elige el día en que enviaremos tu pedido a la agencia Shalom. Los días bloqueados no están disponibles.',
+    chooseLabel: 'Elegir fecha de envío Shalom',
+    changeLabel: 'Cambiar fecha de envío Shalom',
+    scheduledPrefix: 'Envío programado',
+  },
 }
 
 export default function RainauDeliveryDatePicker({

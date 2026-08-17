@@ -81,10 +81,16 @@ export default function RainauDeliveryDateModal({
     onConfirm(pendingDate)
   }
 
-  const modalTitle = variant === 'own' ? 'Elegir fecha de encuentro' : 'Elegir fecha de entrega'
+  const modalTitle = variant === 'own'
+    ? 'Elegir fecha de encuentro'
+    : variant === 'shalom'
+      ? 'Elegir fecha de envío Shalom'
+      : 'Elegir fecha de entrega'
   const sameDayCutoffMessage = variant === 'own'
     ? 'Las reservas para hoy solo están disponibles hasta las 8:59 p.m.'
-    : 'Las reservas para hoy solo están disponibles antes de las 10:00 a.m.'
+    : variant === 'shalom'
+      ? 'Las reservas para envío Shalom hoy solo están disponibles hasta las 2:30 p.m.'
+      : 'Las reservas para hoy solo están disponibles antes de las 10:00 a.m.'
 
   return createPortal(
     <div className="fixed inset-0 z-[260] flex items-end justify-center p-0 sm:items-center sm:p-4">

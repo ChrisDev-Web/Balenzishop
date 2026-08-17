@@ -15,6 +15,7 @@ import { computeOrderTotal, DELIVERY_MODES } from '../../utils/deliveryFee'
 import ShippingChargeDisplay from './ShippingChargeDisplay'
 import { DELIVERY_TYPES, isOwnDeliveryType } from '../../utils/deliveryTypes'
 import { useRainauAvailableDeliveryDates } from '../../hooks/useRainauAvailableDeliveryDates'
+import { useShalomAvailableDeliveryDates } from '../../hooks/useShalomAvailableDeliveryDates'
 import PaymentMethodCheckoutInfo from './PaymentMethodCheckoutInfo'
 import RainauDeliveryDatePicker from './RainauDeliveryDatePicker'
 import CancelCheckoutConfirmModal, {
@@ -84,14 +85,18 @@ function rebalancePaymentRows(rows, expectedAmount) {
   )
 }
 
-function getStepSubtitle(step, paymentMode, { isOwnDelivery = false, balanceDue = 0 } = {}) {
+function getStepSubtitle(step, paymentMode, { isOwnDelivery = false, isShalomShipDate = false, balanceDue = 0 } = {}) {
   switch (step) {
     case STEP_SUMMARY:
       return 'Revisa los productos de tu pedido'
     case STEP_DELIVERY:
-      return isOwnDelivery
-        ? 'Elige la fecha de encuentro en el punto de entrega'
-        : 'Elige la fecha de entrega Balenzi'
+      if (isOwnDelivery) {
+        return 'Elige la fecha de encuentro en el punto de entrega'
+      }
+      if (isShalomShipDate) {
+        return 'Elige la fecha de envío a Shalom'
+      }
+      return 'Elige la fecha de entrega Balenzi'
     case STEP_PAYMENT:
       return 'Indica si pagarás la reserva, un monto personalizado o el total'
     case STEP_FINAL:
@@ -149,7 +154,12 @@ export default function ReserveOrderModal({
   const requiresOwnDeliveryMeetingDate = requiresScheduledDeliveryDate
     && isOwnDeliveryType(primaryAddress?.deliveryType)
 
-  const requiresDeliveryDateStep = requiresRainauDeliveryDate || requiresOwnDeliveryMeetingDate
+  const requiresShalomShipDate = deliveryMode === DELIVERY_MODES.SHALON_FREE
+    || deliveryMode === DELIVERY_MODES.SHALON_PAID
+
+  const requiresDeliveryDateStep = requiresRainauDeliveryDate
+    || requiresOwnDeliveryMeetingDate
+    || requiresShalomShipDate
 
   const steps = useMemo(() => {
     const list = [STEP_SUMMARY]
@@ -183,8 +193,18 @@ export default function ReserveOrderModal({
     isLoading: deliveryDatesLoading,
     error: deliveryDatesError,
     refresh: refreshDeliveryDates,
-  } = useRainauAvailableDeliveryDates(open && requiresScheduledDeliveryDate, {
+  } = useRainauAvailableDeliveryDates(open && requiresRainauDeliveryDate, {
     deliveryMode: scheduledDeliveryMode,
+    fastPoll: calendarPickerOpen,
+  })
+
+  const {
+    dates: availableShalomDates,
+    sameDayCutoffPassed: shalomSameDayCutoffPassed,
+    isLoading: shalomDatesLoading,
+    error: shalomDatesError,
+    refresh: refreshShalomDates,
+  } = useShalomAvailableDeliveryDates(open && requiresShalomShipDate, {
     fastPoll: calendarPickerOpen,
   })
 
@@ -373,7 +393,9 @@ export default function ReserveOrderModal({
         setError(
           requiresOwnDeliveryMeetingDate
             ? 'Selecciona una fecha de encuentro para continuar.'
-            : 'Selecciona una fecha de entrega para continuar.',
+            : requiresShalomShipDate
+              ? 'Selecciona una fecha de envío a Shalom para continuar.'
+              : 'Selecciona una fecha de entrega para continuar.',
         )
         return
       }
@@ -450,7 +472,7 @@ export default function ReserveOrderModal({
           balancePaymentMethodId: hasBalanceAfterInitialPayment(paymentMode, balanceDue)
             ? Number(remainderMethodId)
             : undefined,
-          delivery: requiresScheduledDeliveryDate
+          delivery: (requiresScheduledDeliveryDate || requiresShalomShipDate)
             ? {
                 scheduled_delivery_date: scheduledDeliveryDate,
                 delivery_fee: effectiveDeliveryFee,
@@ -547,6 +569,22 @@ export default function ReserveOrderModal({
     }
 
     if (step === STEP_DELIVERY) {
+      if (requiresShalomShipDate) {
+        return (
+          <RainauDeliveryDatePicker
+            variant="shalom"
+            dates={availableShalomDates}
+            value={scheduledDeliveryDate}
+            isLoading={shalomDatesLoading}
+            error={shalomDatesError}
+            sameDayCutoffPassed={shalomSameDayCutoffPassed}
+            onChange={setScheduledDeliveryDate}
+            onRefreshDates={refreshShalomDates}
+            onCalendarOpenChange={setCalendarPickerOpen}
+          />
+        )
+      }
+
       return (
         <RainauDeliveryDatePicker
           variant={requiresOwnDeliveryMeetingDate ? 'own' : 'balenzi'}
@@ -908,6 +946,7 @@ export default function ReserveOrderModal({
             <p className="mt-0.5 text-xs text-gray-500 sm:text-sm">
               {getStepSubtitle(step, paymentMode, {
                 isOwnDelivery: requiresOwnDeliveryMeetingDate,
+                isShalomShipDate: requiresShalomShipDate,
                 balanceDue,
               })}
             </p>

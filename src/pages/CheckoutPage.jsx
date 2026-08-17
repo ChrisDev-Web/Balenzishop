@@ -112,7 +112,7 @@ export default function CheckoutPage() {
     : user
   const addresses = isMasterAccount ? beneficiaryAddresses : (user?.addresses || [])
   const primaryAddress = addresses.find((a) => a.isPrimary) || addresses[0]
-  const discount = livePricingEnabled ? 0 : (appliedCode?.discount || 0)
+  const discount = appliedCode?.discount || 0
   const delivery = getDeliveryFeeForAddress(primaryAddress)
   const deliveryFee = delivery.fee
   const total = computeOrderTotal(subtotal, discount, deliveryFee, delivery.mode)
@@ -323,15 +323,7 @@ export default function CheckoutPage() {
   }, [])
 
   useEffect(() => {
-    if (!livePricingEnabled) return
-
-    setAppliedCode(null)
-    setCodeInput('')
-    setCodeError('')
-  }, [livePricingEnabled])
-
-  useEffect(() => {
-    if (!editingDiscountCode || !accessToken || items.length === 0 || livePricingEnabled) return
+    if (!editingDiscountCode || !accessToken || items.length === 0) return
 
     let cancelled = false
 
@@ -360,7 +352,7 @@ export default function CheckoutPage() {
     return () => {
       cancelled = true
     }
-  }, [editingDiscountCode, accessToken, items, livePricingEnabled])
+  }, [editingDiscountCode, accessToken, items])
 
   useEffect(() => {
     if (draftOrderId && !promptCancelOnOpen) {
@@ -369,10 +361,6 @@ export default function CheckoutPage() {
   }, [draftOrderId, promptCancelOnOpen])
 
   const handleApplyCode = async () => {
-    if (livePricingEnabled) {
-      setCodeError('Los cupones no están disponibles mientras los Precios Live estén activos.')
-      return
-    }
     if (!accessToken) {
       setCodeError('Inicia sesión para aplicar cupones')
       return
@@ -690,7 +678,7 @@ export default function CheckoutPage() {
       const response = await reserveCheckoutOrder(
         {
           items,
-          discountCode: livePricingEnabled ? null : (appliedCode?.code || null),
+          discountCode: appliedCode?.code || null,
           beneficiaryClientId: isMasterAccount ? selectedBeneficiary?.id_client : null,
           delivery: {
             id_client_direction: primaryAddress?.idClientDirection
@@ -1094,11 +1082,10 @@ export default function CheckoutPage() {
           <div className="sticky top-24 rounded-xl border border-gray-200 bg-white p-5">
             <h2 className="font-semibold text-gray-900">Cupón de descuento</h2>
             {livePricingEnabled ? (
-              <p className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600">
-                Los cupones de descuento no están disponibles mientras los Precios Live estén activos.
+              <p className="mt-2 text-xs text-gray-500">
+                Con Precios Live activos solo aplican cupones habilitados para uso en Live.
               </p>
-            ) : (
-              <>
+            ) : null}
             <div className="mt-3 flex gap-2">
               <div className="relative flex-1">
                 <Tag className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -1136,8 +1123,6 @@ export default function CheckoutPage() {
               <p className="mt-2 text-xs font-bold text-gray-900">
                 ✓ {appliedCode.code} aplicado — {appliedCode.label}
               </p>
-            )}
-              </>
             )}
 
             <div className="mt-6 space-y-2 border-t pt-4 text-sm">
@@ -1270,7 +1255,7 @@ export default function CheckoutPage() {
         items={items}
         subtotal={subtotal}
         discount={discount}
-        discountCode={livePricingEnabled ? null : (appliedCode?.code || null)}
+        discountCode={appliedCode?.code || null}
         total={total}
         totalQuantity={totalQuantity}
         deliveryFee={deliveryFee}

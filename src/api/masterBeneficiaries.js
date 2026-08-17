@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPut } from './client'
+import { apiDelete, apiGet, apiPost, apiPut } from './client'
 import { buildRequestKey, dedupeRequest } from './requestDedupe'
 
 function dedupedGet(path, params, token) {
@@ -18,6 +18,14 @@ export async function getMasterBeneficiaryDetail(id, token) {
 
 export async function createMasterBeneficiary(payload, token) {
   return apiPost('master_beneficiaries/create', payload, token)
+}
+
+export async function updateMasterBeneficiary(id, payload, token) {
+  return apiPut(`master_beneficiaries/edit/${id}`, payload, token)
+}
+
+export async function deleteMasterBeneficiary(id, token) {
+  return apiDelete(`master_beneficiaries/delete/${id}`, token)
 }
 
 export async function listMasterBeneficiaryDirections(beneficiaryId, token) {

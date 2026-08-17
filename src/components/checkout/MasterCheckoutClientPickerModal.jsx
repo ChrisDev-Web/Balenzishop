@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom'
-import { Plus, Search, User, X } from 'lucide-react'
+import { Pencil, Plus, Search, Trash2, User, X } from 'lucide-react'
 import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 import { formatMasterBeneficiaryName } from '../../utils/masterBeneficiaryMapper'
 
@@ -9,6 +9,8 @@ export default function MasterCheckoutClientPickerModal({
   searchValue,
   onSearchChange,
   onSelect,
+  onEdit,
+  onDelete,
   onCreate,
   onClose,
   isLoading = false,
@@ -78,11 +80,11 @@ export default function MasterCheckoutClientPickerModal({
           ) : (
             <ul className="space-y-3">
               {beneficiaries.map((beneficiary) => (
-                <li key={beneficiary.id_client}>
+                <li key={beneficiary.id_client} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
                   <button
                     type="button"
                     onClick={() => onSelect(beneficiary)}
-                    className="w-full rounded-xl border border-gray-200 bg-white p-4 text-left transition hover:border-black hover:bg-gray-50"
+                    className="w-full p-4 text-left transition hover:bg-gray-50"
                   >
                     <p className="font-semibold text-gray-900">
                       {formatMasterBeneficiaryName(beneficiary)}
@@ -97,6 +99,24 @@ export default function MasterCheckoutClientPickerModal({
                         : 'Sin direcciones — deberás agregar una'}
                     </p>
                   </button>
+                  <div className="flex border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => onEdit?.(beneficiary)}
+                      className="flex flex-1 items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete?.(beneficiary)}
+                      className="flex flex-1 items-center justify-center gap-1.5 border-l border-gray-100 px-3 py-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Eliminar
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

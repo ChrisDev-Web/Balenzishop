@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Tag, MapPin, User, Plus, Minus, Trash2, ChevronDown } from 'lucide-react'
 import { useCartStore } from '../stores/cartStore'
 import { useAuthStore } from '../stores/authStore'
 import { useCheckoutDraftStore } from '../stores/checkoutDraftStore'
 import { useUiStore } from '../stores/uiStore'
-import { AUTH_INTENT, captureAuthReturnTo } from '../utils/authFlow'
+import { AUTH_INTENT, captureAuthReturnTo, isMasterAccountUser } from '../utils/authFlow'
 import { fetchActivePaymentMethods } from '../api/paymentMethods'
 import {
   validateDiscountCoupon,
@@ -32,19 +32,29 @@ import CheckoutAddressConfirmModal, {
 } from '../components/checkout/CheckoutAddressConfirmModal'
 import MasterCheckoutClientPickerModal from '../components/checkout/MasterCheckoutClientPickerModal'
 import MasterCheckoutCreateClientModal from '../components/checkout/MasterCheckoutCreateClientModal'
+import MasterCheckoutDeleteClientModal from '../components/checkout/MasterCheckoutDeleteClientModal'
 import {
   createMasterBeneficiary,
+  deleteMasterBeneficiary,
+  getMasterBeneficiaryDetail,
   listMasterBeneficiaries,
   listMasterBeneficiaryDirections,
+  updateMasterBeneficiary,
   updateMasterBeneficiaryDirection,
 } from '../api/masterBeneficiaries'
 import {
   mapMasterBeneficiaryAddresses,
   mapMasterBeneficiaryToCheckoutUser,
 } from '../utils/masterBeneficiaryMapper'
+import {
+  clearMasterCheckoutBeneficiaryId,
+  readMasterCheckoutBeneficiaryId,
+  saveMasterCheckoutBeneficiaryId,
+} from '../utils/masterCheckoutStorage'
 
 export default function CheckoutPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { items, clearCart, clearEditingOrder, editingOrderId, editingDiscountCode, removeItem, updateQuantity } = useCartStore()
   const { subtotal, grossSubtotal, decantPromoDiscount, promoResult } = useCartTotals()
   const { role } = useUserPricing()
@@ -79,22 +89,26 @@ export default function CheckoutPage() {
   const [livePricingEnabled, setLivePricingEnabled] = useState(false)
   const hasPromptedAddressRef = useRef(false)
 
-  const isMasterAccount = Boolean(user?.isMasterAccount)
+  const isMasterAccount = isMasterAccountUser(user)
   const [showMasterClientPicker, setShowMasterClientPicker] = useState(false)
   const [showMasterCreateClient, setShowMasterCreateClient] = useState(false)
   const [masterBeneficiaries, setMasterBeneficiaries] = useState([])
   const [masterBeneficiarySearch, setMasterBeneficiarySearch] = useState('')
   const [isLoadingMasterBeneficiaries, setIsLoadingMasterBeneficiaries] = useState(false)
   const [masterPickerError, setMasterPickerError] = useState('')
-  const [isCreatingMasterBeneficiary, setIsCreatingMasterBeneficiary] = useState(false)
+  const [isSavingMasterBeneficiary, setIsSavingMasterBeneficiary] = useState(false)
   const [masterCreateError, setMasterCreateError] = useState('')
+  const [editingMasterBeneficiary, setEditingMasterBeneficiary] = useState(null)
+  const [deletingMasterBeneficiary, setDeletingMasterBeneficiary] = useState(null)
+  const [isDeletingMasterBeneficiary, setIsDeletingMasterBeneficiary] = useState(false)
+  const [masterDeleteError, setMasterDeleteError] = useState('')
   const [selectedBeneficiary, setSelectedBeneficiary] = useState(null)
   const [beneficiaryAddresses, setBeneficiaryAddresses] = useState([])
   const [masterCheckoutReady, setMasterCheckoutReady] = useState(false)
 
   const isEditing = !!editingOrderId
-  const checkoutCustomer = isMasterAccount && selectedBeneficiary
-    ? mapMasterBeneficiaryToCheckoutUser(selectedBeneficiary)
+  const checkoutCustomer = isMasterAccount
+    ? (selectedBeneficiary ? mapMasterBeneficiaryToCheckoutUser(selectedBeneficiary) : null)
     : user
   const addresses = isMasterAccount ? beneficiaryAddresses : (user?.addresses || [])
   const primaryAddress = addresses.find((a) => a.isPrimary) || addresses[0]
@@ -140,11 +154,11 @@ export default function CheckoutPage() {
       openLoginModal(AUTH_INTENT.CHECKOUT)
       return
     }
-    if (user && !user.profileComplete) {
+    if (user && !user.profileComplete && !isMasterAccountUser(user)) {
       navigate('/mi-cuenta/completar-perfil', { replace: true })
       return
     }
-    if (user?.profileComplete && !isMasterAccount && !user.addresses?.length) {
+    if (user?.profileComplete && !isMasterAccountUser(user) && !user.addresses?.length) {
       const returnPath = captureAuthReturnTo() || '/catalogo'
       setAuthIntent(AUTH_INTENT.CHECKOUT, returnPath)
       navigate(
@@ -152,7 +166,7 @@ export default function CheckoutPage() {
         { replace: true },
       )
     }
-  }, [isAuthenticated, user, navigate, openLoginModal, setAuthIntent])
+  }, [isAuthenticated, user, navigate, openLoginModal, setAuthIntent, isMasterAccount])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -161,20 +175,67 @@ export default function CheckoutPage() {
   }, [isAuthenticated, syncAddresses])
 
   useEffect(() => {
-    if (!isMasterAccount) return
+    if (!isAuthenticated || !isMasterAccount || !accessToken || !resumeChecked || selectedBeneficiary) {
+      return
+    }
 
-    setSelectedBeneficiary(null)
-    setBeneficiaryAddresses([])
-    setMasterCheckoutReady(false)
-    setAddressConfirmed(false)
-    setShowAddressConfirmModal(false)
-    setMasterBeneficiarySearch('')
-  }, [isMasterAccount])
+    const beneficiaryId =
+      searchParams.get('masterBeneficiaryId') || readMasterCheckoutBeneficiaryId()
+    if (!beneficiaryId) return
+
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const response = await getMasterBeneficiaryDetail(Number(beneficiaryId), accessToken)
+        if (cancelled || !response.success || !response.data) return
+
+        const beneficiary = response.data
+        setSelectedBeneficiary(beneficiary)
+        saveMasterCheckoutBeneficiaryId(beneficiary.id_client)
+
+        const nextAddresses = await loadBeneficiaryAddresses(beneficiary.id_client)
+        if (cancelled) return
+
+        setBeneficiaryAddresses(nextAddresses)
+
+        if (!nextAddresses.length) {
+          navigate(
+            `/mi-cuenta/direcciones?flujo=pedido&nueva=1&masterBeneficiaryId=${beneficiary.id_client}&returnTo=${encodeURIComponent(`/pedido?masterBeneficiaryId=${beneficiary.id_client}`)}`,
+            { replace: true },
+          )
+          return
+        }
+
+        const primary = nextAddresses.find((item) => item.isPrimary) || nextAddresses[0]
+        setSelectedAddressId(primary?.id || null)
+        setAddressConfirmed(true)
+        setMasterCheckoutReady(true)
+        setShowMasterClientPicker(false)
+      } catch {
+        if (!cancelled) {
+          clearMasterCheckoutBeneficiaryId()
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    isAuthenticated,
+    isMasterAccount,
+    accessToken,
+    resumeChecked,
+    selectedBeneficiary,
+    searchParams,
+    navigate,
+  ])
 
   useEffect(() => {
     if (!isAuthenticated || !isMasterAccount || !accessToken || !resumeChecked) return
 
-    if (draftOrderId || promptCancelOnOpen || masterCheckoutReady) {
+    if (draftOrderId || promptCancelOnOpen || masterCheckoutReady || selectedBeneficiary) {
       setShowMasterClientPicker(false)
       return
     }
@@ -189,6 +250,7 @@ export default function CheckoutPage() {
     promptCancelOnOpen,
     resumeChecked,
     masterCheckoutReady,
+    selectedBeneficiary,
   ])
 
   useEffect(() => {
@@ -386,6 +448,7 @@ export default function CheckoutPage() {
   const handleSelectMasterBeneficiary = async (beneficiary) => {
     setShowMasterClientPicker(false)
     setSelectedBeneficiary(beneficiary)
+    saveMasterCheckoutBeneficiaryId(beneficiary.id_client)
     setMasterCheckoutReady(false)
     setAddressConfirmed(false)
 
@@ -393,9 +456,11 @@ export default function CheckoutPage() {
       const nextAddresses = await loadBeneficiaryAddresses(beneficiary.id_client)
       setBeneficiaryAddresses(nextAddresses)
 
+      const returnTo = `/pedido?masterBeneficiaryId=${beneficiary.id_client}`
+
       if (!nextAddresses.length) {
         navigate(
-          `/mi-cuenta/direcciones?flujo=pedido&nueva=1&masterBeneficiaryId=${beneficiary.id_client}&returnTo=${encodeURIComponent('/pedido')}`,
+          `/mi-cuenta/direcciones?flujo=pedido&nueva=1&masterBeneficiaryId=${beneficiary.id_client}&returnTo=${encodeURIComponent(returnTo)}`,
         )
         return
       }
@@ -411,15 +476,53 @@ export default function CheckoutPage() {
 
   const handleOpenMasterCreateClient = () => {
     setMasterCreateError('')
+    setEditingMasterBeneficiary(null)
     setShowMasterClientPicker(false)
     setShowMasterCreateClient(true)
   }
 
-  const handleCreateMasterBeneficiary = async (payload) => {
-    setIsCreatingMasterBeneficiary(true)
+  const handleOpenMasterEditClient = (beneficiary) => {
+    setMasterCreateError('')
+    setEditingMasterBeneficiary(beneficiary)
+    setShowMasterClientPicker(false)
+    setShowMasterCreateClient(true)
+  }
+
+  const handleOpenMasterDeleteClient = (beneficiary) => {
+    setMasterDeleteError('')
+    setDeletingMasterBeneficiary(beneficiary)
+  }
+
+  const handleSubmitMasterBeneficiary = async (payload) => {
+    setIsSavingMasterBeneficiary(true)
     setMasterCreateError('')
 
     try {
+      if (editingMasterBeneficiary) {
+        const response = await updateMasterBeneficiary(
+          editingMasterBeneficiary.id_client,
+          payload,
+          accessToken,
+        )
+
+        if (!response.success) {
+          setMasterCreateError(response.message || 'No se pudo actualizar el cliente')
+          return
+        }
+
+        const updated = response.data
+        setShowMasterCreateClient(false)
+        setEditingMasterBeneficiary(null)
+        await loadMasterBeneficiaries(masterBeneficiarySearch)
+
+        if (selectedBeneficiary?.id_client === updated.id_client) {
+          setSelectedBeneficiary(updated)
+        }
+
+        setShowMasterClientPicker(true)
+        return
+      }
+
       const response = await createMasterBeneficiary(payload, accessToken)
       if (!response.success) {
         setMasterCreateError(response.message || 'No se pudo crear el cliente')
@@ -428,13 +531,45 @@ export default function CheckoutPage() {
 
       const beneficiary = response.data
       setShowMasterCreateClient(false)
+      saveMasterCheckoutBeneficiaryId(beneficiary.id_client)
       navigate(
-        `/mi-cuenta/direcciones?flujo=pedido&nueva=1&masterBeneficiaryId=${beneficiary.id_client}&returnTo=${encodeURIComponent('/pedido')}`,
+        `/mi-cuenta/direcciones?flujo=pedido&nueva=1&masterBeneficiaryId=${beneficiary.id_client}&returnTo=${encodeURIComponent(`/pedido?masterBeneficiaryId=${beneficiary.id_client}`)}`,
       )
     } catch (error) {
-      setMasterCreateError(error.message || 'No se pudo crear el cliente')
+      setMasterCreateError(error.message || 'No se pudo guardar el cliente')
     } finally {
-      setIsCreatingMasterBeneficiary(false)
+      setIsSavingMasterBeneficiary(false)
+    }
+  }
+
+  const handleConfirmDeleteMasterBeneficiary = async () => {
+    if (!deletingMasterBeneficiary) return
+
+    setIsDeletingMasterBeneficiary(true)
+    setMasterDeleteError('')
+
+    try {
+      const response = await deleteMasterBeneficiary(deletingMasterBeneficiary.id_client, accessToken)
+      if (!response.success) {
+        setMasterDeleteError(response.message || 'No se pudo eliminar el cliente')
+        return
+      }
+
+      if (selectedBeneficiary?.id_client === deletingMasterBeneficiary.id_client) {
+        setSelectedBeneficiary(null)
+        setBeneficiaryAddresses([])
+        setMasterCheckoutReady(false)
+        setAddressConfirmed(false)
+        clearMasterCheckoutBeneficiaryId()
+      }
+
+      setDeletingMasterBeneficiary(null)
+      await loadMasterBeneficiaries(masterBeneficiarySearch)
+      setShowMasterClientPicker(true)
+    } catch (error) {
+      setMasterDeleteError(error.message || 'No se pudo eliminar el cliente')
+    } finally {
+      setIsDeletingMasterBeneficiary(false)
     }
   }
 
@@ -445,6 +580,7 @@ export default function CheckoutPage() {
     setAddressConfirmed(false)
     setShowAddressConfirmModal(false)
     setMasterBeneficiarySearch('')
+    clearMasterCheckoutBeneficiaryId()
     loadMasterBeneficiaries('')
     setShowMasterClientPicker(true)
   }
@@ -512,8 +648,9 @@ export default function CheckoutPage() {
   const handleAddNewAddress = () => {
     const returnPath = captureAuthReturnTo() || '/pedido'
     if (isMasterAccount && selectedBeneficiary) {
+      const returnTo = `${returnPath.includes('?') ? returnPath.split('?')[0] : returnPath}?masterBeneficiaryId=${selectedBeneficiary.id_client}`
       navigate(
-        `/mi-cuenta/direcciones?flujo=pedido&nueva=1&masterBeneficiaryId=${selectedBeneficiary.id_client}&returnTo=${encodeURIComponent(returnPath)}`,
+        `/mi-cuenta/direcciones?flujo=pedido&nueva=1&masterBeneficiaryId=${selectedBeneficiary.id_client}&returnTo=${encodeURIComponent(returnTo)}`,
       )
       return
     }
@@ -525,9 +662,13 @@ export default function CheckoutPage() {
   }
 
   const handleOpenAddressConfirmModal = () => {
-    if (isMasterAccount && !selectedBeneficiary) {
-      handleChangeMasterClient()
-      return
+    if (isMasterAccount) {
+      if (!selectedBeneficiary) return
+
+      if (!addresses.length) {
+        handleAddNewAddress()
+        return
+      }
     }
 
     setSelectedAddressId(primaryAddress?.id || null)
@@ -665,22 +806,26 @@ export default function CheckoutPage() {
     )
   }
 
-  if (!user?.profileComplete) {
-    return null
+  if (!user) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-20 text-center">
+        <p className="text-sm text-gray-600">Cargando tu sesión…</p>
+      </div>
+    )
+  }
+
+  if (!user.profileComplete && !isMasterAccount) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-20 text-center">
+        <p className="text-sm text-gray-600">Redirigiendo para completar tu perfil…</p>
+      </div>
+    )
   }
 
   if (!isMasterAccount && !primaryAddress) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
         <p className="text-sm text-gray-600">Cargando dirección de entrega…</p>
-      </div>
-    )
-  }
-
-  if (isMasterAccount && !masterCheckoutReady && !showReserveModal && !draftOrderId) {
-    return (
-      <div className="mx-auto max-w-2xl px-4 py-20 text-center">
-        <p className="text-sm text-gray-600">Selecciona el cliente para continuar con el pedido…</p>
       </div>
     )
   }
@@ -813,70 +958,101 @@ export default function CheckoutPage() {
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-              <button
-                type="button"
-                onClick={() => setClientSectionOpen((open) => !open)}
-                className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left md:pointer-events-none"
-                aria-expanded={clientSectionOpen}
-              >
-                <div className="flex min-w-0 items-center gap-2 text-gray-900">
-                  <User className="h-5 w-5 shrink-0 text-brand" />
-                  <div className="min-w-0">
-                    <h3 className="font-semibold">Datos del cliente</h3>
-                    <p className={`truncate text-xs text-gray-500 md:hidden ${clientSectionOpen ? 'hidden' : 'block'}`}>
-                      {clientFullName}
-                    </p>
+              <div className="px-5 py-4">
+                {isMasterAccount ? (
+                  <div className="mb-2 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={handleChangeMasterClient}
+                      className="whitespace-nowrap text-xs font-semibold text-black hover:underline"
+                    >
+                      Cambiar cliente
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClientSectionOpen((open) => !open)}
+                      className="rounded p-0.5 text-gray-400 md:hidden"
+                      aria-label={clientSectionOpen ? 'Ocultar datos del cliente' : 'Ver datos del cliente'}
+                    >
+                      <ChevronDown
+                        className={`h-5 w-5 transition-transform ${clientSectionOpen ? 'rotate-180' : ''}`}
+                        aria-hidden
+                      />
+                    </button>
                   </div>
+                ) : null}
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setClientSectionOpen((open) => !open)}
+                    className="flex min-w-0 items-center gap-2 text-left text-gray-900 md:pointer-events-none"
+                    aria-expanded={clientSectionOpen}
+                  >
+                    <User className="h-5 w-5 shrink-0 text-brand" />
+                    <div className="min-w-0">
+                      <h3 className="whitespace-nowrap text-sm font-semibold sm:text-base">Datos del cliente</h3>
+                      <p className={`truncate text-xs text-gray-500 md:hidden ${clientSectionOpen ? 'hidden' : 'block'}`}>
+                        {checkoutCustomer ? clientFullName : 'Sin cliente'}
+                      </p>
+                    </div>
+                  </button>
+                  {!isMasterAccount ? (
+                    <button
+                      type="button"
+                      onClick={() => setClientSectionOpen((open) => !open)}
+                      className="rounded p-0.5 text-gray-400 md:hidden"
+                      aria-label={clientSectionOpen ? 'Ocultar datos del cliente' : 'Ver datos del cliente'}
+                    >
+                      <ChevronDown
+                        className={`h-5 w-5 transition-transform ${clientSectionOpen ? 'rotate-180' : ''}`}
+                        aria-hidden
+                      />
+                    </button>
+                  ) : null}
                 </div>
-                <ChevronDown
-                  className={`h-5 w-5 shrink-0 text-gray-400 transition-transform md:hidden ${
-                    clientSectionOpen ? 'rotate-180' : ''
-                  }`}
-                  aria-hidden
-                />
-              </button>
+              </div>
               <ul
                 className={`space-y-1 border-t border-gray-100 px-5 pb-4 pt-3 text-sm text-gray-600 ${
                   clientSectionOpen ? 'block' : 'hidden'
                 } md:mt-3 md:block md:border-t-0 md:px-5 md:pb-5 md:pt-0`}
               >
-                <li>{clientFullName}</li>
-                {checkoutCustomer.documentId && <li>{checkoutCustomer.documentTypeName || 'Documento'}: {checkoutCustomer.documentId}</li>}
-                {!isMasterAccount && <li>{user.email}</li>}
-                <li>{checkoutCustomer.phone || '—'}</li>
+                {checkoutCustomer ? (
+                  <>
+                    <li>{clientFullName}</li>
+                    {checkoutCustomer.documentId && (
+                      <li>{checkoutCustomer.documentTypeName || 'Documento'}: {checkoutCustomer.documentId}</li>
+                    )}
+                    {!isMasterAccount && user?.email ? <li>{user.email}</li> : null}
+                    <li>{checkoutCustomer.phone || '—'}</li>
+                  </>
+                ) : (
+                  <li className="text-xs text-amber-700">Selecciona un cliente para continuar</li>
+                )}
               </ul>
             </div>
 
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-              <div className="flex items-start justify-between gap-3 px-5 py-4">
+              <div className="flex items-center justify-between gap-2 px-5 py-4">
                 <button
                   type="button"
                   onClick={() => setDeliverySectionOpen((open) => !open)}
-                  className="flex min-w-0 flex-1 items-center gap-2 text-left text-gray-900 md:pointer-events-none"
+                  className="flex min-w-0 items-center gap-2 text-left text-gray-900 md:pointer-events-none"
                   aria-expanded={deliverySectionOpen}
                 >
                   <MapPin className="h-5 w-5 shrink-0 text-brand" />
                   <div className="min-w-0">
-                    <h3 className="font-semibold">Entrega</h3>
+                    <h3 className="whitespace-nowrap text-sm font-semibold sm:text-base">Entrega</h3>
                     <p className={`truncate text-xs text-gray-500 md:hidden ${deliverySectionOpen ? 'hidden' : 'block'}`}>
                       {deliverySummary}
                     </p>
                   </div>
                 </button>
                 <div className="flex shrink-0 items-center gap-2">
-                  {isMasterAccount ? (
-                    <button
-                      type="button"
-                      onClick={handleChangeMasterClient}
-                      className="text-xs font-semibold text-black hover:underline"
-                    >
-                      Cambiar cliente
-                    </button>
-                  ) : null}
                   <button
                     type="button"
                     onClick={handleOpenAddressConfirmModal}
-                    className="text-xs font-semibold text-black hover:underline"
+                    disabled={isMasterAccount && !selectedBeneficiary}
+                    className="whitespace-nowrap text-xs font-semibold text-black hover:underline disabled:cursor-not-allowed disabled:text-gray-400 disabled:no-underline"
                   >
                     Cambiar
                   </button>
@@ -899,8 +1075,16 @@ export default function CheckoutPage() {
                 } md:mt-3 md:block md:border-t-0 md:px-5 md:pb-5 md:pt-0`}
               >
                 <li className="font-medium text-gray-900">{deliverySummary}</li>
-                <li className="text-xs text-gray-500">{getScopeLabel(primaryAddress)}</li>
-                <li>{formatCheckoutAddressLine(primaryAddress)}</li>
+                {primaryAddress ? (
+                  <>
+                    <li className="text-xs text-gray-500">{getScopeLabel(primaryAddress)}</li>
+                    <li>{formatCheckoutAddressLine(primaryAddress)}</li>
+                  </>
+                ) : isMasterAccount && !selectedBeneficiary ? (
+                  <li className="text-xs text-amber-700">Selecciona un cliente para ver su dirección</li>
+                ) : isMasterAccount && selectedBeneficiary ? (
+                  <li className="text-xs text-amber-700">Agrega una dirección para este cliente</li>
+                ) : null}
               </ul>
             </div>
           </div>
@@ -1029,6 +1213,8 @@ export default function CheckoutPage() {
         searchValue={masterBeneficiarySearch}
         onSearchChange={handleMasterSearchChange}
         onSelect={handleSelectMasterBeneficiary}
+        onEdit={handleOpenMasterEditClient}
+        onDelete={handleOpenMasterDeleteClient}
         onCreate={handleOpenMasterCreateClient}
         onClose={() => setShowMasterClientPicker(false)}
         isLoading={isLoadingMasterBeneficiaries}
@@ -1037,13 +1223,27 @@ export default function CheckoutPage() {
 
       <MasterCheckoutCreateClientModal
         open={showMasterCreateClient}
+        beneficiary={editingMasterBeneficiary}
         onClose={() => {
           setShowMasterCreateClient(false)
+          setEditingMasterBeneficiary(null)
           setShowMasterClientPicker(true)
         }}
-        onCreated={handleCreateMasterBeneficiary}
-        isSubmitting={isCreatingMasterBeneficiary}
+        onSubmit={handleSubmitMasterBeneficiary}
+        isSubmitting={isSavingMasterBeneficiary}
         error={masterCreateError}
+      />
+
+      <MasterCheckoutDeleteClientModal
+        beneficiary={deletingMasterBeneficiary}
+        isProcessing={isDeletingMasterBeneficiary}
+        error={masterDeleteError}
+        onCancel={() => {
+          if (isDeletingMasterBeneficiary) return
+          setDeletingMasterBeneficiary(null)
+          setMasterDeleteError('')
+        }}
+        onConfirm={handleConfirmDeleteMasterBeneficiary}
       />
 
       <CheckoutAddressConfirmModal

@@ -8,6 +8,10 @@ export function mapClientTypeToRole(clientTypeName) {
 }
 
 export function isProfileComplete(client) {
+  if (client?.is_master_account || client?.email?.toLowerCase() === 'balenziparfum@gmail.com') {
+    return true
+  }
+
   return Boolean(
     client?.name?.trim() &&
     client?.document_number?.trim() &&

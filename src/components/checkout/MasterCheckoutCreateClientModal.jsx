@@ -16,11 +16,13 @@ const emptyForm = {
 
 export default function MasterCheckoutCreateClientModal({
   open,
+  beneficiary = null,
   onClose,
-  onCreated,
+  onSubmit,
   isSubmitting = false,
   error = '',
 }) {
+  const isEditing = Boolean(beneficiary)
   useBodyScrollLock(open)
   const [form, setForm] = useState(emptyForm)
   const { documentTypes } = useDocumentTypes({ enabled: open })
@@ -29,9 +31,21 @@ export default function MasterCheckoutCreateClientModal({
   useEffect(() => {
     if (!open) return
 
-    setForm(emptyForm)
+    if (beneficiary) {
+      setForm({
+        name: beneficiary.name || '',
+        lastNamePaternal: beneficiary.last_name_paternal || '',
+        lastNameMaternal: beneficiary.last_name_maternal || '',
+        phone: beneficiary.phone || '',
+        idDocumentType: beneficiary.id_document_type ? String(beneficiary.id_document_type) : '',
+        documentNumber: beneficiary.document_number || '',
+      })
+    } else {
+      setForm(emptyForm)
+    }
+
     setLocalError('')
-  }, [open])
+  }, [open, beneficiary])
 
   useEffect(() => {
     if (!open || !documentTypes.length || form.idDocumentType) return
@@ -58,7 +72,7 @@ export default function MasterCheckoutCreateClientModal({
       return
     }
 
-    onCreated({
+    onSubmit({
       name: form.name.trim(),
       last_name_paternal: form.lastNamePaternal.trim(),
       last_name_maternal: form.lastNameMaternal.trim() || null,
@@ -76,7 +90,7 @@ export default function MasterCheckoutCreateClientModal({
         aria-modal="true"
         aria-labelledby="master-create-client-title"
         onSubmit={handleSubmit}
-        className="relative z-10 flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[88vh] sm:rounded-2xl"
+        className="relative z-10 flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[88vh] sm:rounded-2xl"
       >
         <div className="border-b px-5 py-5">
           <div className="flex items-start justify-between gap-3">
@@ -86,10 +100,12 @@ export default function MasterCheckoutCreateClientModal({
               </span>
               <div className="min-w-0">
                 <h2 id="master-create-client-title" className="text-lg font-bold text-gray-900">
-                  Crear cliente
+                  {isEditing ? 'Editar cliente' : 'Crear cliente'}
                 </h2>
                 <p className="mt-1 text-sm leading-relaxed text-gray-600">
-                  Registra los datos del cliente final. Luego podrás configurar su dirección de entrega.
+                  {isEditing
+                    ? 'Actualiza los datos del cliente. Las direcciones guardadas se mantienen.'
+                    : 'Registra los datos del cliente final. Luego podrás configurar su dirección de entrega.'}
                 </p>
               </div>
             </div>
@@ -172,7 +188,7 @@ export default function MasterCheckoutCreateClientModal({
           </div>
 
           {(localError || error) ? (
-            <p className="text-sm text-red-600">{localError || error}</p>
+            <p className="break-words text-sm text-red-600">{localError || error}</p>
           ) : null}
         </div>
 
@@ -182,7 +198,7 @@ export default function MasterCheckoutCreateClientModal({
             disabled={isSubmitting}
             className="w-full rounded-full bg-black py-3 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
           >
-            {isSubmitting ? 'Guardando…' : 'Guardar y configurar dirección'}
+            {isSubmitting ? 'Guardando…' : isEditing ? 'Guardar cambios' : 'Guardar y configurar dirección'}
           </button>
         </div>
       </form>

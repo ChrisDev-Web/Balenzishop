@@ -9,6 +9,15 @@ const DEFAULT_RETURN = '/mi-cuenta'
 
 const BLOCKED_RETURN_PREFIXES = ['/mi-cuenta/completar-perfil']
 
+export function isMasterAccountUser(user) {
+  return Boolean(user?.isMasterAccount)
+    || user?.email?.toLowerCase() === 'balenziparfum@gmail.com'
+}
+
+export function requiresOwnDeliveryAddress(user) {
+  return !isMasterAccountUser(user)
+}
+
 export function normalizeReturnTo(path) {
   if (!path || typeof path !== 'string') return null
   if (!path.startsWith('/') || path.startsWith('//')) return null
@@ -45,7 +54,7 @@ export function getRouteAfterLogin(user, authIntent, returnTo = null) {
     return resolveReturnTo(returnTo, DEFAULT_RETURN)
   }
 
-  if (!user.addresses?.length) {
+  if (requiresOwnDeliveryAddress(user) && !user.addresses?.length) {
     return authIntent === AUTH_INTENT.CHECKOUT
       ? '/mi-cuenta/direcciones?flujo=pedido'
       : '/mi-cuenta/direcciones?flujo=onboarding'
@@ -63,7 +72,7 @@ export function getRouteAfterProfile(user, authIntent, returnTo = null) {
     return resolveReturnTo(returnTo, DEFAULT_RETURN)
   }
 
-  if (!user?.addresses?.length) {
+  if (requiresOwnDeliveryAddress(user) && !user?.addresses?.length) {
     return authIntent === AUTH_INTENT.CHECKOUT
       ? '/mi-cuenta/direcciones?flujo=pedido'
       : '/mi-cuenta/direcciones?flujo=onboarding'

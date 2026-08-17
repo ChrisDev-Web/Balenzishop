@@ -19,6 +19,8 @@ function getDeliverySummary(address) {
 }
 
 function getScopeLabel(address) {
+  if (!address) return 'Pendiente de selección'
+
   if (address.deliveryScope === 'lima') {
     return isHomeDeliveryType(address.deliveryType)
       ? `Lima · ${getDeliveryProviderLabel(address.deliveryType)}`

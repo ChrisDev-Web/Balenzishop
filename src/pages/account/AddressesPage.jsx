@@ -13,6 +13,7 @@ import {
 import {
   buildShalonMapsUrl,
   applyShalonSelectionToForm,
+  mapAddressFormToPayload,
   mapDistrictOption,
   mapProvinceOption,
   mapRegionOption,
@@ -34,6 +35,11 @@ import {
   isHomeDeliveryType,
   isOwnDeliveryType,
 } from '../../utils/deliveryTypes'
+import {
+  createMasterBeneficiaryDirection,
+  getMasterBeneficiaryDetail,
+} from '../../api/masterBeneficiaries'
+import { formatMasterBeneficiaryName } from '../../utils/masterBeneficiaryMapper'
 
 const emptyForm = {
   idRegion: '',
@@ -61,12 +67,15 @@ export default function AddressesPage() {
   const flujo = searchParams.get('flujo')
   const isAddingNew = searchParams.get('nueva') === '1'
   const returnToParam = searchParams.get('returnTo')
+  const masterBeneficiaryId = searchParams.get('masterBeneficiaryId')
+  const isMasterBeneficiaryFlow = Boolean(masterBeneficiaryId)
   const {
     user,
     addAddress,
     updateAddress,
     deleteAddress,
     syncAddresses,
+    accessToken,
   } = useAuthStore()
   const authIntent = useUiStore((s) => s.authIntent)
   const authReturnTo = useUiStore((s) => s.authReturnTo)
@@ -90,6 +99,7 @@ export default function AddressesPage() {
   const [isLoadingProvinces, setIsLoadingProvinces] = useState(false)
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false)
   const [locationMapTrigger, setLocationMapTrigger] = useState(0)
+  const [masterBeneficiary, setMasterBeneficiary] = useState(null)
 
   const [showZoneModal, setShowZoneModal] = useState(false)
   const [showLimaTypeModal, setShowLimaTypeModal] = useState(false)
@@ -99,8 +109,8 @@ export default function AddressesPage() {
   const setupWizardStartedRef = useRef(false)
   const scrollToFormOnRevealRef = useRef(false)
 
-  const addresses = user?.addresses || []
-  const isSetupFlow = flujo === 'pedido' || flujo === 'onboarding'
+  const addresses = isMasterBeneficiaryFlow ? [] : (user?.addresses || [])
+  const isSetupFlow = flujo === 'pedido' || flujo === 'onboarding' || isMasterBeneficiaryFlow
   const isProvinciaScope = deliveryScope === 'provincia'
   const isLimaScope = deliveryScope === 'lima'
   const isLimaDelivery = isLimaScope && isHomeDeliveryType(form.deliveryType)
@@ -331,7 +341,25 @@ export default function AddressesPage() {
   }, [isOwnDelivery, districtOptions, form.idDistrict])
 
   useEffect(() => {
-    if (!isSetupFlow || isLoadingAddresses || addresses.length === 0 || isAddingNew) return
+    if (!isMasterBeneficiaryFlow || !masterBeneficiaryId || !accessToken) return undefined
+
+    let cancelled = false
+
+    getMasterBeneficiaryDetail(Number(masterBeneficiaryId), accessToken)
+      .then((response) => {
+        if (!cancelled && response.success) {
+          setMasterBeneficiary(response.data)
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [isMasterBeneficiaryFlow, masterBeneficiaryId, accessToken])
+
+  useEffect(() => {
+    if (!isSetupFlow || isMasterBeneficiaryFlow || isLoadingAddresses || addresses.length === 0 || isAddingNew) return
 
     const next = flujo === 'pedido'
       ? '/pedido'
@@ -645,6 +673,31 @@ export default function AddressesPage() {
       geoLng: form.geoLng,
     }
 
+    if (isMasterBeneficiaryFlow) {
+      try {
+        const response = await createMasterBeneficiaryDirection(
+          Number(masterBeneficiaryId),
+          mapAddressFormToPayload({ ...payload, deliveryScope }),
+          accessToken,
+        )
+
+        setIsSaving(false)
+
+        if (!response.success) {
+          setError(response.message || 'No se pudo guardar la dirección')
+          return
+        }
+
+        setShowForm(false)
+        resetFormState()
+        navigate(resolveReturnTo(returnToParam, '/pedido'), { replace: true })
+      } catch (error) {
+        setIsSaving(false)
+        setError(error.message || 'No se pudo guardar la dirección')
+      }
+      return
+    }
+
     const result = editingAddressId
       ? await updateAddress(editingAddressId, payload)
       : await addAddress(payload)
@@ -750,8 +803,17 @@ export default function AddressesPage() {
 
       <div className="flex flex-col gap-3 border-b border-gray-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Direcciones</h1>
-          {flujo === 'pedido' && (
+          <h1 className="text-2xl font-bold text-gray-900">
+            {isMasterBeneficiaryFlow ? 'Dirección del cliente' : 'Direcciones'}
+          </h1>
+          {isMasterBeneficiaryFlow && masterBeneficiary && (
+            <p className="mt-1 text-sm text-gray-700">
+              Configura la entrega para{' '}
+              <strong>{formatMasterBeneficiaryName(masterBeneficiary)}</strong>
+              {' '}(DNI {masterBeneficiary.document_number})
+            </p>
+          )}
+          {flujo === 'pedido' && !isMasterBeneficiaryFlow && (
             <p className="mt-1 text-sm text-amber-700">Agrega tu dirección de entrega para continuar con tu pedido.</p>
           )}
           {flujo === 'onboarding' && (

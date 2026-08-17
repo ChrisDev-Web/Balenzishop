@@ -56,13 +56,17 @@ export async function createClientOrder(payload, token) {
   return apiPostForm('client_orders/create', formData, token)
 }
 
-export function buildReserveCheckoutFormData({ items, delivery, discountCode }) {
+export function buildReserveCheckoutFormData({ items, delivery, discountCode, beneficiaryClientId }) {
   const formData = new FormData()
 
   const metadata = {
     items: buildCartItems(items),
     delivery,
     discount_code: discountCode || null,
+  }
+
+  if (beneficiaryClientId) {
+    metadata.id_beneficiary_client = Number(beneficiaryClientId)
   }
 
   formData.append('metadata', JSON.stringify(metadata))

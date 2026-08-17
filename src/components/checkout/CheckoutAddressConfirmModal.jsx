@@ -56,6 +56,8 @@ export default function CheckoutAddressConfirmModal({
   onClose,
   isConfirming = false,
   error = '',
+  title,
+  description,
 }) {
   useBodyScrollLock(open)
 
@@ -78,11 +80,15 @@ export default function CheckoutAddressConfirmModal({
               </span>
               <div className="min-w-0">
                 <h2 id="checkout-address-title" className="text-lg font-bold text-gray-900">
-                  ¿Tu dirección de entrega es la correcta?
+                  {title || '¿Tu dirección de entrega es la correcta?'}
                 </h2>
                 <p className="mt-1 text-sm leading-relaxed text-gray-600">
-                  Antes de reservar, confirma dónde recibirás tu pedido. Si viajaste o cambiaste de
-                  ciudad, elige otra dirección guardada o agrega una nueva.
+                  {description || (
+                    <>
+                      Antes de reservar, confirma dónde recibirás tu pedido. Si viajaste o cambiaste de
+                      ciudad, elige otra dirección guardada o agrega una nueva.
+                    </>
+                  )}
                 </p>
               </div>
             </div>

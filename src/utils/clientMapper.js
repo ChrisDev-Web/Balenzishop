@@ -31,6 +31,7 @@ export function mapClientToUser(client, existingUser = null) {
     idClientType: client.id_client_type,
     role: mapClientTypeToRole(client.client_type_name),
     profileComplete: isProfileComplete(client),
+    isMasterAccount: Boolean(client.is_master_account),
     addresses: existingUser?.addresses || client.directions?.map?.(mapDirectionToAddress).filter(Boolean) || [],
     orders: existingUser?.orders || [],
     authProvider: existingUser?.authProvider || 'email',

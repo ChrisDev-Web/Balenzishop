@@ -30,6 +30,18 @@ import CheckoutAddressConfirmModal, {
   formatCheckoutAddressLine,
   getScopeLabel,
 } from '../components/checkout/CheckoutAddressConfirmModal'
+import MasterCheckoutClientPickerModal from '../components/checkout/MasterCheckoutClientPickerModal'
+import MasterCheckoutCreateClientModal from '../components/checkout/MasterCheckoutCreateClientModal'
+import {
+  createMasterBeneficiary,
+  listMasterBeneficiaries,
+  listMasterBeneficiaryDirections,
+  updateMasterBeneficiaryDirection,
+} from '../api/masterBeneficiaries'
+import {
+  mapMasterBeneficiaryAddresses,
+  mapMasterBeneficiaryToCheckoutUser,
+} from '../utils/masterBeneficiaryMapper'
 
 export default function CheckoutPage() {
   const navigate = useNavigate()
@@ -67,8 +79,24 @@ export default function CheckoutPage() {
   const [livePricingEnabled, setLivePricingEnabled] = useState(false)
   const hasPromptedAddressRef = useRef(false)
 
+  const isMasterAccount = Boolean(user?.isMasterAccount)
+  const [showMasterClientPicker, setShowMasterClientPicker] = useState(false)
+  const [showMasterCreateClient, setShowMasterCreateClient] = useState(false)
+  const [masterBeneficiaries, setMasterBeneficiaries] = useState([])
+  const [masterBeneficiarySearch, setMasterBeneficiarySearch] = useState('')
+  const [isLoadingMasterBeneficiaries, setIsLoadingMasterBeneficiaries] = useState(false)
+  const [masterPickerError, setMasterPickerError] = useState('')
+  const [isCreatingMasterBeneficiary, setIsCreatingMasterBeneficiary] = useState(false)
+  const [masterCreateError, setMasterCreateError] = useState('')
+  const [selectedBeneficiary, setSelectedBeneficiary] = useState(null)
+  const [beneficiaryAddresses, setBeneficiaryAddresses] = useState([])
+  const [masterCheckoutReady, setMasterCheckoutReady] = useState(false)
+
   const isEditing = !!editingOrderId
-  const addresses = user?.addresses || []
+  const checkoutCustomer = isMasterAccount && selectedBeneficiary
+    ? mapMasterBeneficiaryToCheckoutUser(selectedBeneficiary)
+    : user
+  const addresses = isMasterAccount ? beneficiaryAddresses : (user?.addresses || [])
   const primaryAddress = addresses.find((a) => a.isPrimary) || addresses[0]
   const discount = livePricingEnabled ? 0 : (appliedCode?.discount || 0)
   const delivery = getDeliveryFeeForAddress(primaryAddress)
@@ -76,7 +104,7 @@ export default function CheckoutPage() {
   const total = computeOrderTotal(subtotal, discount, deliveryFee, delivery.mode)
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0)
   const totalQuantity = totalItems
-  const clientFullName = [user?.firstName, user?.lastNamePaternal, user?.lastNameMaternal].filter(Boolean).join(' ') || '—'
+  const clientFullName = [checkoutCustomer?.firstName, checkoutCustomer?.lastNamePaternal, checkoutCustomer?.lastNameMaternal].filter(Boolean).join(' ') || '—'
   const deliverySummary = primaryAddress
     ? `${primaryAddress.district}, ${primaryAddress.city}`
     : 'Sin dirección'
@@ -116,7 +144,7 @@ export default function CheckoutPage() {
       navigate('/mi-cuenta/completar-perfil', { replace: true })
       return
     }
-    if (user?.profileComplete && !user.addresses?.length) {
+    if (user?.profileComplete && !isMasterAccount && !user.addresses?.length) {
       const returnPath = captureAuthReturnTo() || '/catalogo'
       setAuthIntent(AUTH_INTENT.CHECKOUT, returnPath)
       navigate(
@@ -133,7 +161,38 @@ export default function CheckoutPage() {
   }, [isAuthenticated, syncAddresses])
 
   useEffect(() => {
-    if (!user?.profileComplete || addresses.length === 0 || !resumeChecked) return
+    if (!isMasterAccount) return
+
+    setSelectedBeneficiary(null)
+    setBeneficiaryAddresses([])
+    setMasterCheckoutReady(false)
+    setAddressConfirmed(false)
+    setShowAddressConfirmModal(false)
+    setMasterBeneficiarySearch('')
+  }, [isMasterAccount])
+
+  useEffect(() => {
+    if (!isAuthenticated || !isMasterAccount || !accessToken || !resumeChecked) return
+
+    if (draftOrderId || promptCancelOnOpen || masterCheckoutReady) {
+      setShowMasterClientPicker(false)
+      return
+    }
+
+    loadMasterBeneficiaries('')
+    setShowMasterClientPicker(true)
+  }, [
+    isAuthenticated,
+    isMasterAccount,
+    accessToken,
+    draftOrderId,
+    promptCancelOnOpen,
+    resumeChecked,
+    masterCheckoutReady,
+  ])
+
+  useEffect(() => {
+    if (!user?.profileComplete || isMasterAccount || addresses.length === 0 || !resumeChecked) return
 
     if (draftOrderId) {
       hasPromptedAddressRef.current = true
@@ -290,6 +349,106 @@ export default function CheckoutPage() {
     setCodeError('')
   }
 
+  async function loadMasterBeneficiaries(search = '') {
+    if (!accessToken) return
+
+    setIsLoadingMasterBeneficiaries(true)
+    setMasterPickerError('')
+
+    try {
+      const response = await listMasterBeneficiaries({ search }, accessToken)
+      if (response.success) {
+        setMasterBeneficiaries(response.data ?? [])
+      } else {
+        setMasterPickerError(response.message || 'No se pudieron cargar los clientes')
+      }
+    } catch (error) {
+      setMasterPickerError(error.message || 'No se pudieron cargar los clientes')
+    } finally {
+      setIsLoadingMasterBeneficiaries(false)
+    }
+  }
+
+  async function loadBeneficiaryAddresses(beneficiaryId) {
+    const response = await listMasterBeneficiaryDirections(beneficiaryId, accessToken)
+    if (!response.success) {
+      throw new Error(response.message || 'No se pudieron cargar las direcciones')
+    }
+
+    return mapMasterBeneficiaryAddresses(response.data ?? [])
+  }
+
+  const handleMasterSearchChange = (value) => {
+    setMasterBeneficiarySearch(value)
+    loadMasterBeneficiaries(value)
+  }
+
+  const handleSelectMasterBeneficiary = async (beneficiary) => {
+    setShowMasterClientPicker(false)
+    setSelectedBeneficiary(beneficiary)
+    setMasterCheckoutReady(false)
+    setAddressConfirmed(false)
+
+    try {
+      const nextAddresses = await loadBeneficiaryAddresses(beneficiary.id_client)
+      setBeneficiaryAddresses(nextAddresses)
+
+      if (!nextAddresses.length) {
+        navigate(
+          `/mi-cuenta/direcciones?flujo=pedido&nueva=1&masterBeneficiaryId=${beneficiary.id_client}&returnTo=${encodeURIComponent('/pedido')}`,
+        )
+        return
+      }
+
+      const primary = nextAddresses.find((item) => item.isPrimary) || nextAddresses[0]
+      setSelectedAddressId(primary?.id || null)
+      setShowAddressConfirmModal(true)
+    } catch (error) {
+      setMasterPickerError(error.message)
+      setShowMasterClientPicker(true)
+    }
+  }
+
+  const handleOpenMasterCreateClient = () => {
+    setMasterCreateError('')
+    setShowMasterClientPicker(false)
+    setShowMasterCreateClient(true)
+  }
+
+  const handleCreateMasterBeneficiary = async (payload) => {
+    setIsCreatingMasterBeneficiary(true)
+    setMasterCreateError('')
+
+    try {
+      const response = await createMasterBeneficiary(payload, accessToken)
+      if (!response.success) {
+        setMasterCreateError(response.message || 'No se pudo crear el cliente')
+        return
+      }
+
+      const beneficiary = response.data
+      setShowMasterCreateClient(false)
+      navigate(
+        `/mi-cuenta/direcciones?flujo=pedido&nueva=1&masterBeneficiaryId=${beneficiary.id_client}&returnTo=${encodeURIComponent('/pedido')}`,
+      )
+    } catch (error) {
+      setMasterCreateError(error.message || 'No se pudo crear el cliente')
+    } finally {
+      setIsCreatingMasterBeneficiary(false)
+    }
+  }
+
+  const handleChangeMasterClient = () => {
+    setSelectedBeneficiary(null)
+    setBeneficiaryAddresses([])
+    setMasterCheckoutReady(false)
+    setAddressConfirmed(false)
+    setShowAddressConfirmModal(false)
+    setMasterBeneficiarySearch('')
+    loadMasterBeneficiaries('')
+    setShowMasterClientPicker(true)
+  }
+
   const handleConfirmAddress = async () => {
     if (!selectedAddressId) return
 
@@ -305,15 +464,35 @@ export default function CheckoutPage() {
       }
 
       if (!selected.isPrimary) {
-        const result = await updateAddress(selected.id, { isPrimary: true })
+        if (isMasterAccount && selectedBeneficiary) {
+          const response = await updateMasterBeneficiaryDirection(
+            selectedBeneficiary.id_client,
+            selected.idClientDirection,
+            { is_primary: true },
+            accessToken,
+          )
 
-        if (!result.success) {
-          setAddressConfirmError(result.error || 'No se pudo actualizar la dirección principal')
-          return
+          if (!response.success) {
+            setAddressConfirmError(response.message || 'No se pudo actualizar la dirección principal')
+            return
+          }
+
+          const refreshed = await loadBeneficiaryAddresses(selectedBeneficiary.id_client)
+          setBeneficiaryAddresses(refreshed)
+        } else {
+          const result = await updateAddress(selected.id, { isPrimary: true })
+
+          if (!result.success) {
+            setAddressConfirmError(result.error || 'No se pudo actualizar la dirección principal')
+            return
+          }
         }
       }
 
       setAddressConfirmed(true)
+      if (isMasterAccount) {
+        setMasterCheckoutReady(true)
+      }
       setShowAddressConfirmModal(false)
     } finally {
       setIsConfirmingAddress(false)
@@ -332,6 +511,13 @@ export default function CheckoutPage() {
 
   const handleAddNewAddress = () => {
     const returnPath = captureAuthReturnTo() || '/pedido'
+    if (isMasterAccount && selectedBeneficiary) {
+      navigate(
+        `/mi-cuenta/direcciones?flujo=pedido&nueva=1&masterBeneficiaryId=${selectedBeneficiary.id_client}&returnTo=${encodeURIComponent(returnPath)}`,
+      )
+      return
+    }
+
     setAuthIntent(AUTH_INTENT.CHECKOUT, returnPath)
     navigate(
       `/mi-cuenta/direcciones?flujo=pedido&nueva=1&returnTo=${encodeURIComponent(returnPath)}`,
@@ -339,6 +525,11 @@ export default function CheckoutPage() {
   }
 
   const handleOpenAddressConfirmModal = () => {
+    if (isMasterAccount && !selectedBeneficiary) {
+      handleChangeMasterClient()
+      return
+    }
+
     setSelectedAddressId(primaryAddress?.id || null)
     setAddressConfirmError('')
     setAddressConfirmed(false)
@@ -359,6 +550,7 @@ export default function CheckoutPage() {
         {
           items,
           discountCode: livePricingEnabled ? null : (appliedCode?.code || null),
+          beneficiaryClientId: isMasterAccount ? selectedBeneficiary?.id_client : null,
           delivery: {
             id_client_direction: primaryAddress?.idClientDirection
               ? Number(primaryAddress.idClientDirection)
@@ -422,7 +614,7 @@ export default function CheckoutPage() {
       deliveryLabel: mapped.deliveryLabel,
       deliveryMode: mapped.deliveryMode,
       total: mapped.total,
-      customer: user,
+      customer: checkoutCustomer,
       address: mapped.address || primaryAddress,
       paymentMode: mapped.paymentMode,
       reservationAmount: mapped.reservationAmount,
@@ -477,13 +669,23 @@ export default function CheckoutPage() {
     return null
   }
 
-  if (!primaryAddress) {
+  if (!isMasterAccount && !primaryAddress) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
         <p className="text-sm text-gray-600">Cargando dirección de entrega…</p>
       </div>
     )
   }
+
+  if (isMasterAccount && !masterCheckoutReady && !showReserveModal && !draftOrderId) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-20 text-center">
+        <p className="text-sm text-gray-600">Selecciona el cliente para continuar con el pedido…</p>
+      </div>
+    )
+  }
+
+  const isAddressReady = isMasterAccount ? masterCheckoutReady && addressConfirmed : addressConfirmed
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 lg:px-6">
@@ -639,9 +841,9 @@ export default function CheckoutPage() {
                 } md:mt-3 md:block md:border-t-0 md:px-5 md:pb-5 md:pt-0`}
               >
                 <li>{clientFullName}</li>
-                {user.documentId && <li>{user.documentTypeName || 'Documento'}: {user.documentId}</li>}
-                <li>{user.email}</li>
-                <li>{user.phone || '—'}</li>
+                {checkoutCustomer.documentId && <li>{checkoutCustomer.documentTypeName || 'Documento'}: {checkoutCustomer.documentId}</li>}
+                {!isMasterAccount && <li>{user.email}</li>}
+                <li>{checkoutCustomer.phone || '—'}</li>
               </ul>
             </div>
 
@@ -662,6 +864,15 @@ export default function CheckoutPage() {
                   </div>
                 </button>
                 <div className="flex shrink-0 items-center gap-2">
+                  {isMasterAccount ? (
+                    <button
+                      type="button"
+                      onClick={handleChangeMasterClient}
+                      className="text-xs font-semibold text-black hover:underline"
+                    >
+                      Cambiar cliente
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={handleOpenAddressConfirmModal}
@@ -776,9 +987,11 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {!addressConfirmed && (
+            {!isAddressReady && (
               <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                Confirma tu dirección de entrega antes de reservar el pedido.
+                {isMasterAccount
+                  ? 'Selecciona el cliente y confirma su dirección de entrega antes de reservar el pedido.'
+                  : 'Confirma tu dirección de entrega antes de reservar el pedido.'}
               </p>
             )}
 
@@ -797,7 +1010,7 @@ export default function CheckoutPage() {
                 loadingPaymentMethods
                 || paymentMethods.length === 0
                 || reserving
-                || !addressConfirmed
+                || !isAddressReady
               }
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-black py-3.5 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
             >
@@ -810,8 +1023,31 @@ export default function CheckoutPage() {
         </div>
       </div>
 
+      <MasterCheckoutClientPickerModal
+        open={showMasterClientPicker && isMasterAccount && !draftOrderId && !promptCancelOnOpen}
+        beneficiaries={masterBeneficiaries}
+        searchValue={masterBeneficiarySearch}
+        onSearchChange={handleMasterSearchChange}
+        onSelect={handleSelectMasterBeneficiary}
+        onCreate={handleOpenMasterCreateClient}
+        onClose={() => setShowMasterClientPicker(false)}
+        isLoading={isLoadingMasterBeneficiaries}
+        error={masterPickerError}
+      />
+
+      <MasterCheckoutCreateClientModal
+        open={showMasterCreateClient}
+        onClose={() => {
+          setShowMasterCreateClient(false)
+          setShowMasterClientPicker(true)
+        }}
+        onCreated={handleCreateMasterBeneficiary}
+        isSubmitting={isCreatingMasterBeneficiary}
+        error={masterCreateError}
+      />
+
       <CheckoutAddressConfirmModal
-        open={showAddressConfirmModal && !draftOrderId && !promptCancelOnOpen}
+        open={showAddressConfirmModal && !draftOrderId && !promptCancelOnOpen && (!isMasterAccount || Boolean(selectedBeneficiary))}
         addresses={addresses}
         selectedAddressId={selectedAddressId}
         onSelectAddress={setSelectedAddressId}
@@ -820,6 +1056,10 @@ export default function CheckoutPage() {
         onClose={handleCloseAddressConfirmModal}
         isConfirming={isConfirmingAddress}
         error={addressConfirmError}
+        title={isMasterAccount ? '¿La dirección del cliente es la correcta?' : undefined}
+        description={isMasterAccount
+          ? 'Confirma dónde recibirá el pedido el cliente seleccionado. Puedes elegir otra dirección guardada o agregar una nueva.'
+          : undefined}
       />
 
       <ReserveOrderModal

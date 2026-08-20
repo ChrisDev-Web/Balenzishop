@@ -3,8 +3,7 @@ import { createPortal } from 'react-dom'
 import { X, Plus, Trash2, Upload, MessageCircle } from 'lucide-react'
 import { submitBalancePayment } from '../../api/clientOrders'
 import { findPaymentMethodById } from '../../utils/paymentMethods'
-import { allowsCashBalancePayment, filterCheckoutPaymentMethods } from '../../utils/paymentSurcharge'
-import { DELIVERY_MODES } from '../../utils/deliveryFee'
+import { allowsCashBalancePayment, allowsPosBalancePayment, filterCheckoutPaymentMethods } from '../../utils/paymentSurcharge'
 import PaymentMethodCheckoutInfo from '../checkout/PaymentMethodCheckoutInfo'
 import { createClientId } from '../../utils/createClientId'
 import useBodyScrollLock from '../../hooks/useBodyScrollLock'
@@ -61,7 +60,7 @@ export default function BalancePaymentModal({
   if (!open || !order) return null
 
   const checkoutPaymentMethods = filterCheckoutPaymentMethods(paymentMethods, {
-    rainauDelivery: order.deliveryMode === DELIVERY_MODES.DELIVERY,
+    rainauDelivery: allowsPosBalancePayment(order.deliveryMode, order.deliveryType),
     allowCash: allowsCashBalancePayment(order.deliveryMode),
   })
 

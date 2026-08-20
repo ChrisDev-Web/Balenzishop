@@ -6,6 +6,7 @@ import { calculateReservationAmount } from '../../utils/reservation'
 import { findPaymentMethodById } from '../../utils/paymentMethods'
 import {
   allowsCashBalancePayment,
+  allowsPosBalancePayment,
   filterCheckoutPaymentMethods,
   filterInitialPaymentMethods,
   isPosPaymentMethod,
@@ -13,7 +14,7 @@ import {
 } from '../../utils/paymentSurcharge'
 import { computeOrderTotal, DELIVERY_MODES } from '../../utils/deliveryFee'
 import ShippingChargeDisplay from './ShippingChargeDisplay'
-import { DELIVERY_TYPES, isOwnDeliveryType } from '../../utils/deliveryTypes'
+import { isOwnDeliveryType, isRainauDeliveryType } from '../../utils/deliveryTypes'
 import { useRainauAvailableDeliveryDates } from '../../hooks/useRainauAvailableDeliveryDates'
 import { useShalomAvailableDeliveryDates } from '../../hooks/useShalomAvailableDeliveryDates'
 import PaymentMethodCheckoutInfo from './PaymentMethodCheckoutInfo'
@@ -149,7 +150,12 @@ export default function ReserveOrderModal({
     || deliveryMode === DELIVERY_MODES.CUSTOMER_DELIVERY
 
   const requiresRainauDeliveryDate = requiresScheduledDeliveryDate
-    && primaryAddress?.deliveryType === DELIVERY_TYPES.RAINAU
+    && isRainauDeliveryType(primaryAddress?.deliveryType)
+
+  const allowsPosForRemainder = allowsPosBalancePayment(
+    deliveryMode,
+    primaryAddress?.deliveryType,
+  )
 
   const requiresOwnDeliveryMeetingDate = requiresScheduledDeliveryDate
     && isOwnDeliveryType(primaryAddress?.deliveryType)
@@ -179,10 +185,10 @@ export default function ReserveOrderModal({
 
   const remainderPaymentMethods = useMemo(
     () => filterCheckoutPaymentMethods(paymentMethods, {
-      rainauDelivery: requiresRainauDeliveryDate,
+      rainauDelivery: allowsPosForRemainder,
       allowCash: allowsCashBalancePayment(deliveryMode),
     }),
-    [paymentMethods, requiresRainauDeliveryDate, deliveryMode],
+    [paymentMethods, allowsPosForRemainder, deliveryMode],
   )
 
   const scheduledDeliveryMode = requiresOwnDeliveryMeetingDate ? 'customer_delivery' : 'delivery'

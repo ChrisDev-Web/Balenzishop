@@ -4,6 +4,7 @@ import {
   resolvePaymentMethodType,
 } from './paymentMethods'
 import { DELIVERY_MODES } from './deliveryFee'
+import { isRainauDeliveryType } from './deliveryTypes'
 
 export const POS_SURCHARGE_RATE = 0.05
 
@@ -27,6 +28,10 @@ export function applyPosSurcharge(baseTotal) {
 export function allowsCashBalancePayment(deliveryMode) {
   return deliveryMode === DELIVERY_MODES.DELIVERY
     || deliveryMode === DELIVERY_MODES.CUSTOMER_DELIVERY
+}
+
+export function allowsPosBalancePayment(deliveryMode, deliveryType) {
+  return deliveryMode === DELIVERY_MODES.DELIVERY && isRainauDeliveryType(deliveryType)
 }
 
 export function filterCheckoutPaymentMethods(

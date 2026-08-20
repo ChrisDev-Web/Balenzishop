@@ -49,6 +49,7 @@ export function mapApiClientOrder(order) {
     deliveryFee: Number(order.display_delivery_fee ?? order.delivery_fee),
     deliveryMode: order.delivery_mode,
     deliveryLabel: order.delivery_label,
+    deliveryType: order.delivery?.delivery_type ?? null,
     total: Number(order.total_amount),
     reservationAmount: Number(order.reservation_amount),
     amountPaid: Number(order.amount_paid),

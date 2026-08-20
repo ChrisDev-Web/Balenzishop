@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Eye, Loader2, X } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import ImageZoomPreview from './ImageZoomPreview.jsx'
+import ShalomReceiptPreview, { ShalomReceiptEmptyState } from './ShalomReceiptPreview.jsx'
 import useBodyScrollLock from '../../hooks/useBodyScrollLock'
+import { isShalomReceiptPdf } from '../../utils/shalomReceipt.js'
 
 function formatTrackingDate(value) {
   if (!value) return null
@@ -25,10 +27,13 @@ function formatTrackingDate(value) {
 
 export default function ShalomTrackingModal({
   orderNumber,
+  orderClientId = null,
   guideNumber,
   guideCode = '',
   timeline = [],
   receiptUrl = '',
+  receiptName = '',
+  receiptIsPdf = false,
   isLoading = false,
   error = '',
   onClose,
@@ -38,7 +43,7 @@ export default function ShalomTrackingModal({
 
   const tabs = [
     { id: 'tracking', label: 'Estado del envío' },
-    { id: 'receipt', label: 'Boleta Shalon' },
+    { id: 'receipt', label: 'Boleta Shalom' },
   ]
 
   useBodyScrollLock(true)
@@ -159,31 +164,27 @@ export default function ShalomTrackingModal({
                 {receiptUrl ? (
                   <div className="space-y-3">
                     <p className="text-sm text-gray-600">
-                      Boleta registrada por el equipo de Balenzishop para tu envío Shalon.
+                      Boleta registrada por el equipo de Balenzishop para tu envío Shalom.
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => setIsReceiptPreviewOpen(true)}
-                      className="group relative block w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-50 p-3 text-left transition hover:border-gray-300 hover:bg-gray-100"
-                    >
-                      <img
-                        src={receiptUrl}
-                        alt="Boleta Shalon"
-                        className="mx-auto max-h-72 w-full object-contain transition group-hover:scale-[1.01]"
-                      />
-                      <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-gray-700">
-                        <Eye className="h-3.5 w-3.5" />
-                        Toca para ampliar y usar los controles de zoom
-                      </span>
-                    </button>
+                    <ShalomReceiptPreview
+                      orderClientId={orderClientId}
+                      receiptUrl={receiptUrl}
+                      receiptName={receiptName}
+                      receiptIsPdf={receiptIsPdf}
+                      onPreviewClick={
+                        isShalomReceiptPdf({ receiptIsPdf, receiptName, receiptUrl })
+                          ? undefined
+                          : () => setIsReceiptPreviewOpen(true)
+                      }
+                    />
+                    {!isShalomReceiptPdf({ receiptIsPdf, receiptName, receiptUrl }) ? (
+                      <p className="text-xs text-gray-500">
+                        Toca la imagen para ampliar y usar los controles de zoom.
+                      </p>
+                    ) : null}
                   </div>
                 ) : (
-                  <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center">
-                    <p className="text-sm font-medium text-gray-700">Aún no hay boleta disponible</p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Cuando el equipo suba la boleta de Shalon, aparecerá aquí.
-                    </p>
-                  </div>
+                  <ShalomReceiptEmptyState />
                 )}
               </>
             )}
@@ -201,12 +202,14 @@ export default function ShalomTrackingModal({
         </div>
       </div>
 
-      <ImageZoomPreview
-        src={receiptUrl}
-        alt="Boleta Shalon"
-        open={isReceiptPreviewOpen}
-        onClose={() => setIsReceiptPreviewOpen(false)}
-      />
+      {!isShalomReceiptPdf({ receiptIsPdf, receiptName, receiptUrl }) ? (
+        <ImageZoomPreview
+          src={receiptUrl}
+          alt="Boleta Shalom"
+          open={isReceiptPreviewOpen}
+          onClose={() => setIsReceiptPreviewOpen(false)}
+        />
+      ) : null}
     </>,
     document.body,
   )

@@ -82,8 +82,11 @@ export function mapApiClientOrder(order) {
       ? {
           guideNumber: order.shalom.guide_number,
           guideCode: order.shalom.guide_code,
-          receiptUrl: order.shalom.receipt_url,
+          receiptUrl: order.shalom.receipt_url
+            ? normalizeMediaUrl(order.shalom.receipt_url)
+            : null,
           receiptName: order.shalom.receipt_name,
+          receiptIsPdf: Boolean(order.shalom.receipt_is_pdf),
           hasGuide: Boolean(order.shalom.has_guide),
           canViewTracking: Boolean(order.shalom.can_view_tracking),
         }

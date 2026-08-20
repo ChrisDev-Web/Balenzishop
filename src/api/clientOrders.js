@@ -1,4 +1,4 @@
-import { apiGet, apiPostForm } from './client'
+import http, { apiGet, apiPostForm } from './client'
 
 function buildCartItems(items) {
   return items.map((item) => {
@@ -135,6 +135,24 @@ export async function fetchClientOrderDetail(id, token) {
 
 export async function fetchShalomTracking(orderId, token) {
   return apiGet(`client_orders/shalom_tracking/${orderId}`, {}, token)
+}
+
+export async function fetchShalomReceiptBlob(orderId, token, { download = false } = {}) {
+  const response = await http.get(`client_orders/shalom_receipt/${orderId}`, {
+    responseType: 'blob',
+    params: download ? { download: 1 } : undefined,
+    headers: {
+      Accept: 'application/pdf,application/octet-stream,image/*,*/*',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+
+  const blob = response.data
+  if (!(blob instanceof Blob)) {
+    throw new Error('No se pudo cargar la boleta.')
+  }
+
+  return blob
 }
 
 export function buildBalancePaymentFormData({ payments, paymentProofs }) {

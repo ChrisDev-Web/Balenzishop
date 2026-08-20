@@ -317,9 +317,12 @@ export default function OrdersPage() {
       {trackingOrder && (
         <ShalomTrackingModal
           orderNumber={trackingOrder.id}
+          orderClientId={trackingOrder.idClientOrder}
           guideNumber={trackingOrder.shalom?.guideNumber}
           guideCode={trackingOrder.shalom?.guideCode}
           receiptUrl={trackingOrder.shalom?.receiptUrl}
+          receiptName={trackingOrder.shalom?.receiptName}
+          receiptIsPdf={trackingOrder.shalom?.receiptIsPdf}
           timeline={trackingTimeline}
           isLoading={trackingLoading}
           error={trackingError}

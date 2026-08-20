@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom'
 import { X, MapPin, Package } from 'lucide-react'
 import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 import ShippingChargeDisplay from '../checkout/ShippingChargeDisplay'
+import ShalomReceiptPreview from './ShalomReceiptPreview.jsx'
 
 const STATUS_STYLES = {
   Pendiente: 'bg-amber-100 text-amber-800',
@@ -180,18 +181,13 @@ export default function OrderDetailModal({ order, onClose }) {
               {order.shalom?.receiptUrl && (
                 <div className="mt-3">
                   <p className="text-sm font-semibold text-gray-900">Boleta Shalom</p>
-                  <a
-                    href={order.shalom.receiptUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-block"
-                  >
-                    <img
-                      src={order.shalom.receiptUrl}
-                      alt="Boleta Shalom"
-                      className="max-h-48 rounded-lg border border-gray-200 object-contain"
-                    />
-                  </a>
+                  <ShalomReceiptPreview
+                    orderClientId={order.idClientOrder}
+                    receiptUrl={order.shalom.receiptUrl}
+                    receiptName={order.shalom.receiptName}
+                    receiptIsPdf={order.shalom.receiptIsPdf}
+                    compact
+                  />
                 </div>
               )}
             </div>

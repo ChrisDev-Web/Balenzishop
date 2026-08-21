@@ -78,6 +78,10 @@ export function mapApiClientOrder(order) {
         }
       : null,
     source: 'api',
+    canCancel: Boolean(order.can_cancel) || (
+      !order.is_returned
+      && (order.display_status === 'Pendiente' || order.status === 'Pendiente')
+    ),
     canSubmitBalancePayment: Boolean(order.can_submit_balance_payment),
     shalom: order.shalom
       ? {

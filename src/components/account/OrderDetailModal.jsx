@@ -3,6 +3,7 @@ import { X, MapPin, Package } from 'lucide-react'
 import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 import ShippingChargeDisplay from '../checkout/ShippingChargeDisplay'
 import ShalomReceiptPreview from './ShalomReceiptPreview.jsx'
+import { applyPosSurcharge } from '../../utils/paymentSurcharge'
 
 const STATUS_STYLES = {
   Pendiente: 'bg-amber-100 text-amber-800',
@@ -25,6 +26,10 @@ export default function OrderDetailModal({ order, onClose }) {
   if (!order) return null
 
   const totalItems = order.items?.reduce((sum, i) => sum + i.quantity, 0) || 0
+  const showPosPendingTotal = order.balanceDue > 0 && order.balancePaymentMethodIsPos
+  const posPendingTotal = showPosPendingTotal
+    ? applyPosSurcharge(order.balanceDue).total
+    : 0
 
   return createPortal(
     <div className="fixed inset-0 z-[200] flex items-end justify-center p-0 sm:items-center sm:p-4">
@@ -138,6 +143,12 @@ export default function OrderDetailModal({ order, onClose }) {
                 <span className="font-bold text-gray-900">{order.balancePaymentMethodName}</span>
               </div>
             )}
+            {showPosPendingTotal ? (
+              <div className="flex justify-between text-gray-600">
+                <span>Saldo total pendiente (+5%)</span>
+                <span className="font-bold text-gray-900">S/ {posPendingTotal.toFixed(2)}</span>
+              </div>
+            ) : null}
           </div>
 
           {order.payments?.length > 0 && (

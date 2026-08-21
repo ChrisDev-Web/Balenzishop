@@ -1,4 +1,4 @@
-import http, { apiGet, apiPostForm } from './client'
+import http, { apiGet, apiPost, apiPostForm } from './client'
 
 function buildCartItems(items) {
   return items.map((item) => {
@@ -131,6 +131,10 @@ export async function fetchMyClientOrders(token, params = {}) {
 
 export async function fetchClientOrderDetail(id, token) {
   return apiGet(`client_orders/detail/${id}`, {}, token)
+}
+
+export async function cancelClientOrder(id, token) {
+  return apiPost(`client_orders/cancel/${id}`, {}, token)
 }
 
 export async function fetchShalomTracking(orderId, token) {

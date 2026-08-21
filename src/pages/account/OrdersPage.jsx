@@ -1,9 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Search, ShoppingBag, Eye, Truck } from 'lucide-react'
+import { Search, ShoppingBag, Eye, Truck, XCircle } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
-import { fetchMyClientOrders, fetchClientOrderDetail, fetchShalomTracking } from '../../api/clientOrders'
+import {
+  fetchMyClientOrders,
+  fetchClientOrderDetail,
+  fetchShalomTracking,
+  cancelClientOrder,
+} from '../../api/clientOrders'
 import { mapApiClientOrders, mapApiClientOrder } from '../../utils/clientOrderMapper'
 import OrderDetailModal from '../../components/account/OrderDetailModal'
+import CancelOrderConfirmModal from '../../components/account/CancelOrderConfirmModal'
 import ShalomTrackingModal from '../../components/account/ShalomTrackingModal'
 import Pagination from '../../components/catalog/Pagination'
 import { paginate } from '../../utils/filterPerfumes'
@@ -49,6 +55,9 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [orderPendingCancel, setOrderPendingCancel] = useState(null)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [cancelError, setCancelError] = useState('')
 
   const activeTabConfig = tabs.find((t) => t.key === activeTab)
 
@@ -154,6 +163,50 @@ export default function OrdersPage() {
     setTrackingLoading(false)
   }
 
+  function handleRequestCancel(order) {
+    if (!order?.canCancel) return
+    setCancelError('')
+    setOrderPendingCancel(order)
+  }
+
+  function handleCloseCancelModal() {
+    if (isCancelling) return
+    setOrderPendingCancel(null)
+    setCancelError('')
+  }
+
+  async function handleConfirmCancel() {
+    if (!orderPendingCancel?.idClientOrder || !accessToken) return
+
+    setIsCancelling(true)
+    setCancelError('')
+
+    try {
+      const response = await cancelClientOrder(orderPendingCancel.idClientOrder, accessToken)
+      if (!response?.success) {
+        setCancelError(response?.message ?? 'No se pudo cancelar el pedido.')
+        return
+      }
+
+      const cancelledOrder = mapApiClientOrder(response.data)
+      setOrders((current) =>
+        current.map((item) =>
+          item.idClientOrder === cancelledOrder.idClientOrder ? cancelledOrder : item,
+        ),
+      )
+
+      if (selectedOrder?.idClientOrder === cancelledOrder.idClientOrder) {
+        setSelectedOrder(cancelledOrder)
+      }
+
+      setOrderPendingCancel(null)
+    } catch (error) {
+      setCancelError(error?.message ?? 'No se pudo cancelar el pedido.')
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
   return (
     <div className="flex flex-1 flex-col">
       <h1 className="text-2xl font-bold text-gray-900">Mis pedidos</h1>
@@ -241,6 +294,7 @@ export default function OrdersPage() {
               {paginatedOrders.map((order) => {
                 const itemCount = order.items?.reduce((sum, i) => sum + i.quantity, 0) || 0
                 const canViewTracking = Boolean(order.shalom?.canViewTracking)
+                const canCancel = Boolean(order.canCancel)
 
                 return (
                   <li
@@ -266,6 +320,17 @@ export default function OrdersPage() {
                         <p className="text-xs text-gray-500">{itemCount} ítem{itemCount !== 1 ? 's' : ''}</p>
                         <p className="text-sm font-bold text-gray-900">S/ {order.total?.toFixed(2)}</p>
                       </div>
+                      {canCancel && (
+                        <button
+                          type="button"
+                          onClick={() => handleRequestCancel(order)}
+                          disabled={isCancelling}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-full border border-red-600 px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 sm:w-auto sm:py-1.5 disabled:opacity-60"
+                        >
+                          <XCircle className="h-3.5 w-3.5" />
+                          Cancelar
+                        </button>
+                      )}
                       {canViewTracking && (
                         <button
                           type="button"
@@ -311,6 +376,16 @@ export default function OrdersPage() {
         <OrderDetailModal
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
+        />
+      )}
+
+      {orderPendingCancel && (
+        <CancelOrderConfirmModal
+          order={orderPendingCancel}
+          isProcessing={isCancelling}
+          error={cancelError}
+          onCancel={handleCloseCancelModal}
+          onConfirm={handleConfirmCancel}
         />
       )}
 

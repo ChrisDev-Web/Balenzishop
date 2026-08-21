@@ -1,6 +1,6 @@
 import { getRoleLabel } from './pricing'
 import { DELIVERY_MODES } from './deliveryFee'
-import { formatAppDateTime } from './dateTime'
+import { formatAppDate, formatAppDateTime } from './dateTime'
 import { getActiveWhatsAppDigits } from '../stores/companyStore'
 
 const STORE_NAME = 'BALENZISHOP'
@@ -57,6 +57,7 @@ export function formatOrderDate(date = new Date()) {
 export function buildWhatsAppMessage({
   orderId,
   date,
+  shippingDate = null,
   items,
   subtotal,
   discount,
@@ -77,11 +78,16 @@ export function buildWhatsAppMessage({
 }) {
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0)
   const lines = []
+  const shippingDateLabel = shippingDate ? formatAppDate(shippingDate) : null
 
   lines.push(`${ICON.bag} *NUEVO PEDIDO — ${STORE_NAME}*`)
   lines.push(SEP)
   lines.push(`${ICON.clipboard} *Pedido:* ${orderId}`)
-  lines.push(`${ICON.calendar} *Fecha:* ${date}`)
+  lines.push(
+    shippingDateLabel
+      ? `${ICON.calendar} *Fecha de Envio:* ${shippingDateLabel}`
+      : `${ICON.calendar} *Fecha:* ${date}`,
+  )
   lines.push(`${ICON.receipt} *Ítems:* ${totalItems}`)
   lines.push(`${ICON.label} *Estado:* ${status}`)
   lines.push(SEP)

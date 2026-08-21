@@ -24,6 +24,7 @@ export function mapApiClientOrder(order) {
     orderNumber: order.order_number,
     date: formatOrderDate(new Date(order.created_at)),
     createdAt: order.created_at,
+    scheduledDeliveryDate: order.scheduled_delivery_date || null,
     status: order.is_returned
       ? 'Cancelado'
       : order.display_status

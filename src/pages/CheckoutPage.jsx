@@ -735,6 +735,7 @@ export default function CheckoutPage() {
     const message = buildWhatsAppMessage({
       orderId: mapped.orderNumber,
       date: mapped.date,
+      shippingDate: mapped.scheduledDeliveryDate,
       items: mapped.items,
       subtotal: mapped.subtotal,
       discount: mapped.discount,

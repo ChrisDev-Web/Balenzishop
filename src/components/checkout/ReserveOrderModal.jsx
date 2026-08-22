@@ -216,7 +216,7 @@ export default function ReserveOrderModal({
   })
 
   const rainauDeliveryFee = Number(primaryAddress?.deliveryFee || 0)
-  const effectiveDeliveryFee = requiresRainauDeliveryDate && scheduledDeliveryDate
+  const effectiveDeliveryFee = requiresRainauDeliveryDate
     ? rainauDeliveryFee
     : 0
 

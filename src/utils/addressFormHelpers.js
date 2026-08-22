@@ -73,6 +73,8 @@ export function buildFormFromAddress(address) {
     googleMapsLink: address.googleMapsLink || '',
     geoLat: address.geoLat ?? null,
     geoLng: address.geoLng ?? null,
+    coverageZone: address.coverageZone || null,
+    deliveryFee: Number(address.deliveryFee || 0),
     isPrimary: address.isPrimary || false,
   }
 }

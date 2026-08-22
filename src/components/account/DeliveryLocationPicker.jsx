@@ -10,6 +10,13 @@ import {
   normalizeMapLocation,
   resolveMapLocation,
 } from '../../utils/deliveryLocation'
+import {
+  getRainauCoverageLeafletStyle,
+  getRainauCoverageQuoteLabel,
+  RAINAU_COVERAGE_KIND,
+  VISIBLE_RAINAU_COVERAGE_ZONES,
+  resolveRainauCoverage,
+} from '../../utils/rainauCoverage'
 import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 import DeliveryMapCenterPin from './DeliveryMapCenterPin'
 
@@ -45,9 +52,11 @@ export default function DeliveryLocationPicker({
   const [mapReady, setMapReady] = useState(false)
   const [isGeocoding, setIsGeocoding] = useState(false)
   const [error, setError] = useState('')
+  const [liveCoverage, setLiveCoverage] = useState(null)
 
   const currentLocation = normalizeMapLocation(value)
   const hasConfirmedLocation = Boolean(currentLocation)
+  const confirmedCoverage = resolveRainauCoverage(currentLocation?.lat, currentLocation?.lng)
 
   useBodyScrollLock(mapModalOpen)
 
@@ -151,6 +160,34 @@ export default function DeliveryLocationPicker({
         attribution: '&copy; OpenStreetMap',
       }).addTo(map)
 
+      const overlayOrder = [
+        RAINAU_COVERAGE_KIND.ZONE_10,
+        RAINAU_COVERAGE_KIND.ZONE_15,
+        RAINAU_COVERAGE_KIND.NO_COVERAGE,
+      ]
+
+      overlayOrder.forEach((kind) => {
+        VISIBLE_RAINAU_COVERAGE_ZONES
+          .filter((zone) => zone.kind === kind)
+          .forEach((zone) => {
+            zone.rings.forEach((ring) => {
+              L.polygon(ring, {
+                ...getRainauCoverageLeafletStyle(zone),
+                interactive: false,
+              }).addTo(map)
+            })
+          })
+      })
+
+      const updateLiveCoverage = () => {
+        const center = readMapCenter(map)
+        setLiveCoverage(resolveRainauCoverage(center.lat, center.lng))
+      }
+
+      map.on('move', updateLiveCoverage)
+      map.on('moveend', updateLiveCoverage)
+      updateLiveCoverage()
+
       mapRef.current = map
 
       const refreshMapSize = () => {
@@ -202,10 +239,16 @@ export default function DeliveryLocationPicker({
     }
 
     setError('')
+    const coverage = resolveRainauCoverage(normalized.lat, normalized.lng) || {
+      fee: 0,
+      zoneId: 'sin_cobertura',
+    }
     onChange?.({
       geoLat: normalized.lat,
       geoLng: normalized.lng,
       googleMapsLink: buildInternalMapsLink(normalized),
+      deliveryFee: coverage.fee,
+      coverageZone: coverage.zoneId,
     })
 
     return true
@@ -268,11 +311,35 @@ export default function DeliveryLocationPicker({
             {!mapReady ? 'Cargando mapa…' : 'Ubicando distrito…'}
           </div>
         )}
+
+        <div className="pointer-events-none absolute inset-x-3 bottom-3 z-[600] space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            <span className="rounded-full bg-white/95 px-2 py-1 text-[10px] font-semibold text-emerald-800 shadow">
+              Verde claro · S/ 10.00
+            </span>
+            <span className="rounded-full bg-white/95 px-2 py-1 text-[10px] font-semibold text-emerald-950 shadow">
+              Verde oscuro · S/ 15.00
+            </span>
+            <span className="rounded-full bg-white/95 px-2 py-1 text-[10px] font-semibold text-indigo-900 shadow">
+              Azul · S/ 15.00
+            </span>
+            <span className="rounded-full bg-white/95 px-2 py-1 text-[10px] font-semibold text-red-800 shadow">
+              Rojo · con cargo
+            </span>
+          </div>
+          {liveCoverage && (
+            <div className="rounded-xl bg-white/95 px-3 py-2 text-sm font-semibold text-gray-900 shadow-md">
+              {getRainauCoverageQuoteLabel(liveCoverage)}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="relative z-10 shrink-0 border-t border-gray-200 bg-white px-4 py-4">
         <p className="text-xs text-gray-500">
-          Confirma el punto en el mapa. Luego escribe tu dirección completa en el formulario.
+          {liveCoverage?.fee > 0
+            ? 'Confirma el punto para guardar esa tarifa de delivery.'
+            : 'Si el pin cae en rojo o fuera de zona, el delivery queda con cargo y se coordina por WhatsApp.'}
         </p>
         <div className="mt-3 flex gap-2">
           <button
@@ -301,7 +368,8 @@ export default function DeliveryLocationPicker({
       <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5">
         <p className="text-xs text-gray-600">
           {hasConfirmedLocation
-            ? 'Ubicación marcada en el mapa. Puedes ajustarla si hace falta.'
+            ? getRainauCoverageQuoteLabel(confirmedCoverage)
+              || 'Ubicación marcada en el mapa. Puedes ajustarla si hace falta.'
             : districtName
               ? `Al elegir ${districtName}, abre el mapa para marcar tu calle exacta.`
               : 'Elige un distrito para marcar tu ubicación en el mapa.'}

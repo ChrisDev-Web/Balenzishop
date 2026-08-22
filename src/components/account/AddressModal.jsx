@@ -238,6 +238,8 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
       googleMapsLink: '',
       geoLat: null,
       geoLng: null,
+      coverageZone: null,
+      deliveryFee: 0,
     }))
 
     if (selected && isBalenziHomeDelivery) {
@@ -254,13 +256,22 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
     }))
   }
 
-  const handleDeliveryLocationChange = ({ geoLat, geoLng, googleMapsLink, fullAddress }) => {
+  const handleDeliveryLocationChange = ({
+    geoLat,
+    geoLng,
+    googleMapsLink,
+    fullAddress,
+    deliveryFee,
+    coverageZone,
+  }) => {
     setForm((prev) => ({
       ...prev,
       geoLat,
       geoLng,
       googleMapsLink,
       ...(fullAddress !== undefined ? { fullAddress } : {}),
+      ...(deliveryFee !== undefined ? { deliveryFee } : {}),
+      ...(coverageZone !== undefined ? { coverageZone } : {}),
     }))
   }
 
@@ -325,6 +336,8 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
       googleMapsLink: form.googleMapsLink,
       geoLat: form.geoLat,
       geoLng: form.geoLng,
+      coverageZone: form.coverageZone,
+      deliveryFee: form.deliveryFee,
     })
     setIsSaving(false)
 

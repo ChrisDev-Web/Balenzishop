@@ -135,6 +135,11 @@ export function mapAddressFormToPayload(form) {
     payload.google_maps_link = form.googleMapsLink?.trim() || null
     payload.geo_lat = isOwnDelivery || form.geoLat == null ? null : Number(form.geoLat)
     payload.geo_lng = isOwnDelivery || form.geoLng == null ? null : Number(form.geoLng)
+
+    if (!isOwnDelivery) {
+      payload.coverage_zone = form.coverageZone || null
+      payload.delivery_fee = Number(form.deliveryFee || 0)
+    }
   } else {
     payload.id_shalon = Number(form.idShalon)
   }

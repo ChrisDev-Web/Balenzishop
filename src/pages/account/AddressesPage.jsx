@@ -58,6 +58,8 @@ const emptyForm = {
   googleMapsLink: '',
   geoLat: null,
   geoLng: null,
+  coverageZone: null,
+  deliveryFee: 0,
   isPrimary: false,
 }
 
@@ -443,6 +445,8 @@ export default function AddressesPage() {
             googleMapsLink: '',
             geoLat: null,
             geoLng: null,
+            coverageZone: null,
+            deliveryFee: 0,
           }),
     }))
     setShowLimaProviderModal(false)
@@ -504,6 +508,8 @@ export default function AddressesPage() {
       googleMapsLink: '',
       geoLat: null,
       geoLng: null,
+      coverageZone: null,
+      deliveryFee: 0,
     }))
     setShowLimaTypeModal(false)
     revealAddressForm()
@@ -574,6 +580,8 @@ export default function AddressesPage() {
       googleMapsLink: '',
       geoLat: null,
       geoLng: null,
+      coverageZone: null,
+      deliveryFee: 0,
     }))
 
     if (selected && isBalenziHomeDelivery) {
@@ -581,13 +589,22 @@ export default function AddressesPage() {
     }
   }
 
-  const handleDeliveryLocationChange = ({ geoLat, geoLng, googleMapsLink, fullAddress }) => {
+  const handleDeliveryLocationChange = ({
+    geoLat,
+    geoLng,
+    googleMapsLink,
+    fullAddress,
+    deliveryFee,
+    coverageZone,
+  }) => {
     setForm((prev) => ({
       ...prev,
       geoLat,
       geoLng,
       googleMapsLink,
       ...(fullAddress !== undefined ? { fullAddress } : {}),
+      ...(deliveryFee !== undefined ? { deliveryFee } : {}),
+      ...(coverageZone !== undefined ? { coverageZone } : {}),
     }))
   }
 
@@ -671,6 +688,8 @@ export default function AddressesPage() {
       googleMapsLink: form.googleMapsLink,
       geoLat: form.geoLat,
       geoLng: form.geoLng,
+      coverageZone: form.coverageZone,
+      deliveryFee: form.deliveryFee,
     }
 
     if (isMasterBeneficiaryFlow) {

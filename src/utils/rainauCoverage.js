@@ -20,6 +20,34 @@ export const RAINAU_COVERAGE_KIND = {
   NO_COVERAGE: 'no_coverage',
 }
 
+const BLUE_FILL_COLORS = new Set(['#1a237e'])
+
+export const RAINAU_DELIVERY_SCHEDULE = {
+  BLUE: 'blue',
+  STANDARD: 'standard',
+}
+
+function coveragePalette(zone) {
+  const fill = String(zone?.fillColor ?? '').trim().toLowerCase()
+  if (BLUE_FILL_COLORS.has(fill)) return 'blue'
+  if (zone?.kind === RAINAU_COVERAGE_KIND.NO_COVERAGE) return 'red'
+  return 'green'
+}
+
+export function isBlueRainauCoverage(coverage) {
+  return coverage?.schedule === RAINAU_DELIVERY_SCHEDULE.BLUE
+}
+
+export function getRainauScheduleConfirmMessage(coverage) {
+  if (isBlueRainauCoverage(coverage)) {
+    return 'Los envíos de delivery son los días Martes - Jueves - Sábado.'
+  }
+  if (coverage?.palette === 'green') {
+    return 'En esta zona los envíos de delivery son de Lunes a Sábado.'
+  }
+  return ''
+}
+
 const MATCH_ORDER = [
   RAINAU_COVERAGE_KIND.NO_COVERAGE,
   RAINAU_COVERAGE_KIND.ZONE_15,
@@ -116,6 +144,10 @@ export function resolveRainauCoverage(lat, lng) {
             : 'sin_cobertura',
         name: match.name,
         mapped: true,
+        palette: coveragePalette(match),
+        schedule: coveragePalette(match) === 'blue'
+          ? RAINAU_DELIVERY_SCHEDULE.BLUE
+          : RAINAU_DELIVERY_SCHEDULE.STANDARD,
       }
     }
   }
@@ -126,6 +158,8 @@ export function resolveRainauCoverage(lat, lng) {
     zoneId: 'sin_cobertura',
     name: 'Fuera de cobertura',
     mapped: false,
+    palette: 'none',
+    schedule: RAINAU_DELIVERY_SCHEDULE.STANDARD,
   }
 }
 

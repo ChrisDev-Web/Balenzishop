@@ -7,7 +7,7 @@ const FAST_POLL_MS = 2_000
 
 export function useRainauAvailableDeliveryDates(
   enabled,
-  { pollMs = DEFAULT_POLL_MS, fastPoll = false, deliveryMode = 'delivery' } = {},
+  { pollMs = DEFAULT_POLL_MS, fastPoll = false, deliveryMode = 'delivery', geoLat = null, geoLng = null } = {},
 ) {
   const [dates, setDates] = useState([])
   const [sameDayCutoffPassed, setSameDayCutoffPassed] = useState(false)
@@ -43,7 +43,12 @@ export function useRainauAvailableDeliveryDates(
     }
 
     try {
-      const response = await fetchRainauAvailableDeliveryDates({ bustCache: true, deliveryMode })
+      const response = await fetchRainauAvailableDeliveryDates({
+        bustCache: true,
+        deliveryMode,
+        geoLat,
+        geoLng,
+      })
       if (requestIdRef.current !== requestId) return
 
       if (!response.success) {
@@ -61,7 +66,7 @@ export function useRainauAvailableDeliveryDates(
         setIsLoading(false)
       }
     }
-  }, [enabled, deliveryMode, applyPayload])
+  }, [enabled, deliveryMode, geoLat, geoLng, applyPayload])
 
   useEffect(() => {
     if (!enabled) {
@@ -95,7 +100,7 @@ export function useRainauAvailableDeliveryDates(
       window.removeEventListener('focus', handleVisibilityChange)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [enabled, deliveryMode, fastPoll, pollMs, refresh])
+  }, [enabled, deliveryMode, geoLat, geoLng, fastPoll, pollMs, refresh])
 
   useEffect(() => {
     if (!enabled) return undefined

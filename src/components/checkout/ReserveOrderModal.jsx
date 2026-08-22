@@ -203,6 +203,8 @@ export default function ReserveOrderModal({
   } = useRainauAvailableDeliveryDates(open && requiresRainauDeliveryDate, {
     deliveryMode: scheduledDeliveryMode,
     fastPoll: calendarPickerOpen,
+    geoLat: primaryAddress?.geoLat ?? null,
+    geoLng: primaryAddress?.geoLng ?? null,
   })
 
   const {

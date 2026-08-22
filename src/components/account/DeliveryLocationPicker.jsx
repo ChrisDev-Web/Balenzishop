@@ -13,6 +13,7 @@ import {
 import {
   getRainauCoverageLeafletStyle,
   getRainauCoverageQuoteLabel,
+  getRainauScheduleConfirmMessage,
   isSelectableRainauCoverage,
   RAINAU_COVERAGE_KIND,
   RAINAU_COVERAGE_REQUIRED_MESSAGE,
@@ -55,6 +56,7 @@ export default function DeliveryLocationPicker({
   const [isGeocoding, setIsGeocoding] = useState(false)
   const [error, setError] = useState('')
   const [liveCoverage, setLiveCoverage] = useState(null)
+  const [scheduleConfirm, setScheduleConfirm] = useState(null)
 
   const currentLocation = normalizeMapLocation(value)
   const hasConfirmedLocation = Boolean(currentLocation)
@@ -70,6 +72,7 @@ export default function DeliveryLocationPicker({
     geocodeRequestRef.current += 1
     mapSessionRef.current += 1
     pendingPanRef.current = null
+    setScheduleConfirm(null)
     setMapModalOpen(false)
     setMapReady(false)
   }, [])
@@ -260,8 +263,37 @@ export default function DeliveryLocationPicker({
 
   function handleConfirmMapLocation() {
     if (!mapRef.current) return
-    const applied = applyLocation(readMapCenter(mapRef.current))
+    const location = readMapCenter(mapRef.current)
+    const normalized = normalizeMapLocation(location)
+    if (!normalized) {
+      setError('Selecciona una ubicación dentro de Perú.')
+      return
+    }
+
+    const coverage = resolveRainauCoverage(normalized.lat, normalized.lng)
+    if (!isSelectableRainauCoverage(coverage)) {
+      setError(RAINAU_COVERAGE_REQUIRED_MESSAGE)
+      return
+    }
+
+    const message = getRainauScheduleConfirmMessage(coverage)
+    if (message) {
+      setError('')
+      setScheduleConfirm({ location: normalized, coverage, message })
+      return
+    }
+
+    const applied = applyLocation(normalized)
     if (applied) {
+      closeMapModal()
+    }
+  }
+
+  function handleConfirmSchedule() {
+    if (!scheduleConfirm?.location) return
+    const applied = applyLocation(scheduleConfirm.location)
+    if (applied) {
+      setScheduleConfirm(null)
       closeMapModal()
     }
   }
@@ -366,6 +398,31 @@ export default function DeliveryLocationPicker({
           </button>
         </div>
       </div>
+      {scheduleConfirm && (
+        <div className="absolute inset-0 z-[700] flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-xl">
+            <p className="text-sm font-semibold text-gray-900">
+              {scheduleConfirm.message}
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleConfirmSchedule}
+                className="flex-1 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800"
+              >
+                Confirmar
+              </button>
+              <button
+                type="button"
+                onClick={() => setScheduleConfirm(null)}
+                className="flex-1 rounded-full border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Volver
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   ) : null

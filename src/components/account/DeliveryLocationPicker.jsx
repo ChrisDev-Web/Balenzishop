@@ -13,7 +13,9 @@ import {
 import {
   getRainauCoverageLeafletStyle,
   getRainauCoverageQuoteLabel,
+  isSelectableRainauCoverage,
   RAINAU_COVERAGE_KIND,
+  RAINAU_COVERAGE_REQUIRED_MESSAGE,
   VISIBLE_RAINAU_COVERAGE_ZONES,
   resolveRainauCoverage,
 } from '../../utils/rainauCoverage'
@@ -231,18 +233,20 @@ export default function DeliveryLocationPicker({
     return buildGoogleMapsLink(normalized.lat, normalized.lng)
   }
 
-  function applyLocation(location) {
+    function applyLocation(location) {
     const normalized = normalizeMapLocation(location)
     if (!normalized) {
       setError('Selecciona una ubicación dentro de Perú.')
       return false
     }
 
-    setError('')
-    const coverage = resolveRainauCoverage(normalized.lat, normalized.lng) || {
-      fee: 0,
-      zoneId: 'sin_cobertura',
+    const coverage = resolveRainauCoverage(normalized.lat, normalized.lng)
+    if (!isSelectableRainauCoverage(coverage)) {
+      setError(RAINAU_COVERAGE_REQUIRED_MESSAGE)
+      return false
     }
+
+    setError('')
     onChange?.({
       geoLat: normalized.lat,
       geoLng: normalized.lng,
@@ -324,7 +328,7 @@ export default function DeliveryLocationPicker({
               Azul · S/ 15.00
             </span>
             <span className="rounded-full bg-white/95 px-2 py-1 text-[10px] font-semibold text-red-800 shadow">
-              Rojo · con cargo
+              Rojo · con cargo (WhatsApp)
             </span>
           </div>
           {liveCoverage && (
@@ -336,16 +340,19 @@ export default function DeliveryLocationPicker({
       </div>
 
       <div className="relative z-10 shrink-0 border-t border-gray-200 bg-white px-4 py-4">
+        {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
         <p className="text-xs text-gray-500">
-          {liveCoverage?.fee > 0
-            ? 'Confirma el punto para guardar esa tarifa de delivery.'
-            : 'Si el pin cae en rojo o fuera de zona, el delivery queda con cargo y se coordina por WhatsApp.'}
+          {isSelectableRainauCoverage(liveCoverage)
+            ? liveCoverage.fee > 0
+              ? 'Confirma el punto para guardar esa tarifa de delivery.'
+              : 'Zona roja: el delivery queda con cargo y se coordina por WhatsApp.'
+            : RAINAU_COVERAGE_REQUIRED_MESSAGE}
         </p>
         <div className="mt-3 flex gap-2">
           <button
             type="button"
             onClick={handleConfirmMapLocation}
-            disabled={disabled || !mapReady || isGeocoding}
+            disabled={disabled || !mapReady || isGeocoding || !isSelectableRainauCoverage(liveCoverage)}
             className="flex-1 rounded-full bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-60"
           >
             Confirmar ubicación

@@ -16,6 +16,11 @@ import {
 } from '../../utils/addressMapper'
 import { buildFormFromAddress } from '../../utils/addressFormHelpers'
 import { DELIVERY_TYPES, getDeliveryProviderLabel, isHomeDeliveryType, isOwnDeliveryType } from '../../utils/deliveryTypes'
+import {
+  isSelectableRainauCoverage,
+  RAINAU_COVERAGE_REQUIRED_MESSAGE,
+  resolveRainauCoverage,
+} from '../../utils/rainauCoverage'
 import SearchableCombobox from '../ui/SearchableCombobox'
 import ShalonSearchCombobox from './ShalonSearchCombobox'
 import DeliveryLocationPicker from './DeliveryLocationPicker'
@@ -310,6 +315,11 @@ export default function AddressModal({ address, initialMode = 'view', onClose, o
 
       if (!form.fullAddress?.trim()) {
         setError('Escriba su dirección completa')
+        return
+      }
+
+      if (!isSelectableRainauCoverage(resolveRainauCoverage(form.geoLat, form.geoLng))) {
+        setError(RAINAU_COVERAGE_REQUIRED_MESSAGE)
         return
       }
     } else if (isOwnDelivery) {

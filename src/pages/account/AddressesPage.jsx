@@ -36,6 +36,11 @@ import {
   isOwnDeliveryType,
 } from '../../utils/deliveryTypes'
 import {
+  isSelectableRainauCoverage,
+  RAINAU_COVERAGE_REQUIRED_MESSAGE,
+  resolveRainauCoverage,
+} from '../../utils/rainauCoverage'
+import {
   createMasterBeneficiaryDirection,
   getMasterBeneficiaryDetail,
 } from '../../api/masterBeneficiaries'
@@ -652,6 +657,11 @@ export default function AddressesPage() {
 
       if (!form.fullAddress?.trim()) {
         setError('Escriba su dirección completa')
+        return
+      }
+
+      if (!isSelectableRainauCoverage(resolveRainauCoverage(form.geoLat, form.geoLng))) {
+        setError(RAINAU_COVERAGE_REQUIRED_MESSAGE)
         return
       }
     } else if (isOwnDelivery) {

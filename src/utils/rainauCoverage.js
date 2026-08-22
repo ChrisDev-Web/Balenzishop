@@ -85,6 +85,13 @@ function zoneContainsPoint(zone, lat, lng) {
   return zone.rings.some((ring) => ring.length >= 3 && pointInRing(lat, lng, ring))
 }
 
+export function isSelectableRainauCoverage(coverage) {
+  return Boolean(coverage?.mapped)
+}
+
+export const RAINAU_COVERAGE_REQUIRED_MESSAGE =
+  'El pin debe quedar sobre una zona de color (verde, azul o rojo). No se puede marcar donde el mapa no tiene cobertura pintada.'
+
 export function resolveRainauCoverage(lat, lng) {
   const latitude = Number(lat)
   const longitude = Number(lng)
@@ -108,6 +115,7 @@ export function resolveRainauCoverage(lat, lng) {
             ? 'zona_15'
             : 'sin_cobertura',
         name: match.name,
+        mapped: true,
       }
     }
   }
@@ -117,11 +125,13 @@ export function resolveRainauCoverage(lat, lng) {
     fee: 0,
     zoneId: 'sin_cobertura',
     name: 'Fuera de cobertura',
+    mapped: false,
   }
 }
 
 export function getRainauCoverageQuoteLabel(coverage) {
   if (!coverage) return ''
   if (coverage.fee > 0) return `Delivery: S/ ${Number(coverage.fee).toFixed(2)}`
-  return 'Delivery: con cargo (se coordina por WhatsApp)'
+  if (coverage.mapped) return 'Delivery: con cargo (se coordina por WhatsApp)'
+  return 'Fuera de zona pintada: mueve el pin a verde, azul o rojo'
 }

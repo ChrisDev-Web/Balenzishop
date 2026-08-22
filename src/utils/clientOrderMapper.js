@@ -88,6 +88,7 @@ export function mapApiClientOrder(order) {
       ? {
           guideNumber: order.shalom.guide_number,
           guideCode: order.shalom.guide_code,
+          pickupKey: order.shalom.pickup_key || null,
           receiptUrl: order.shalom.receipt_url
             ? normalizeMediaUrl(order.shalom.receipt_url)
             : null,

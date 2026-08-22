@@ -309,6 +309,11 @@ export default function OrdersPage() {
                         </span>
                       </div>
                       <p className="mt-0.5 text-xs text-gray-500">{order.date}</p>
+                      {order.shalom?.pickupKey && (
+                        <p className="mt-1 text-xs text-gray-700">
+                          Clave Shalom: <span className="font-semibold">{order.shalom.pickupKey}</span>
+                        </p>
+                      )}
                       <div className="mt-2 flex items-baseline justify-between gap-4 sm:hidden">
                         <p className="text-xs text-gray-500">{itemCount} ítem{itemCount !== 1 ? 's' : ''}</p>
                         <p className="text-sm font-bold text-gray-900">S/ {order.total?.toFixed(2)}</p>
@@ -395,6 +400,7 @@ export default function OrdersPage() {
           orderClientId={trackingOrder.idClientOrder}
           guideNumber={trackingOrder.shalom?.guideNumber}
           guideCode={trackingOrder.shalom?.guideCode}
+          pickupKey={trackingOrder.shalom?.pickupKey}
           receiptUrl={trackingOrder.shalom?.receiptUrl}
           receiptName={trackingOrder.shalom?.receiptName}
           receiptIsPdf={trackingOrder.shalom?.receiptIsPdf}

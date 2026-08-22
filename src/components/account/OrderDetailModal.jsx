@@ -187,6 +187,12 @@ export default function OrderDetailModal({ order, onClose }) {
                         Código: <span className="font-semibold">{order.shalom.guideCode}</span>
                       </>
                     ) : null}
+                    {order.shalom.pickupKey ? (
+                      <>
+                        {' · '}
+                        Clave Shalom: <span className="font-semibold">{order.shalom.pickupKey}</span>
+                      </>
+                    ) : null}
                   </p>
                 )}
               {order.shalom?.receiptUrl && (

@@ -30,6 +30,7 @@ export default function ShalomTrackingModal({
   orderClientId = null,
   guideNumber,
   guideCode = '',
+  pickupKey = '',
   timeline = [],
   receiptUrl = '',
   receiptName = '',
@@ -66,6 +67,7 @@ export default function ShalomTrackingModal({
                 Pedido #{orderNumber}
                 {guideNumber ? ` · Guía ${guideNumber}` : ''}
                 {guideCode ? ` · ${guideCode}` : ''}
+                {pickupKey ? ` · Clave ${pickupKey}` : ''}
               </p>
             </div>
             <button

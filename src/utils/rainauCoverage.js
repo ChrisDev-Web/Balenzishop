@@ -114,11 +114,11 @@ function zoneContainsPoint(zone, lat, lng) {
 }
 
 export function isSelectableRainauCoverage(coverage) {
-  return Boolean(coverage?.mapped)
+  return Boolean(coverage)
 }
 
 export const RAINAU_COVERAGE_REQUIRED_MESSAGE =
-  'El pin debe quedar sobre una zona de color (verde, azul o rojo). No se puede marcar donde el mapa no tiene cobertura pintada.'
+  'Selecciona una ubicación en el mapa para el delivery.'
 
 export function resolveRainauCoverage(lat, lng) {
   const latitude = Number(lat)
@@ -166,6 +166,5 @@ export function resolveRainauCoverage(lat, lng) {
 export function getRainauCoverageQuoteLabel(coverage) {
   if (!coverage) return ''
   if (coverage.fee > 0) return `Delivery: S/ ${Number(coverage.fee).toFixed(2)}`
-  if (coverage.mapped) return 'Delivery: con cargo (se coordina por WhatsApp)'
-  return 'Fuera de zona pintada: mueve el pin a verde, azul o rojo'
+  return 'Delivery: con cargo (se coordina por WhatsApp)'
 }

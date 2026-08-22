@@ -377,7 +377,7 @@ export default function DeliveryLocationPicker({
           {isSelectableRainauCoverage(liveCoverage)
             ? liveCoverage.fee > 0
               ? 'Confirma el punto para guardar esa tarifa de delivery.'
-              : 'Zona roja: el delivery queda con cargo y se coordina por WhatsApp.'
+              : 'Sin tarifa automática: el delivery queda con cargo y se coordina por WhatsApp.'
             : RAINAU_COVERAGE_REQUIRED_MESSAGE}
         </p>
         <div className="mt-3 flex gap-2">

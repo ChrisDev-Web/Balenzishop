@@ -107,6 +107,12 @@ export default function OrderDetailModal({ order, onClose }) {
                 <span className="font-bold">- S/ {order.discount.toFixed(2)}</span>
               </div>
             )}
+            {order.packagingFee > 0 && (
+              <div className="flex justify-between text-gray-600">
+                <span>Empaquetado</span>
+                <span className="font-bold text-gray-900">S/ {order.packagingFee.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-3 text-gray-600">
               <span className="shrink-0">Envío</span>
               <ShippingChargeDisplay

@@ -6,6 +6,8 @@ import WomenPage from './pages/WomenPage'
 import MenPage from './pages/MenPage'
 import PromotionsPage from './pages/PromotionsPage'
 import CatalogPage from './pages/CatalogPage'
+import MayoristaCatalogPage from './pages/MayoristaCatalogPage'
+import MayoristaProductDetailPage from './pages/MayoristaProductDetailPage'
 import ProductDetailPage from './pages/ProductDetailPage'
 import CheckoutPage from './pages/CheckoutPage'
 import AccountLayout from './pages/account/AccountLayout'
@@ -31,6 +33,8 @@ export default function App() {
           <Route path="hombres" element={<MenPage />} />
           <Route path="promociones" element={<PromotionsPage />} />
           <Route path="catalogo" element={<CatalogPage />} />
+          <Route path="mayorista" element={<MayoristaCatalogPage />} />
+          <Route path="mayorista/producto/:id" element={<MayoristaProductDetailPage />} />
           <Route path="producto/:id" element={<ProductDetailPage />} />
           <Route path="pedido" element={<CheckoutPage />} />
           <Route path="terminos-y-condiciones" element={<TermsPage />} />

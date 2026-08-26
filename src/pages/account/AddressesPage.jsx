@@ -368,9 +368,7 @@ export default function AddressesPage() {
   useEffect(() => {
     if (!isSetupFlow || isMasterBeneficiaryFlow || isLoadingAddresses || addresses.length === 0 || isAddingNew) return
 
-    const next = flujo === 'pedido'
-      ? '/pedido'
-      : getRouteAfterAddress(authIntent, authReturnTo)
+    const next = getRouteAfterAddress(authIntent, authReturnTo)
     finishAuthFlow()
     navigate(next, { replace: true })
   }, [
@@ -383,6 +381,7 @@ export default function AddressesPage() {
     authReturnTo,
     navigate,
     finishAuthFlow,
+    isMasterBeneficiaryFlow,
   ])
 
   useEffect(() => {
@@ -746,9 +745,7 @@ export default function AddressesPage() {
     resetFormState()
 
     if (!editingAddressId && isSetupFlow) {
-      const next = flujo === 'pedido'
-        ? '/pedido'
-        : getRouteAfterAddress(authIntent, authReturnTo)
+      const next = getRouteAfterAddress(authIntent, authReturnTo)
       finishAuthFlow()
       navigate(next)
       return

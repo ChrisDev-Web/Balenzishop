@@ -3,9 +3,12 @@ import { useCartStore } from '../stores/cartStore'
 import { useDecantPromoStore } from '../stores/decantPromoStore'
 import { getCartDecantPromotionSummary } from '../utils/decantPromoPricing'
 import { getCartLineTotal } from '../utils/pricing'
+import { CART_MODES } from '../utils/shoppingMode'
 
-export function useCartTotals() {
-  const items = useCartStore((state) => state.items)
+export function useCartTotals(mode = CART_MODES.MINORISTA) {
+  const items = useCartStore((state) =>
+    mode === CART_MODES.MAYORISTA ? state.mayoristaItems : state.minoristaItems,
+  )
   const promotions = useDecantPromoStore((state) => state.promotions)
   const brandSegments = useDecantPromoStore((state) => state.brandSegments)
   const ensureLoaded = useDecantPromoStore((state) => state.ensureLoaded)

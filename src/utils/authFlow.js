@@ -3,6 +3,7 @@ export const AUTH_INTENT = {
   ONBOARDING: 'onboarding',
   ORDERS: 'orders',
   REVIEW: 'review',
+  WHOLESALE: 'wholesale',
 }
 
 const DEFAULT_RETURN = '/mi-cuenta'
@@ -34,6 +35,16 @@ export function resolveReturnTo(returnTo, fallback = DEFAULT_RETURN) {
   return normalizeReturnTo(returnTo) ?? fallback
 }
 
+function checkoutReturnPath(returnTo) {
+  return resolveReturnTo(returnTo, '/pedido')
+}
+
+function checkoutAddressSetupPath(returnTo) {
+  const checkoutPath = checkoutReturnPath(returnTo)
+
+  return `/mi-cuenta/direcciones?flujo=pedido&returnTo=${encodeURIComponent(checkoutPath)}`
+}
+
 export function isAuthSetupRoute(route) {
   return (
     route === '/mi-cuenta/completar-perfil' ||
@@ -56,12 +67,12 @@ export function getRouteAfterLogin(user, authIntent, returnTo = null) {
 
   if (requiresOwnDeliveryAddress(user) && !user.addresses?.length) {
     return authIntent === AUTH_INTENT.CHECKOUT
-      ? '/mi-cuenta/direcciones?flujo=pedido'
+      ? checkoutAddressSetupPath(returnTo)
       : '/mi-cuenta/direcciones?flujo=onboarding'
   }
 
   if (authIntent === AUTH_INTENT.CHECKOUT) {
-    return '/pedido'
+    return checkoutReturnPath(returnTo)
   }
 
   return resolveReturnTo(returnTo, DEFAULT_RETURN)
@@ -74,7 +85,7 @@ export function getRouteAfterProfile(user, authIntent, returnTo = null) {
 
   if (requiresOwnDeliveryAddress(user) && !user?.addresses?.length) {
     return authIntent === AUTH_INTENT.CHECKOUT
-      ? '/mi-cuenta/direcciones?flujo=pedido'
+      ? checkoutAddressSetupPath(returnTo)
       : '/mi-cuenta/direcciones?flujo=onboarding'
   }
 
@@ -83,7 +94,7 @@ export function getRouteAfterProfile(user, authIntent, returnTo = null) {
   }
 
   if (authIntent === AUTH_INTENT.CHECKOUT) {
-    return '/pedido'
+    return checkoutReturnPath(returnTo)
   }
 
   if (authIntent === AUTH_INTENT.REVIEW) {
@@ -95,7 +106,7 @@ export function getRouteAfterProfile(user, authIntent, returnTo = null) {
 
 export function getRouteAfterAddress(authIntent, returnTo = null) {
   if (authIntent === AUTH_INTENT.CHECKOUT) {
-    return '/pedido'
+    return checkoutReturnPath(returnTo)
   }
 
   if (authIntent === AUTH_INTENT.ORDERS) {

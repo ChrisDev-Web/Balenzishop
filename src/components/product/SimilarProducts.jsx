@@ -6,12 +6,12 @@ import { useAddToCart } from '../../hooks/useAddToCart'
 import { getCatalogPricePresentation, getPromoDiscountLabel } from '../../utils/pricing'
 import CatalogPriceDisplay from './CatalogPriceDisplay'
 import LiveDiscountBadge from './LiveDiscountBadge'
-import { productLink } from '../../utils/productUtils'
+import { productLinkForMode } from '../../utils/shoppingMode'
 
-export default function SimilarProducts({ products = [], categoryLink }) {
+export default function SimilarProducts({ products = [], categoryLink, catalogMode = null }) {
   const scrollRef = useRef(null)
-  const addToCart = useAddToCart()
-  const { isMayorista, minQuantity, role } = useUserPricing()
+  const addToCart = useAddToCart(catalogMode)
+  const { isMayorista, minQuantity, role } = useUserPricing(catalogMode)
 
   if (!products?.length) return null
 
@@ -64,7 +64,7 @@ export default function SimilarProducts({ products = [], categoryLink }) {
             key={p.id}
             className="w-[200px] shrink-0 rounded-xl border border-gray-200 bg-white p-3 sm:w-[220px]"
           >
-            <Link to={productLink(p.id)} className="block">
+            <Link to={productLinkForMode(p.id, catalogMode)} className="block">
               <div className="relative flex h-40 items-center justify-center rounded-lg bg-stone-50 p-2">
                 {promoDiscountLabel && (
                   <LiveDiscountBadge label={promoDiscountLabel} className="absolute left-2 top-2" />

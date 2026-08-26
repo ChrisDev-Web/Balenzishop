@@ -13,7 +13,8 @@ import {
 } from '../../utils/pricing'
 import CatalogPriceDisplay from '../product/CatalogPriceDisplay'
 import LiveDiscountBadge from '../product/LiveDiscountBadge'
-import { productLink } from '../../utils/productUtils'
+import { productLinkForMode } from '../../utils/shoppingMode'
+import { useShoppingMode } from '../../hooks/useShoppingMode'
 
 function formatCatalogVolume(perfume) {
   const ml = Number(perfume.netContentMl)
@@ -25,10 +26,15 @@ function formatCatalogVolume(perfume) {
   return content
 }
 
-function ProductCard({ perfume, priority = false }) {
-  const addToCart = useAddToCart()
-  const cartItem = useCartStore((s) => s.items.find((item) => item.id === perfume.id))
-  const { getCatalogDisplayPrices, isMayorista, minQuantity, role } = useUserPricing()
+function ProductCard({ perfume, priority = false, catalogMode = null }) {
+  const addToCart = useAddToCart(catalogMode)
+  const { mode } = useShoppingMode()
+  const resolvedMode = catalogMode ?? mode
+  const cartItem = useCartStore((state) =>
+    (resolvedMode === 'mayorista' ? state.mayoristaItems : state.minoristaItems)
+      .find((item) => item.id === perfume.id),
+  )
+  const { getCatalogDisplayPrices, isMayorista, minQuantity, role } = useUserPricing(resolvedMode)
   const [imgError, setImgError] = useState(false)
   const pricePresentation = getCatalogPricePresentation(perfume, role)
   const { displayPrice, strikePrice } = getCatalogDisplayPrices(perfume)
@@ -48,7 +54,7 @@ function ProductCard({ perfume, priority = false }) {
 
   return (
     <Link
-      to={productLink(perfume.id)}
+      to={productLinkForMode(perfume.id, resolvedMode)}
       className="group flex h-full min-w-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition hover:shadow-md md:hover:shadow-lg [content-visibility:auto]"
     >
       <div className="relative aspect-square overflow-hidden bg-gray-50 sm:aspect-[3/4]">

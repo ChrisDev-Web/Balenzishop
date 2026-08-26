@@ -3,12 +3,10 @@ import { fetchCatalogProductDetail } from '../api/products'
 import { STORE_NS } from '../core/cache/moduleCacheNamespaces'
 import { runPersistedValueFetch, usePersistedValueQuery } from '../core/cache/usePersistedValueQuery'
 import { useAuthStore } from '../stores/authStore'
-import { isMayorista } from '../utils/pricing'
 
-export function useProductDetail(productId) {
+export function useProductDetail(productId, options = {}) {
+  const { wholesale = false } = options
   const accessToken = useAuthStore((state) => state.accessToken)
-  const role = useAuthStore((state) => state.user?.role)
-  const wholesale = isMayorista(role)
 
   const [refreshCounter, setRefreshCounter] = useState(0)
   const stableCacheKey = `${productId}|${wholesale}`
@@ -37,7 +35,7 @@ export function useProductDetail(productId) {
       setData({
         key: queryKey,
         value: null,
-        error: 'Inicia sesión como mayorista para ver este producto.',
+        error: 'Inicia sesión para ver este producto mayorista.',
       })
       return undefined
     }
@@ -68,7 +66,7 @@ export function useProductDetail(productId) {
   return {
     product: wholesale && !accessToken ? null : product,
     error: wholesale && !accessToken
-      ? 'Inicia sesión como mayorista para ver este producto.'
+      ? 'Inicia sesión para ver este producto mayorista.'
       : error,
     ready,
     isFetching: enabled && isFetching,

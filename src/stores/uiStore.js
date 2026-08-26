@@ -6,6 +6,7 @@ export const useUiStore = create(
   persist(
     (set) => ({
       loginModalOpen: false,
+      wholesaleModalOpen: false,
       authIntent: AUTH_INTENT.ONBOARDING,
       authReturnTo: null,
 
@@ -17,6 +18,10 @@ export const useUiStore = create(
         }),
 
       closeLoginModal: () => set({ loginModalOpen: false }),
+
+      openWholesaleModal: () => set({ wholesaleModalOpen: true }),
+
+      closeWholesaleModal: () => set({ wholesaleModalOpen: false }),
 
       finishAuthFlow: () =>
         set({ authIntent: AUTH_INTENT.ONBOARDING, authReturnTo: null }),

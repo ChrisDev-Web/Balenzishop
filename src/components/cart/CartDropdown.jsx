@@ -5,21 +5,28 @@ import { useCartStore } from '../../stores/cartStore'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
 import { getRouteAfterLogin, AUTH_INTENT, captureAuthReturnTo, isMasterAccountUser } from '../../utils/authFlow'
-import { getCartLineTotal, getDecantCartOptions, getMaxCartQuantity } from '../../utils/pricing'
+import { getDecantCartOptions, getMaxCartQuantity } from '../../utils/pricing'
 import { useUserPricing } from '../../hooks/useUserPricing'
 import { getLineDisplayTotal, getLinePromoDiscount, useCartTotals } from '../../hooks/useCartTotals'
+import { useShoppingMode } from '../../hooks/useShoppingMode'
+import { buildCheckoutPath, catalogLinkForMode } from '../../utils/shoppingMode'
 
 export default function CartDropdown({ onClose, variant = 'anchored' }) {
   const navigate = useNavigate()
   const touchStartX = useRef(null)
   const [dragX, setDragX] = useState(0)
-  const { items, removeItem, updateQuantity } = useCartStore()
-  const { subtotal, decantPromoDiscount, promoResult } = useCartTotals()
+  const { mode } = useShoppingMode()
+  const items = useCartStore((state) =>
+    mode === 'mayorista' ? state.mayoristaItems : state.minoristaItems,
+  )
+  const removeItem = useCartStore((state) => state.removeItem)
+  const updateQuantity = useCartStore((state) => state.updateQuantity)
+  const { subtotal, decantPromoDiscount, promoResult } = useCartTotals(mode)
   const { isAuthenticated, user } = useAuthStore()
   const openLoginModal = useUiStore((s) => s.openLoginModal)
   const setAuthIntent = useUiStore((s) => s.setAuthIntent)
   const authReturnTo = useUiStore((s) => s.authReturnTo)
-  const { isMayorista, minQuantity, role } = useUserPricing()
+  const { isMayorista, minQuantity, role } = useUserPricing(mode)
 
   useEffect(() => {
     items.forEach((item) => {
@@ -37,10 +44,10 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
           : null,
       )
       if (Number.isFinite(maxQuantity) && item.quantity > maxQuantity) {
-        updateQuantity(item.id, maxQuantity, item.idProductDecant ?? null)
+        updateQuantity(item.id, maxQuantity, item.idProductDecant ?? null, mode)
       }
     })
-  }, [items, role, updateQuantity])
+  }, [items, mode, role, updateQuantity])
 
   const panelClass =
     variant === 'mobile'
@@ -75,17 +82,18 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
 
   const handleGoToCheckout = () => {
     onClose()
+    const checkoutPath = buildCheckoutPath(mode)
 
     if (!isAuthenticated) {
-      openLoginModal(AUTH_INTENT.CHECKOUT)
+      openLoginModal(AUTH_INTENT.CHECKOUT, checkoutPath)
       return
     }
 
-    const returnPath = captureAuthReturnTo() || authReturnTo || '/pedido'
+    const returnPath = checkoutPath || authReturnTo || '/pedido'
     setAuthIntent(AUTH_INTENT.CHECKOUT, returnPath)
 
     if (isMasterAccountUser(user)) {
-      navigate('/pedido')
+      navigate(checkoutPath)
       return
     }
 
@@ -108,7 +116,9 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
       )}
 
       <div className="flex shrink-0 items-center justify-between border-b px-5 py-4">
-        <h3 className="font-semibold text-gray-900">Mi carrito</h3>
+        <h3 className="font-semibold text-gray-900">
+          Mi carrito{isMayorista ? ' mayorista' : ''}
+        </h3>
         <button
           type="button"
           onClick={onClose}
@@ -128,7 +138,7 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
           <p className="mt-1 text-sm text-gray-500">Comienza a llenarlo.</p>
           <button
             type="button"
-            onClick={() => { onClose(); navigate('/catalogo') }}
+            onClick={() => { onClose(); navigate(catalogLinkForMode(mode)) }}
             className="mt-6 rounded-full bg-black px-6 py-2.5 text-sm font-semibold text-white hover:bg-gray-800"
           >
             Ver catálogo
@@ -184,7 +194,7 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
                     <div className="mt-2 flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => updateQuantity(item.id, item.quantity - 1, item.idProductDecant ?? null)}
+                        onClick={() => updateQuantity(item.id, item.quantity - 1, item.idProductDecant ?? null, mode)}
                         className="rounded border p-1 hover:bg-gray-50"
                         aria-label="Disminuir cantidad"
                       >
@@ -193,7 +203,7 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
                       <span className="min-w-[1.25rem] text-center text-sm font-medium">{item.quantity}</span>
                       <button
                         type="button"
-                        onClick={() => updateQuantity(item.id, item.quantity + 1, item.idProductDecant ?? null)}
+                        onClick={() => updateQuantity(item.id, item.quantity + 1, item.idProductDecant ?? null, mode)}
                         disabled={atMaxStock}
                         className="rounded border p-1 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                         aria-label="Aumentar cantidad"
@@ -202,7 +212,7 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => removeItem(item.id, item.idProductDecant ?? null)}
+                        onClick={() => removeItem(item.id, item.idProductDecant ?? null, mode)}
                         className="ml-auto text-gray-400 hover:text-black"
                         aria-label="Eliminar producto"
                       >

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { buildCatalogSearchParams, parseCatalogFilters } from '../utils/filterPerfumes'
 import { CATALOG_SORT } from '../utils/catalogSort.js'
+import { CART_MODES } from '../utils/shoppingMode.js'
 import { useActiveCategories } from '../hooks/useActiveCategories'
 import { useActiveBrands } from '../hooks/useActiveBrands'
 import { useCatalogProducts } from '../hooks/useCatalogProducts'
@@ -16,7 +17,8 @@ const DEFAULT_MAX_PRICE = 500
 const PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 400
 
-export default function CatalogPage() {
+export default function CatalogPage({ catalogMode = CART_MODES.MINORISTA }) {
+  const wholesale = catalogMode === CART_MODES.MAYORISTA
   const [searchParams, setSearchParams] = useSearchParams()
 
   const {
@@ -81,6 +83,7 @@ export default function CatalogPage() {
     page,
     PAGE_SIZE,
     filtersKey,
+    { wholesale },
   )
 
   const totalItems = meta?.total
@@ -89,7 +92,9 @@ export default function CatalogPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-3 py-5 min-[400px]:px-3 min-[400px]:py-6 md:px-4 md:py-10 lg:px-6">
-      <h1 className="text-xl font-bold text-gray-900 min-[400px]:text-2xl md:text-3xl">Catálogo</h1>
+      <h1 className="text-xl font-bold text-gray-900 min-[400px]:text-2xl md:text-3xl">
+        {wholesale ? 'Mayorista' : 'Catálogo'}
+      </h1>
       <p className="mt-1 text-sm text-gray-600 md:text-base">
         {totalItems != null
           ? `${totalItems} producto${totalItems !== 1 ? 's' : ''} disponible${totalItems !== 1 ? 's' : ''}`
@@ -145,7 +150,7 @@ export default function CatalogPage() {
             <>
               <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
                 {items.map((product) => (
-                  <ProductCard key={product.id} perfume={product} />
+                  <ProductCard key={product.id} perfume={product} catalogMode={catalogMode} />
                 ))}
               </div>
 

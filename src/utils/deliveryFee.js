@@ -43,12 +43,13 @@ export function getDeliveryFeeForAddress(address) {
   return { fee: 0, label: 'Recojo en Shalon', zone: null, mode: DELIVERY_MODES.SHALON_FREE }
 }
 
-export function computeOrderTotal(subtotal, discount, deliveryFee, deliveryMode) {
+export function computeOrderTotal(subtotal, discount, deliveryFee, deliveryMode, packagingFee = 0) {
   const productsTotal = Math.max(0, subtotal - discount)
+  let total = productsTotal + Math.max(0, packagingFee)
   if (deliveryMode === DELIVERY_MODES.DELIVERY && deliveryFee > 0) {
-    return productsTotal + deliveryFee
+    total += deliveryFee
   }
-  return productsTotal
+  return total
 }
 
 export function formatShippingDisplay({ deliveryFee }) {

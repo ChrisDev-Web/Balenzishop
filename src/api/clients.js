@@ -1,6 +1,10 @@
 import { apiGet, apiPost, apiPut } from './client'
 import { buildRequestKey, dedupeRequest } from './requestDedupe'
 
+export async function activateWholesaleAccess(accessCode, token) {
+  return apiPost('clients/activate_wholesale', { access_code: accessCode }, token)
+}
+
 export async function registerClient(payload) {
   return apiPost('clients/register', payload)
 }

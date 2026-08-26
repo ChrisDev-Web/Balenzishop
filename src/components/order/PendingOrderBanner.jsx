@@ -1,15 +1,22 @@
 import { Link } from 'react-router-dom'
 import { X, ShoppingBag } from 'lucide-react'
 import { useCartStore } from '../../stores/cartStore'
+import { CART_MODES } from '../../utils/shoppingMode'
 
 export default function PendingOrderBanner() {
-  const { editingOrderId, clearCart } = useCartStore()
+  const editingByMode = useCartStore((state) => state.editingByMode)
+  const clearCart = useCartStore((state) => state.clearCart)
+
+  const activeMode = [CART_MODES.MINORISTA, CART_MODES.MAYORISTA].find(
+    (mode) => editingByMode?.[mode]?.editingOrderId,
+  )
+  const editingOrderId = activeMode ? editingByMode[activeMode].editingOrderId : null
 
   if (!editingOrderId) return null
 
   const handleCancel = () => {
     if (window.confirm('¿Cancelar la edición del pedido? Se vaciará el carrito.')) {
-      clearCart()
+      clearCart(activeMode)
     }
   }
 
@@ -24,7 +31,7 @@ export default function PendingOrderBanner() {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            to="/pedido"
+            to={activeMode === CART_MODES.MAYORISTA ? '/pedido?canal=mayorista' : '/pedido'}
             className="rounded-full bg-brand px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark"
           >
             Ver resumen

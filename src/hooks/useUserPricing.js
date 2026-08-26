@@ -5,9 +5,12 @@ import {
   getRoleLabel,
   isMayorista,
 } from '../utils/pricing'
+import { resolvePricingRoleForMode } from '../utils/shoppingMode'
+import { useShoppingMode } from './useShoppingMode'
 
-export function useUserPricing() {
-  const role = useAuthStore((s) => s.user?.role) || 'minorista'
+export function useUserPricing(modeOverride = null) {
+  const { pricingRole: routePricingRole } = useShoppingMode()
+  const role = modeOverride ? resolvePricingRoleForMode(modeOverride) : routePricingRole
 
   return {
     role,
@@ -16,4 +19,9 @@ export function useUserPricing() {
     minQuantity: getMinQuantity(role),
     getCatalogDisplayPrices: (product) => getCatalogDisplayPrices(product, role),
   }
+}
+
+export function useAccountClientTypeLabel() {
+  const user = useAuthStore((state) => state.user)
+  return getRoleLabel(user?.role)
 }

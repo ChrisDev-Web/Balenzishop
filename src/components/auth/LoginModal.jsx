@@ -4,7 +4,6 @@ import { X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
-import { useCartStore } from '../../stores/cartStore'
 import { useDocumentTypes } from '../../hooks/useDocumentTypes'
 import { getRouteAfterLogin, AUTH_INTENT, isAuthSetupRoute } from '../../utils/authFlow'
 import {
@@ -56,6 +55,7 @@ export default function LoginModal({ isOpen, onClose }) {
   const authIntent = useUiStore((s) => s.authIntent)
   const authReturnTo = useUiStore((s) => s.authReturnTo)
   const finishAuthFlow = useUiStore((s) => s.finishAuthFlow)
+  const openWholesaleModal = useUiStore((s) => s.openWholesaleModal)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -85,8 +85,13 @@ export default function LoginModal({ isOpen, onClose }) {
       return
     }
 
+    if (authIntent === AUTH_INTENT.WHOLESALE) {
+      finishAuthFlow()
+      openWholesaleModal()
+      return
+    }
+
     const currentUser = useAuthStore.getState().user
-    useCartStore.getState().syncWithUserRole(currentUser?.role)
 
     const nextRoute = getRouteAfterLogin(currentUser, authIntent, authReturnTo)
 
@@ -108,7 +113,6 @@ export default function LoginModal({ isOpen, onClose }) {
     }
 
     const currentUser = useAuthStore.getState().user
-    useCartStore.getState().syncWithUserRole(currentUser?.role)
     finishAuthFlow()
     navigate('/')
   }
@@ -275,7 +279,9 @@ export default function LoginModal({ isOpen, onClose }) {
                   ? 'Inicia sesión para ver el historial de tus pedidos'
                   : authIntent === AUTH_INTENT.REVIEW
                     ? 'Inicia sesión para calificar y comentar'
-                    : 'Inicia sesión con tu correo y contraseña'}
+                    : authIntent === AUTH_INTENT.WHOLESALE
+                      ? 'Inicia sesión para solicitar tu clave de acceso mayorista'
+                      : 'Inicia sesión con tu correo y contraseña'}
             </p>
 
             <div className="mt-8">

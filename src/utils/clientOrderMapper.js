@@ -48,6 +48,7 @@ export function mapApiClientOrder(order) {
     discount: Number(order.discount_amount),
     discountCode: order.discount_code,
     deliveryFee: Number(order.display_delivery_fee ?? order.delivery_fee),
+    packagingFee: Number(order.packaging_fee ?? 0),
     deliveryMode: order.delivery_mode,
     deliveryLabel: order.delivery_label,
     deliveryType: order.delivery?.delivery_type ?? null,

@@ -63,6 +63,7 @@ export function buildWhatsAppMessage({
   discount,
   discountCode,
   deliveryFee = 0,
+  packagingFee = 0,
   deliveryLabel,
   deliveryMode = DELIVERY_MODES.SHALON_FREE,
   total,
@@ -108,6 +109,9 @@ export function buildWhatsAppMessage({
   if (discount > 0) {
     const codeSuffix = discountCode ? ` (${discountCode})` : ''
     lines.push(`${ICON.ticket} Descuento${codeSuffix}: -S/ ${discount.toFixed(2)}`)
+  }
+  if (packagingFee > 0) {
+    lines.push(`${ICON.package} Empaquetado: S/ ${packagingFee.toFixed(2)}`)
   }
   lines.push(formatShippingLine({
     deliveryFee,

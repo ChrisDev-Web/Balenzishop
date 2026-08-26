@@ -14,6 +14,7 @@ import ProductSpecs from '../components/product/ProductSpecs'
 import DecantSizeSelector from '../components/product/DecantSizeSelector'
 import { getCategoryBreadcrumbFromProduct } from '../utils/catalogProductMapper'
 import { catalogLink } from '../utils/catalogLinks'
+import { CART_MODES } from '../utils/shoppingMode'
 import { getCatalogPricePresentation, getPromoDiscountLabel, getMaxCartQuantity } from '../utils/pricing'
 import CatalogPriceDisplay from '../components/product/CatalogPriceDisplay'
 import DecantPriceDisplay from '../components/product/DecantPriceDisplay.jsx'
@@ -103,11 +104,12 @@ function formatDetailStockLabel(stock) {
   return { text: `STOCK DISPONIBLE: ${units}`, tone: 'in' }
 }
 
-export default function ProductDetailPage() {
+export default function ProductDetailPage({ catalogMode = CART_MODES.MINORISTA }) {
   const { id } = useParams()
-  const addToCart = useAddToCart()
-  const { isMayorista, minQuantity, role } = useUserPricing()
-  const { product, error, ready } = useProductDetail(id)
+  const wholesale = catalogMode === CART_MODES.MAYORISTA
+  const addToCart = useAddToCart(catalogMode)
+  const { isMayorista, minQuantity, role } = useUserPricing(catalogMode)
+  const { product, error, ready } = useProductDetail(id, { wholesale })
   const [selectedDecant, setSelectedDecant] = useState(null)
   const reviewsRef = useRef(null)
 
@@ -140,7 +142,9 @@ export default function ProductDetailPage() {
     ? `DECANT - ${selectedDecant.sizeMl}ML`
     : null
 
-  const cartItems = useCartStore((s) => s.items)
+  const cartItems = useCartStore((state) =>
+    wholesale ? state.mayoristaItems : state.minoristaItems,
+  )
 
   const cartItem = cartItems.find(
     (item) =>
@@ -272,7 +276,11 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      <SimilarProducts products={product.similarProducts ?? []} categoryLink={categoryCatalogLink} />
+      <SimilarProducts
+        products={product.similarProducts ?? []}
+        categoryLink={categoryCatalogLink}
+        catalogMode={catalogMode}
+      />
 
       <ProductReviews productId={product.id} sectionRef={reviewsRef} />
 

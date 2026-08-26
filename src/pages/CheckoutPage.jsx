@@ -14,10 +14,13 @@ import {
 } from '../api/discountCoupons'
 import { fetchLiveMinoristaPricingStatus } from '../api/catalogSettings'
 import { getDeliveryFeeForAddress, computeOrderTotal } from '../utils/deliveryFee'
+import { getPackagingFeeForMode } from '../utils/wholesaleCheckout'
 import ShippingChargeDisplay from '../components/checkout/ShippingChargeDisplay'
 import { getDecantCartOptions, getMaxCartQuantity } from '../utils/pricing'
 import { getLineDisplayTotal, getLinePromoDiscount, useCartTotals } from '../hooks/useCartTotals'
 import { useUserPricing } from '../hooks/useUserPricing'
+import { CART_MODES, buildCheckoutPath, catalogLinkForMode, resolvePreferredCheckoutMode } from '../utils/shoppingMode'
+import { useCheckoutCartMode, useCanUseDualCarts } from '../hooks/useShoppingMode'
 import { buildWhatsAppMessage, openWhatsAppOrder } from '../utils/orderMessage'
 import { mapApiClientOrder } from '../utils/clientOrderMapper'
 import { reserveCheckoutOrder } from '../api/clientOrders'
@@ -55,9 +58,22 @@ import {
 export default function CheckoutPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { items, clearCart, clearEditingOrder, editingOrderId, editingDiscountCode, removeItem, updateQuantity } = useCartStore()
-  const { subtotal, grossSubtotal, decantPromoDiscount, promoResult } = useCartTotals()
-  const { role } = useUserPricing()
+  const checkoutMode = useCheckoutCartMode()
+  const canUseDualCarts = useCanUseDualCarts()
+  const items = useCartStore((state) =>
+    checkoutMode === CART_MODES.MAYORISTA ? state.mayoristaItems : state.minoristaItems,
+  )
+  const clearCart = useCartStore((state) => state.clearCart)
+  const clearEditingOrder = useCartStore((state) => state.clearEditingOrder)
+  const removeItem = useCartStore((state) => state.removeItem)
+  const updateQuantity = useCartStore((state) => state.updateQuantity)
+  const editingState = useCartStore((state) => state.editingByMode?.[checkoutMode] ?? {})
+  const editingOrderId = editingState.editingOrderId
+  const editingDiscountCode = editingState.editingDiscountCode
+  const minoristaCount = useCartStore((state) => state.totalItems(CART_MODES.MINORISTA))
+  const mayoristaCount = useCartStore((state) => state.totalItems(CART_MODES.MAYORISTA))
+  const { subtotal, grossSubtotal, decantPromoDiscount, promoResult } = useCartTotals(checkoutMode)
+  const { role } = useUserPricing(checkoutMode)
   const { user, isAuthenticated, accessToken, updateAddress, syncAddresses } = useAuthStore()
   const openLoginModal = useUiStore((s) => s.openLoginModal)
   const setAuthIntent = useUiStore((s) => s.setAuthIntent)
@@ -115,7 +131,8 @@ export default function CheckoutPage() {
   const discount = appliedCode?.discount || 0
   const delivery = getDeliveryFeeForAddress(primaryAddress)
   const deliveryFee = delivery.fee
-  const total = computeOrderTotal(subtotal, discount, deliveryFee, delivery.mode)
+  const packagingFee = getPackagingFeeForMode(checkoutMode)
+  const total = computeOrderTotal(subtotal, discount, deliveryFee, delivery.mode, packagingFee)
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0)
   const totalQuantity = totalItems
   const clientFullName = [checkoutCustomer?.firstName, checkoutCustomer?.lastNamePaternal, checkoutCustomer?.lastNameMaternal].filter(Boolean).join(' ') || '—'
@@ -144,14 +161,43 @@ export default function CheckoutPage() {
           : null,
       )
       if (Number.isFinite(maxQuantity) && item.quantity > maxQuantity) {
-        updateQuantity(item.id, maxQuantity, item.idProductDecant ?? null)
+        updateQuantity(item.id, maxQuantity, item.idProductDecant ?? null, checkoutMode)
       }
     })
-  }, [items, role, updateQuantity])
+  }, [checkoutMode, items, role, updateQuantity])
+
+  useEffect(() => {
+    if (showReserveModal || draftOrderId) return
+
+    const preferredMode = resolvePreferredCheckoutMode({
+      searchParams,
+      minoristaCount,
+      mayoristaCount,
+      canUseDualCarts,
+    })
+    const preferredPath = buildCheckoutPath(preferredMode)
+    const currentPath = `${window.location.pathname}${window.location.search}`
+
+    if (preferredPath !== currentPath && items.length === 0) {
+      const preferredCount = preferredMode === CART_MODES.MAYORISTA ? mayoristaCount : minoristaCount
+      if (preferredCount > 0) {
+        navigate(preferredPath, { replace: true })
+      }
+    }
+  }, [
+    canUseDualCarts,
+    draftOrderId,
+    items.length,
+    mayoristaCount,
+    minoristaCount,
+    navigate,
+    searchParams,
+    showReserveModal,
+  ])
 
   useEffect(() => {
     if (!isAuthenticated) {
-      openLoginModal(AUTH_INTENT.CHECKOUT)
+      openLoginModal(AUTH_INTENT.CHECKOUT, captureAuthReturnTo() || buildCheckoutPath(checkoutMode))
       return
     }
     if (user && !user.profileComplete && !isMasterAccountUser(user)) {
@@ -159,14 +205,14 @@ export default function CheckoutPage() {
       return
     }
     if (user?.profileComplete && !isMasterAccountUser(user) && !user.addresses?.length) {
-      const returnPath = captureAuthReturnTo() || '/catalogo'
+      const returnPath = captureAuthReturnTo() || buildCheckoutPath(checkoutMode)
       setAuthIntent(AUTH_INTENT.CHECKOUT, returnPath)
       navigate(
         `/mi-cuenta/direcciones?flujo=pedido&returnTo=${encodeURIComponent(returnPath)}`,
         { replace: true },
       )
     }
-  }, [isAuthenticated, user, navigate, openLoginModal, setAuthIntent, isMasterAccount])
+  }, [checkoutMode, isAuthenticated, user, navigate, openLoginModal, setAuthIntent, isMasterAccount])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -680,6 +726,7 @@ export default function CheckoutPage() {
           items,
           discountCode: appliedCode?.code || null,
           beneficiaryClientId: isMasterAccount ? selectedBeneficiary?.id_client : null,
+          saleClientType: checkoutMode,
           delivery: {
             id_client_direction: primaryAddress?.idClientDirection
               ? Number(primaryAddress.idClientDirection)
@@ -741,6 +788,7 @@ export default function CheckoutPage() {
       discount: mapped.discount,
       discountCode: mapped.discountCode,
       deliveryFee: mapped.deliveryFee,
+      packagingFee: mapped.packagingFee,
       deliveryLabel: mapped.deliveryLabel,
       deliveryMode: mapped.deliveryMode,
       total: mapped.total,
@@ -755,8 +803,8 @@ export default function CheckoutPage() {
       status: mapped.status,
     })
 
-    clearCart()
-    clearEditingOrder()
+    clearCart(checkoutMode)
+    clearEditingOrder(checkoutMode)
     clearActiveDraft()
     clearPendingCheckoutDraft()
     setShowReserveModal(false)
@@ -765,12 +813,22 @@ export default function CheckoutPage() {
   }
 
   if (items.length === 0 && !showReserveModal && !draftOrderId) {
+    const hasItemsInAnyCart = minoristaCount > 0 || mayoristaCount > 0
+
+    if (hasItemsInAnyCart) {
+      return (
+        <div className="mx-auto max-w-2xl px-4 py-20 text-center">
+          <p className="text-sm text-gray-600">Cargando tu pedido…</p>
+        </div>
+      )
+    }
+
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
         <h1 className="text-2xl font-bold text-gray-900">Tu carrito está vacío</h1>
         <p className="mt-2 text-gray-600">Agrega productos antes de hacer un pedido.</p>
         <Link
-          to="/catalogo"
+          to={catalogLinkForMode(checkoutMode)}
           className="mt-6 inline-block rounded-full bg-black px-6 py-2.5 text-sm font-semibold text-white hover:bg-gray-800"
         >
           Ir al catálogo
@@ -832,11 +890,14 @@ export default function CheckoutPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Resumen del pedido</h1>
-          <p className="mt-1 text-sm text-gray-600">{totalItems} producto{totalItems !== 1 ? 's' : ''} en tu pedido</p>
+          <p className="mt-1 text-sm text-gray-600">
+            {totalItems} producto{totalItems !== 1 ? 's' : ''} en tu pedido
+            {canUseDualCarts ? ` (${checkoutMode === CART_MODES.MAYORISTA ? 'Mayorista' : 'Minorista'})` : ''}
+          </p>
         </div>
         {isEditing && (
           <Link
-            to="/catalogo"
+            to={catalogLinkForMode(checkoutMode)}
             className="flex items-center gap-1.5 rounded-full border border-black px-4 py-2 text-sm font-semibold text-black hover:bg-gray-50"
           >
             <Plus className="h-4 w-4" />
@@ -844,6 +905,33 @@ export default function CheckoutPage() {
           </Link>
         )}
       </div>
+
+      {canUseDualCarts ? (
+        <div className="mt-6 inline-flex rounded-full border border-gray-200 bg-gray-50 p-1">
+          <button
+            type="button"
+            onClick={() => navigate(buildCheckoutPath(CART_MODES.MINORISTA))}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+              checkoutMode === CART_MODES.MINORISTA
+                ? 'bg-black text-white'
+                : 'text-gray-700 hover:bg-white'
+            }`}
+          >
+            Minorista ({minoristaCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(buildCheckoutPath(CART_MODES.MAYORISTA))}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+              checkoutMode === CART_MODES.MAYORISTA
+                ? 'bg-black text-white'
+                : 'text-gray-700 hover:bg-white'
+            }`}
+          >
+            Mayorista ({mayoristaCount})
+          </button>
+        </div>
+      ) : null}
 
       <div className="mt-8 grid gap-8 lg:grid-cols-5">
         <div className="lg:col-span-3">
@@ -887,7 +975,7 @@ export default function CheckoutPage() {
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => updateQuantity(item.id, item.quantity - 1, item.idProductDecant ?? null)}
+                          onClick={() => updateQuantity(item.id, item.quantity - 1, item.idProductDecant ?? null, checkoutMode)}
                           className="rounded border border-gray-300 p-1.5 hover:bg-gray-50"
                           aria-label="Disminuir cantidad"
                         >
@@ -898,7 +986,7 @@ export default function CheckoutPage() {
                         </span>
                         <button
                           type="button"
-                          onClick={() => updateQuantity(item.id, item.quantity + 1, item.idProductDecant ?? null)}
+                          onClick={() => updateQuantity(item.id, item.quantity + 1, item.idProductDecant ?? null, checkoutMode)}
                           disabled={atMaxStock}
                           className="rounded border border-gray-300 p-1.5 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label="Aumentar cantidad"
@@ -907,7 +995,7 @@ export default function CheckoutPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => removeItem(item.id, item.idProductDecant ?? null)}
+                          onClick={() => removeItem(item.id, item.idProductDecant ?? null, checkoutMode)}
                           className="ml-1 rounded p-1.5 text-gray-400 hover:bg-gray-50 hover:text-red-600"
                           aria-label="Eliminar producto"
                         >
@@ -1143,6 +1231,12 @@ export default function CheckoutPage() {
                   <span className="font-bold">- S/ {discount.toFixed(2)}</span>
                 </div>
               )}
+              {packagingFee > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Empaquetado</span>
+                  <span className="font-bold text-gray-900">S/ {packagingFee.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between gap-3 text-gray-600">
                 <span className="shrink-0">Envío</span>
                 <ShippingChargeDisplay
@@ -1260,6 +1354,7 @@ export default function CheckoutPage() {
         total={total}
         totalQuantity={totalQuantity}
         deliveryFee={deliveryFee}
+        packagingFee={packagingFee}
         deliveryMode={delivery.mode}
         deliveryLabel={delivery.label}
         primaryAddress={primaryAddress}

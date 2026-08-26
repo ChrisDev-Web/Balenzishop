@@ -3,12 +3,10 @@ import { fetchCatalogProducts } from '../api/products'
 import { runPersistedListFetch, usePersistedListQuery } from '../core/cache/usePersistedListQuery'
 import { STORE_NS } from '../core/cache/moduleCacheNamespaces'
 import { useAuthStore } from '../stores/authStore'
-import { isMayorista } from '../utils/pricing'
 
-export function useCatalogProducts(filters, page, pageSize, filtersKey = null) {
+export function useCatalogProducts(filters, page, pageSize, filtersKey = null, options = {}) {
+  const { wholesale = false } = options
   const accessToken = useAuthStore((state) => state.accessToken)
-  const role = useAuthStore((state) => state.user?.role)
-  const wholesale = isMayorista(role)
 
   const resolvedFiltersKey = filtersKey ?? JSON.stringify(filters)
   const filtersRef = useRef(filters)
@@ -40,7 +38,7 @@ export function useCatalogProducts(filters, page, pageSize, filtersKey = null) {
         key: queryKey,
         items: [],
         meta: null,
-        error: 'Inicia sesión como mayorista para ver el catálogo.',
+        error: 'Inicia sesión para ver el catálogo mayorista.',
       })
       return undefined
     }
@@ -73,7 +71,7 @@ export function useCatalogProducts(filters, page, pageSize, filtersKey = null) {
   return {
     items: enabled ? items : [],
     meta: enabled ? meta : null,
-    error: enabled ? error : 'Inicia sesión como mayorista para ver el catálogo.',
+    error: enabled ? error : 'Inicia sesión para ver el catálogo mayorista.',
     ready,
     isFetching: enabled && isFetching,
     refresh: () => setRefreshCounter((count) => count + 1),

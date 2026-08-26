@@ -124,6 +124,7 @@ export default function ReserveOrderModal({
   discount,
   discountCode,
   deliveryFee,
+  packagingFee = 0,
   deliveryMode,
   deliveryLabel,
   primaryAddress,
@@ -233,8 +234,8 @@ export default function ReserveOrderModal({
   }, [steps])
 
   const orderTotal = useMemo(
-    () => computeOrderTotal(subtotal, discount, effectiveDeliveryFee, deliveryMode),
-    [subtotal, discount, effectiveDeliveryFee, deliveryMode],
+    () => computeOrderTotal(subtotal, discount, effectiveDeliveryFee, deliveryMode, packagingFee),
+    [subtotal, discount, effectiveDeliveryFee, deliveryMode, packagingFee],
   )
 
   const customPaymentValidation = useMemo(
@@ -573,6 +574,12 @@ export default function ReserveOrderModal({
               <div className="mt-1 flex justify-between text-gray-700">
                 <span>Descuento{discountCode ? ` (${discountCode})` : ''}</span>
                 <span>- S/ {discount.toFixed(2)}</span>
+              </div>
+            )}
+            {packagingFee > 0 && (
+              <div className="mt-1 flex justify-between text-gray-700">
+                <span>Empaquetado</span>
+                <span>S/ {packagingFee.toFixed(2)}</span>
               </div>
             )}
             <div className="mt-1 flex items-center justify-between gap-3 text-gray-700">

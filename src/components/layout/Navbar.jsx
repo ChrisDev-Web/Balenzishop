@@ -4,24 +4,48 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuthStore } from '../../stores/authStore'
 import { useCartStore } from '../../stores/cartStore'
 import LoginModal from '../auth/LoginModal'
+import WholesaleAccessModal from '../wholesale/WholesaleAccessModal'
 import CartDropdown from '../cart/CartDropdown'
 import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 import { useUiStore } from '../../stores/uiStore'
 import { useCartAnimationStore } from '../../stores/cartAnimationStore'
 import { useCompanyStore } from '../../stores/companyStore'
 import { AUTH_INTENT } from '../../utils/authFlow'
+import { isMayorista } from '../../utils/pricing'
+import { useShoppingMode } from '../../hooks/useShoppingMode'
 import {
   DEFAULT_COMPANY_NAME,
   DEFAULT_NAVBAR_LOGO,
 } from '../../utils/companyBranding'
 
-const navLinks = [
+const baseNavLinks = [
   { to: '/', label: 'Inicio' },
   { to: '/mujeres', label: 'Mujeres' },
   { to: '/hombres', label: 'Hombres' },
   { to: '/promociones', label: 'Promociones' },
-  { to: '/catalogo', label: 'Catálogo' },
 ]
+
+function WholesaleNavButton({ className, onNavigate }) {
+  return (
+    <button type="button" className={className} onClick={onNavigate}>
+      Al por mayor
+    </button>
+  )
+}
+
+function buildNavLinks(isMayoristaUser) {
+  return [
+    ...baseNavLinks,
+    {
+      to: '/catalogo',
+      label: isMayoristaUser ? 'Minorista' : 'Catálogo',
+      type: 'link',
+    },
+    isMayoristaUser
+      ? { to: '/mayorista', label: 'Mayorista', type: 'link' }
+      : { label: 'Al por mayor', type: 'wholesale' },
+  ]
+}
 
 const navLinkClass = (isActive) =>
   `navbar-text rounded-full px-2.5 py-1 text-sm font-medium text-white transition-colors hover:bg-white/10 lg:px-3 ${
@@ -32,6 +56,61 @@ const sidebarLinkClass = (isActive) =>
   `block border-b border-gray-100 px-5 py-4 text-sm font-medium transition-colors ${
     isActive ? 'bg-gray-100 text-black' : 'text-gray-800 hover:bg-gray-50'
   }`
+
+function renderDesktopNavItem(link, openWholesaleModal, closeSidebar) {
+  if (link.type === 'wholesale') {
+    return (
+      <WholesaleNavButton
+        key={link.label}
+        className={navLinkClass(false)}
+        onNavigate={() => {
+          closeSidebar?.()
+          openWholesaleModal()
+        }}
+      />
+    )
+  }
+
+  return (
+    <NavLink
+      key={link.to}
+      to={link.to}
+      className={({ isActive }) => navLinkClass(isActive)}
+      onClick={() => closeSidebar?.()}
+    >
+      {link.label}
+    </NavLink>
+  )
+}
+
+function renderSidebarNavItem(link, openWholesaleModal, closeSidebar) {
+  if (link.type === 'wholesale') {
+    return (
+      <button
+        key={link.label}
+        type="button"
+        onClick={() => {
+          closeSidebar()
+          openWholesaleModal()
+        }}
+        className={sidebarLinkClass(false)}
+      >
+        {link.label}
+      </button>
+    )
+  }
+
+  return (
+    <NavLink
+      key={link.to}
+      to={link.to}
+      onClick={closeSidebar}
+      className={({ isActive }) => sidebarLinkClass(isActive)}
+    >
+      {link.label}
+    </NavLink>
+  )
+}
 
 function AccountMenu({ accountOpen, setAccountOpen, accountRef, isAuthenticated, openLoginModal, logout, displayName }) {
   const navigate = useNavigate()
@@ -172,11 +251,14 @@ export default function Navbar() {
   const desktopAccountRef = useRef(null)
   const navigate = useNavigate()
   const { isAuthenticated, user, logout } = useAuthStore()
-  const { totalItems, isOpen, toggleCart, closeCart } = useCartStore()
-  const { loginModalOpen, openLoginModal, closeLoginModal } = useUiStore()
+  const totalItems = useCartStore((state) => state.totalItems)
+  const { isOpen, toggleCart, closeCart } = useCartStore()
+  const { loginModalOpen, openLoginModal, closeLoginModal, openWholesaleModal } = useUiStore()
+  const { mode } = useShoppingMode()
   const cartShake = useCartAnimationStore((s) => s.cartShake)
   const company = useCompanyStore((s) => s.company)
-  const count = totalItems()
+  const count = totalItems(mode)
+  const navLinks = buildNavLinks(isMayorista(user?.role))
   const logoUrl = company?.logo || DEFAULT_NAVBAR_LOGO
   const logoAlt = company?.name || DEFAULT_COMPANY_NAME
 
@@ -362,15 +444,7 @@ export default function Navbar() {
           </Link>
 
           <nav className="flex items-center gap-2 lg:gap-4">
-            {navLinks.map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                className={({ isActive }) => navLinkClass(isActive)}
-              >
-                {link.label}
-              </NavLink>
-            ))}
+            {navLinks.map((link) => renderDesktopNavItem(link, openWholesaleModal, closeSidebar))}
           </nav>
 
           <div className="flex shrink-0 items-center gap-2 lg:gap-4">
@@ -437,16 +511,7 @@ export default function Navbar() {
             </div>
 
             <nav className="flex-1 overflow-y-auto py-2">
-              {navLinks.map((link) => (
-                <NavLink
-                  key={link.to}
-                  to={link.to}
-                  onClick={closeSidebar}
-                  className={({ isActive }) => sidebarLinkClass(isActive)}
-                >
-                  {link.label}
-                </NavLink>
-              ))}
+              {navLinks.map((link) => renderSidebarNavItem(link, openWholesaleModal, closeSidebar))}
 
               <div className="mt-4 border-t border-gray-200 pt-2">
                 <NavLink
@@ -485,6 +550,7 @@ export default function Navbar() {
       )}
 
       <LoginModal isOpen={loginModalOpen} onClose={closeLoginModal} />
+      <WholesaleAccessModal />
     </>
   )
 }

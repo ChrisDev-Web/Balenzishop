@@ -9,6 +9,11 @@ import {
   getCartLineTotal,
 } from '../utils/pricing'
 import { CART_MODES, resolvePricingRoleForMode } from '../utils/shoppingMode'
+import {
+  applyLegacyCartMigration,
+  CART_STORAGE_KEY,
+  stripLegacyCartFields,
+} from '../utils/cartStorage.js'
 
 function sameCartLine(a, b) {
   return String(a.id) === String(b.id)
@@ -266,35 +271,23 @@ export const useCartStore = create(
       getEditingState: (mode = CART_MODES.MINORISTA) => getEditingForMode(get(), mode),
     }),
     {
-      name: 'balenzi-carts',
-      version: 1,
+      name: CART_STORAGE_KEY,
+      version: 2,
       migrate: (persistedState, version) => {
-        if (version === 0) {
-          return migrateLegacyCartState(persistedState)
+        const migrated = migrateLegacyCartState(persistedState ?? {})
+
+        if (version < 2) {
+          return stripLegacyCartFields(migrated)
         }
 
-        return persistedState
+        return migrated
       },
       merge: (persistedState, currentState) => ({
         ...currentState,
-        ...migrateLegacyCartState(persistedState ?? {}),
+        ...stripLegacyCartFields(migrateLegacyCartState(persistedState ?? {})),
       }),
       onRehydrateStorage: () => (state) => {
-        if (!state || state.minoristaItems?.length || state.mayoristaItems?.length) {
-          return
-        }
-
-        try {
-          const legacyRaw = localStorage.getItem('balenzi-cart')
-          if (!legacyRaw) return
-
-          const legacyState = JSON.parse(legacyRaw)?.state
-          if (Array.isArray(legacyState?.items) && legacyState.items.length > 0) {
-            state.minoristaItems = legacyState.items
-          }
-        } catch {
-          // Ignore invalid legacy cart payloads.
-        }
+        applyLegacyCartMigration(state)
       },
     },
   ),

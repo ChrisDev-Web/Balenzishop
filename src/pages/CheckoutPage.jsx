@@ -29,6 +29,7 @@ import {
   savePendingCheckoutDraft,
 } from '../utils/checkoutReservationStorage'
 import ReserveOrderModal from '../components/checkout/ReserveOrderModal'
+import GuestCheckoutModal from '../components/checkout/GuestCheckoutModal'
 import CheckoutAddressConfirmModal, {
   formatCheckoutAddressLine,
   getScopeLabel,
@@ -83,6 +84,7 @@ export default function CheckoutPage() {
   const [codeError, setCodeError] = useState('')
   const [applyingCode, setApplyingCode] = useState(false)
   const [showReserveModal, setShowReserveModal] = useState(false)
+  const [showGuestCheckoutModal, setShowGuestCheckoutModal] = useState(false)
   const draftOrderId = useCheckoutDraftStore((state) => state.draftOrderId)
   const promptCancelOnOpen = useCheckoutDraftStore((state) => state.promptCancelOnOpen)
   const resumeChecked = useCheckoutDraftStore((state) => state.resumeChecked)
@@ -106,6 +108,7 @@ export default function CheckoutPage() {
   const hasPromptedAddressRef = useRef(false)
 
   const isMasterAccount = isMasterAccountUser(user)
+  const isGuestCheckout = !isAuthenticated && checkoutMode === CART_MODES.MINORISTA
   const [showMasterClientPicker, setShowMasterClientPicker] = useState(false)
   const [showMasterCreateClient, setShowMasterCreateClient] = useState(false)
   const [masterBeneficiaries, setMasterBeneficiaries] = useState([])
@@ -197,7 +200,9 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      openLoginModal(AUTH_INTENT.CHECKOUT, captureAuthReturnTo() || buildCheckoutPath(checkoutMode))
+      if (checkoutMode === CART_MODES.MAYORISTA) {
+        openLoginModal(AUTH_INTENT.CHECKOUT, captureAuthReturnTo() || buildCheckoutPath(checkoutMode))
+      }
       return
     }
     if (user && !user.profileComplete && !isMasterAccountUser(user)) {
@@ -407,6 +412,10 @@ export default function CheckoutPage() {
   }, [draftOrderId, promptCancelOnOpen])
 
   const handleApplyCode = async () => {
+    if (!isAuthenticated) {
+      setCodeError('El cupón se validará al reservar tu pedido con tu DNI')
+      return
+    }
     if (!accessToken) {
       setCodeError('Inicia sesión para aplicar cupones')
       return
@@ -712,6 +721,11 @@ export default function CheckoutPage() {
   }
 
   const handleOpenReserveModal = async () => {
+    if (isGuestCheckout) {
+      setShowGuestCheckoutModal(true)
+      return
+    }
+
     if (!accessToken) {
       openLoginModal(AUTH_INTENT.CHECKOUT)
       return
@@ -812,7 +826,41 @@ export default function CheckoutPage() {
     navigate('/mi-cuenta/pedidos')
   }
 
-  if (items.length === 0 && !showReserveModal && !draftOrderId) {
+  async function handleGuestOrderCreated(apiOrder, { balancePaymentPreference } = {}) {
+    const mapped = mapApiClientOrder(apiOrder)
+
+    const message = buildWhatsAppMessage({
+      orderId: mapped.orderNumber,
+      date: mapped.date,
+      shippingDate: mapped.scheduledDeliveryDate,
+      items: mapped.items,
+      subtotal: mapped.subtotal,
+      discount: mapped.discount,
+      discountCode: mapped.discountCode,
+      deliveryFee: mapped.deliveryFee,
+      packagingFee: mapped.packagingFee,
+      deliveryLabel: mapped.deliveryLabel,
+      deliveryMode: mapped.deliveryMode,
+      total: mapped.total,
+      customer: mapped.client,
+      address: mapped.address,
+      paymentMode: mapped.paymentMode,
+      reservationAmount: mapped.reservationAmount,
+      amountPaid: mapped.amountPaid,
+      balanceDue: mapped.balanceDue,
+      payments: mapped.payments,
+      balancePaymentPreference,
+      status: mapped.status,
+    })
+
+    clearCart(checkoutMode)
+    clearEditingOrder(checkoutMode)
+    setShowGuestCheckoutModal(false)
+    await openWhatsAppOrder(message)
+    navigate('/mi-cuenta/pedidos')
+  }
+
+  if (items.length === 0 && !showReserveModal && !showGuestCheckoutModal && !draftOrderId) {
     const hasItemsInAnyCart = minoristaCount > 0 || mayoristaCount > 0
 
     if (hasItemsInAnyCart) {
@@ -837,11 +885,11 @@ export default function CheckoutPage() {
     )
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && checkoutMode === CART_MODES.MAYORISTA) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
         <h1 className="text-2xl font-bold text-gray-900">Inicia sesión para continuar</h1>
-        <p className="mt-2 text-gray-600">Usa el modal de inicio de sesión para completar tu pedido.</p>
+        <p className="mt-2 text-gray-600">Las compras mayoristas requieren una cuenta activa.</p>
         <button
           type="button"
           onClick={() => openLoginModal(AUTH_INTENT.CHECKOUT)}
@@ -853,7 +901,15 @@ export default function CheckoutPage() {
     )
   }
 
-  if (!user) {
+  if (!isGuestCheckout && !isAuthenticated) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-20 text-center">
+        <p className="text-sm text-gray-600">Cargando…</p>
+      </div>
+    )
+  }
+
+  if (!isGuestCheckout && !user) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
         <p className="text-sm text-gray-600">Cargando tu sesión…</p>
@@ -861,7 +917,7 @@ export default function CheckoutPage() {
     )
   }
 
-  if (!user.profileComplete && !isMasterAccount) {
+  if (!isGuestCheckout && !user.profileComplete && !isMasterAccount) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
         <p className="text-sm text-gray-600">Redirigiendo para completar tu perfil…</p>
@@ -869,7 +925,7 @@ export default function CheckoutPage() {
     )
   }
 
-  if (!isMasterAccount && !primaryAddress) {
+  if (!isGuestCheckout && !isMasterAccount && !primaryAddress) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
         <p className="text-sm text-gray-600">Cargando dirección de entrega…</p>
@@ -877,7 +933,11 @@ export default function CheckoutPage() {
     )
   }
 
-  const isAddressReady = isMasterAccount ? masterCheckoutReady && addressConfirmed : addressConfirmed
+  const isAddressReady = isGuestCheckout
+    ? true
+    : isMasterAccount
+      ? masterCheckoutReady && addressConfirmed
+      : addressConfirmed
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 lg:px-6">
@@ -1033,6 +1093,7 @@ export default function CheckoutPage() {
             </ul>
           </div>
 
+          {!isGuestCheckout ? (
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
               <div className="px-5 py-4">
@@ -1165,6 +1226,11 @@ export default function CheckoutPage() {
               </ul>
             </div>
           </div>
+          ) : (
+            <p className="mt-6 rounded-xl border border-gray-200 bg-gray-50 px-5 py-4 text-sm text-gray-600">
+              Al reservar completarás tus datos de contacto y entrega en el siguiente paso. No necesitas crear una cuenta.
+            </p>
+          )}
         </div>
 
         <div className="lg:col-span-2">
@@ -1173,6 +1239,11 @@ export default function CheckoutPage() {
             {livePricingEnabled ? (
               <p className="mt-2 text-xs text-gray-500">
                 Con Precios Live activos solo aplican cupones habilitados para uso en Live.
+              </p>
+            ) : null}
+            {isGuestCheckout ? (
+              <p className="mt-2 text-xs text-gray-500">
+                Si tienes cupón, escríbelo aquí. Se validará al reservar con tu DNI.
               </p>
             ) : null}
             <div className="mt-3 flex gap-2">
@@ -1361,6 +1432,21 @@ export default function CheckoutPage() {
         accessToken={accessToken}
         paymentMethods={paymentMethods}
         onOrderCreated={handleOrderCreated}
+      />
+
+      <GuestCheckoutModal
+        open={showGuestCheckoutModal}
+        onClose={() => setShowGuestCheckoutModal(false)}
+        onOrderCreated={handleGuestOrderCreated}
+        items={items}
+        subtotal={subtotal}
+        discount={discount}
+        discountCode={
+          appliedCode?.code
+          || (isGuestCheckout && codeInput.trim() ? codeInput.trim().toUpperCase() : null)
+        }
+        packagingFee={packagingFee}
+        paymentMethods={paymentMethods}
       />
     </div>
   )

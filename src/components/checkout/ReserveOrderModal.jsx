@@ -165,6 +165,9 @@ export default function ReserveOrderModal({
   const requiresShalomShipDate = deliveryMode === DELIVERY_MODES.SHALON_FREE
     || deliveryMode === DELIVERY_MODES.SHALON_PAID
 
+  const requiresSharedRainauDeliveryDate = requiresRainauDeliveryDate
+    || requiresOwnDeliveryMeetingDate
+
   const requiresDeliveryDateStep = requiresRainauDeliveryDate
     || requiresOwnDeliveryMeetingDate
     || requiresShalomShipDate
@@ -193,19 +196,17 @@ export default function ReserveOrderModal({
     [paymentMethods, allowsPosForRemainder, deliveryMode],
   )
 
-  const scheduledDeliveryMode = requiresOwnDeliveryMeetingDate ? 'customer_delivery' : 'delivery'
-
   const {
     dates: availableDeliveryDates,
     sameDayCutoffPassed,
     isLoading: deliveryDatesLoading,
     error: deliveryDatesError,
     refresh: refreshDeliveryDates,
-  } = useRainauAvailableDeliveryDates(open && requiresRainauDeliveryDate, {
-    deliveryMode: scheduledDeliveryMode,
+  } = useRainauAvailableDeliveryDates(open && requiresSharedRainauDeliveryDate, {
+    deliveryMode: 'delivery',
     fastPoll: calendarPickerOpen,
-    geoLat: primaryAddress?.geoLat ?? null,
-    geoLng: primaryAddress?.geoLng ?? null,
+    geoLat: requiresRainauDeliveryDate ? (primaryAddress?.geoLat ?? null) : null,
+    geoLng: requiresRainauDeliveryDate ? (primaryAddress?.geoLng ?? null) : null,
   })
 
   const {

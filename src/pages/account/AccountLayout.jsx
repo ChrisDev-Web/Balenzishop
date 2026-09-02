@@ -21,10 +21,20 @@ export default function AccountLayout() {
   const isPedidos = location.pathname.endsWith('/pedidos')
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      openLoginModal(isPedidos ? AUTH_INTENT.ORDERS : AUTH_INTENT.ONBOARDING)
+    if (!isAuthenticated && !isPedidos) {
+      openLoginModal(AUTH_INTENT.ONBOARDING)
     }
   }, [isAuthenticated, isPedidos, openLoginModal])
+
+  if (!isAuthenticated && isPedidos) {
+    return (
+      <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-10 lg:px-6">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Outlet />
+        </div>
+      </div>
+    )
+  }
 
   if (!isAuthenticated) {
     return (

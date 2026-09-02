@@ -7,7 +7,10 @@ import {
   fetchShalomTracking,
   cancelClientOrder,
 } from '../../api/clientOrders'
+import { fetchGuestOrderDetail, cancelGuestOrder } from '../../api/guestCheckout'
 import { mapApiClientOrders, mapApiClientOrder } from '../../utils/clientOrderMapper'
+import { listGuestOrders, updateGuestOrder } from '../../utils/guestOrderStorage'
+import { formatOrderDate } from '../../utils/orderMessage'
 import OrderDetailModal from '../../components/account/OrderDetailModal'
 import CancelOrderConfirmModal from '../../components/account/CancelOrderConfirmModal'
 import ShalomTrackingModal from '../../components/account/ShalomTrackingModal'
@@ -40,8 +43,40 @@ const periods = [
   { value: 'all', label: 'todos' },
 ]
 
+function mapGuestStorageToOrder(entry) {
+  const displayStatus = entry.display_status || entry.status || 'Pendiente'
+
+  return {
+    id: entry.order_number || String(entry.id_client_order),
+    idClientOrder: entry.id_client_order,
+    orderNumber: entry.order_number || String(entry.id_client_order),
+    date: formatOrderDate(new Date(entry.created_at)),
+    createdAt: entry.created_at,
+    status: STATUS_MAP[displayStatus] || displayStatus,
+    displayStatus,
+    total: Number(entry.total_amount ?? 0),
+    items: [],
+    isGuest: true,
+    guestToken: entry.guest_token,
+    canCancel: displayStatus === 'Pendiente',
+    shalom: null,
+  }
+}
+
+const STATUS_MAP = {
+  Pendiente: 'Pendiente',
+  'Reserva Verificada': 'En Proceso',
+  'Pago restante enviado': 'En Proceso',
+  'Pago total Verificado': 'En Proceso',
+  'En Proceso': 'En Proceso',
+  Enviado: 'Enviado',
+  Recibido: 'Entregado',
+  Entregado: 'Entregado',
+  Cancelado: 'Cancelado',
+}
+
 export default function OrdersPage() {
-  const { accessToken } = useAuthStore()
+  const { accessToken, isAuthenticated } = useAuthStore()
   const [activeTab, setActiveTab] = useState('all')
   const [search, setSearch] = useState('')
   const [period, setPeriod] = useState('3m')
@@ -62,20 +97,69 @@ export default function OrdersPage() {
   const activeTabConfig = tabs.find((t) => t.key === activeTab)
 
   useEffect(() => {
-    if (!accessToken) {
-      setOrders([])
-      setLoading(false)
-      return
-    }
-
     let cancelled = false
     setLoading(true)
     setLoadError('')
 
-    fetchMyClientOrders(accessToken, { page: 1, page_size: 50 })
-      .then((response) => {
-        if (cancelled) return
-        setOrders(mapApiClientOrders(response.data?.items ?? []))
+    if (accessToken) {
+      fetchMyClientOrders(accessToken, { page: 1, page_size: 50 })
+        .then((response) => {
+          if (cancelled) return
+          setOrders(mapApiClientOrders(response.data?.items ?? []))
+        })
+        .catch((error) => {
+          if (!cancelled) setLoadError(error.message)
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false)
+        })
+
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const stored = listGuestOrders()
+    if (stored.length === 0) {
+      setOrders([])
+      setLoading(false)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    Promise.all(
+      stored.map(async (entry) => {
+        try {
+          const response = await fetchGuestOrderDetail(entry.id_client_order, entry.guest_token)
+          if (response?.success && response.data) {
+            const mapped = mapApiClientOrder(response.data)
+            if (mapped) {
+              updateGuestOrder(entry.id_client_order, {
+                order_number: mapped.orderNumber,
+                total_amount: mapped.total,
+                status: mapped.statusRaw || mapped.displayStatus,
+                display_status: mapped.displayStatus,
+              })
+
+              return {
+                ...mapped,
+                isGuest: true,
+                guestToken: entry.guest_token,
+              }
+            }
+          }
+        } catch {
+          // Fall back to the local snapshot below.
+        }
+
+        return mapGuestStorageToOrder(entry)
+      }),
+    )
+      .then((results) => {
+        if (!cancelled) {
+          setOrders(results.filter(Boolean))
+        }
       })
       .catch((error) => {
         if (!cancelled) setLoadError(error.message)
@@ -116,9 +200,15 @@ export default function OrdersPage() {
     setIsDetailLoading(true)
 
     try {
-      const response = await fetchClientOrderDetail(order.idClientOrder, accessToken)
+      const response = order.isGuest && order.guestToken
+        ? await fetchGuestOrderDetail(order.idClientOrder, order.guestToken)
+        : await fetchClientOrderDetail(order.idClientOrder, accessToken)
+
       if (response?.success) {
-        setSelectedOrder(mapApiClientOrder(response.data))
+        const mapped = mapApiClientOrder(response.data)
+        setSelectedOrder(order.isGuest
+          ? { ...mapped, isGuest: true, guestToken: order.guestToken }
+          : mapped)
       }
     } catch {
       // Keep list snapshot if detail fails.
@@ -128,6 +218,13 @@ export default function OrdersPage() {
   }
 
   async function handleViewTracking(order) {
+    if (order.isGuest) {
+      setTrackingError('El seguimiento Shalom en línea requiere iniciar sesión con la misma cuenta del pedido.')
+      setTrackingOrder(order)
+      setTrackingLoading(false)
+      return
+    }
+
     setTrackingOrder(order)
     setTrackingLoading(true)
     setTrackingError('')
@@ -176,27 +273,47 @@ export default function OrdersPage() {
   }
 
   async function handleConfirmCancel() {
-    if (!orderPendingCancel?.idClientOrder || !accessToken) return
+    if (!orderPendingCancel?.idClientOrder) return
 
     setIsCancelling(true)
     setCancelError('')
 
     try {
-      const response = await cancelClientOrder(orderPendingCancel.idClientOrder, accessToken)
+      const response = orderPendingCancel.isGuest && orderPendingCancel.guestToken
+        ? await cancelGuestOrder(orderPendingCancel.idClientOrder, orderPendingCancel.guestToken)
+        : accessToken
+          ? await cancelClientOrder(orderPendingCancel.idClientOrder, accessToken)
+          : null
+
       if (!response?.success) {
         setCancelError(response?.message ?? 'No se pudo cancelar el pedido.')
         return
       }
 
       const cancelledOrder = mapApiClientOrder(response.data)
+      const nextOrder = orderPendingCancel.isGuest
+        ? {
+            ...cancelledOrder,
+            isGuest: true,
+            guestToken: orderPendingCancel.guestToken,
+          }
+        : cancelledOrder
+
+      if (orderPendingCancel.isGuest) {
+        updateGuestOrder(orderPendingCancel.idClientOrder, {
+          status: nextOrder.statusRaw || nextOrder.displayStatus,
+          display_status: nextOrder.displayStatus,
+        })
+      }
+
       setOrders((current) =>
         current.map((item) =>
-          item.idClientOrder === cancelledOrder.idClientOrder ? cancelledOrder : item,
+          item.idClientOrder === nextOrder.idClientOrder ? nextOrder : item,
         ),
       )
 
-      if (selectedOrder?.idClientOrder === cancelledOrder.idClientOrder) {
-        setSelectedOrder(cancelledOrder)
+      if (selectedOrder?.idClientOrder === nextOrder.idClientOrder) {
+        setSelectedOrder(nextOrder)
       }
 
       setOrderPendingCancel(null)
@@ -211,7 +328,9 @@ export default function OrdersPage() {
     <div className="flex flex-1 flex-col">
       <h1 className="text-2xl font-bold text-gray-900">Mis pedidos</h1>
       <p className="mt-1 text-sm text-gray-600">
-        Aquí podrás encontrar información sobre el estado, fechas de entrega y otros detalles de tus pedidos online.
+        {isAuthenticated
+          ? 'Aquí podrás encontrar información sobre el estado, fechas de entrega y otros detalles de tus pedidos online.'
+          : 'Tus pedidos recientes en este dispositivo. Si inicias sesión con la misma cuenta, también verás tu historial completo.'}
       </p>
 
       <div className="mt-6 flex gap-6 overflow-x-auto border-b border-gray-200">
@@ -282,7 +401,9 @@ export default function OrdersPage() {
               </div>
               <p className="mt-6 max-w-md text-sm text-gray-500">
                 {orders.length === 0
-                  ? 'Aún no tienes ningún pedido registrado. Cuando reserves un pedido en el catálogo, aparecerá aquí.'
+                  ? (isAuthenticated
+                    ? 'Aún no tienes ningún pedido registrado. Cuando reserves un pedido en el catálogo, aparecerá aquí.'
+                    : 'Aún no tienes pedidos guardados en este dispositivo. Cuando completes una compra como invitado, aparecerá aquí.')
                   : 'No encontramos pedidos que cumplan con tus criterios de búsqueda. Prueba con otro número de pedido o cambia el filtro.'}
               </p>
             </div>

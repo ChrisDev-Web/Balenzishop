@@ -4,6 +4,24 @@ import { normalizeSearchText } from './searchText'
 
 export const LIMA_SCOPE_PROVINCE_NAMES = ['Lima', 'Prov. Const. del Callao']
 
+export function inferDeliveryScopeFromShalonProvince(provinceName) {
+  const normalized = (provinceName ?? '').trim().toLowerCase()
+
+  if (!normalized) {
+    return 'provincia'
+  }
+
+  if (
+    normalized === 'lima'
+    || normalized.includes('callao')
+    || LIMA_SCOPE_PROVINCE_NAMES.some((name) => name.toLowerCase() === normalized)
+  ) {
+    return 'lima'
+  }
+
+  return 'provincia'
+}
+
 export async function fetchAllProvincesPublic() {
   const items = []
   let page = 1

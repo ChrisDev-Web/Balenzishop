@@ -8,7 +8,15 @@ function buildCartItems(items) {
   }))
 }
 
-export async function validateDiscountCoupon(code, cartItems, token) {
+export async function validateDiscountCoupon(code, cartItems, token, { documentNumber } = {}) {
+  if (!token && documentNumber) {
+    return apiPost('discount_coupons/validate_public', {
+      code: code.trim().toUpperCase(),
+      document_number: documentNumber,
+      items: buildCartItems(cartItems),
+    })
+  }
+
   return apiPost(
     'discount_coupons/validate',
     {

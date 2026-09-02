@@ -1,5 +1,6 @@
 import { formatOrderDate } from './orderMessage'
 import { normalizeMediaUrl } from './mediaUrl'
+import { mapClientToUser } from './clientMapper'
 
 const STATUS_MAP = {
   Pendiente: 'Pendiente',
@@ -101,6 +102,7 @@ export function mapApiClientOrder(order) {
       : null,
     isShalonDelivery: Boolean(order.is_shalon_delivery),
     isReturned: Boolean(order.is_returned),
+    client: order.client ? mapClientToUser(order.client) : null,
   }
 }
 

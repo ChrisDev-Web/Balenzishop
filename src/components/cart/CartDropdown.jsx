@@ -85,7 +85,12 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
     const checkoutPath = buildCheckoutPath(mode)
 
     if (!isAuthenticated) {
-      openLoginModal(AUTH_INTENT.CHECKOUT, checkoutPath)
+      if (mode === 'mayorista') {
+        openLoginModal(AUTH_INTENT.CHECKOUT, checkoutPath)
+        return
+      }
+
+      navigate(checkoutPath)
       return
     }
 

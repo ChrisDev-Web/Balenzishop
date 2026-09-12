@@ -6,7 +6,13 @@ import SearchableCombobox from '../ui/SearchableCombobox'
 const DEBOUNCE_MS = 300
 const PAGE_SIZE = 50
 
-export default function ShalonSearchCombobox({ value, selectedLabel, onChange, disabled }) {
+export default function ShalonSearchCombobox({
+  value,
+  selectedLabel,
+  onChange,
+  disabled,
+  onOpenChange,
+}) {
   const [options, setOptions] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const debounceRef = useRef(null)
@@ -80,6 +86,7 @@ export default function ShalonSearchCombobox({ value, selectedLabel, onChange, d
       emptyMessage="No hay sedes Shalon que coincidan."
       onQueryChange={handleQueryChange}
       onChange={onChange}
+      onOpenChange={onOpenChange}
     />
   )
 }

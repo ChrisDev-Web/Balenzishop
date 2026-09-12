@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Plus, Trash2, Upload, MessageCircle, ChevronLeft, CreditCard, Map, ShieldCheck, UserRound, Truck } from 'lucide-react'
 import {
@@ -269,7 +269,44 @@ export default function GuestCheckoutModal({
   const [isLoadingRegions, setIsLoadingRegions] = useState(false)
   const [isLoadingProvinces, setIsLoadingProvinces] = useState(false)
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false)
+  const modalScrollRef = useRef(null)
+  const shalonFieldRef = useRef(null)
 
+  const scrollShalonFieldIntoView = useCallback(() => {
+    if (!window.matchMedia('(min-width: 640px)').matches) return
+
+    const scrollEl = modalScrollRef.current
+    const fieldEl = shalonFieldRef.current
+    if (!scrollEl || !fieldEl) return
+
+    requestAnimationFrame(() => {
+      const scrollRect = scrollEl.getBoundingClientRect()
+      const fieldRect = fieldEl.getBoundingClientRect()
+      const dropdownSpace = 240
+      const overflowBottom = fieldRect.bottom + dropdownSpace - scrollRect.bottom
+
+      if (overflowBottom > 0) {
+        scrollEl.scrollTop += overflowBottom + 8
+      }
+    })
+  }, [])
+
+  const handleShalonComboboxOpenChange = useCallback((isOpen) => {
+    if (isOpen) scrollShalonFieldIntoView()
+  }, [scrollShalonFieldIntoView])
+
+  function handleModalScrollMouseDown(event) {
+    const element = modalScrollRef.current
+    if (!element || event.target !== element) return
+
+    const scrollbarWidth = element.offsetWidth - element.clientWidth
+    if (scrollbarWidth <= 0) return
+
+    const rect = element.getBoundingClientRect()
+    if (event.clientX >= rect.left + element.clientWidth) {
+      event.stopPropagation()
+    }
+  }
   const stepIndex = STEPS.indexOf(step)
   const isFirstStep = stepIndex === 0
   const isLastStep = stepIndex === STEPS.length - 1
@@ -912,6 +949,18 @@ export default function GuestCheckoutModal({
       setCancelling(false)
     }
 
+    if (step === STEP_DETAILS && draftOrderId && guestToken) {
+      setCancelling(true)
+      try {
+        await cancelGuestDraft()
+      } catch (cancelError) {
+        setError(cancelError.message || 'No se pudo cancelar la reserva')
+        setCancelling(false)
+        return
+      }
+      setCancelling(false)
+    }
+
     setStep(STEPS[stepIndex - 1])
   }
 
@@ -944,7 +993,7 @@ export default function GuestCheckoutModal({
 
       setDraftOrderId(response.data.order.id_client_order)
       setGuestToken(response.data.guest_token)
-      setStep(STEP_PAYMENT)
+      setStep(STEP_DATE)
     } catch (reserveError) {
       setError(reserveError.message || 'No se pudo reservar el pedido')
     } finally {
@@ -966,7 +1015,7 @@ export default function GuestCheckoutModal({
 
     if (step === STEP_DETAILS) {
       if (!validateDetailsStep()) return
-      setStep(STEP_DATE)
+      await reserveDraftAndContinue()
       return
     }
 
@@ -982,7 +1031,7 @@ export default function GuestCheckoutModal({
         return
       }
 
-      await reserveDraftAndContinue()
+      setStep(STEP_PAYMENT)
       return
     }
 
@@ -1058,6 +1107,8 @@ export default function GuestCheckoutModal({
           delivery: {
             scheduled_delivery_date: scheduledDeliveryDate,
             delivery_fee: effectiveDeliveryFee,
+            geo_lat: deliveryForm.geoLat,
+            geo_lng: deliveryForm.geoLng,
           },
         },
       )
@@ -1196,7 +1247,7 @@ export default function GuestCheckoutModal({
 
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Tus datos</p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-6">
             <label className="block sm:col-span-2">
               <span className="mb-1 block text-sm text-gray-600">Nombre *</span>
               <input
@@ -1206,7 +1257,7 @@ export default function GuestCheckoutModal({
                 autoComplete="given-name"
               />
             </label>
-            <label className="block">
+            <label className="block sm:col-span-2">
               <span className="mb-1 block text-sm text-gray-600">Apellido paterno *</span>
               <input
                 value={customer.last_name_paternal}
@@ -1215,7 +1266,7 @@ export default function GuestCheckoutModal({
                 autoComplete="family-name"
               />
             </label>
-            <label className="block">
+            <label className="block sm:col-span-2">
               <span className="mb-1 block text-sm text-gray-600">Apellido materno</span>
               <input
                 value={customer.last_name_maternal}
@@ -1223,7 +1274,7 @@ export default function GuestCheckoutModal({
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
               />
             </label>
-            <label className="block">
+            <label className="block sm:col-span-3">
               <span className="mb-1 block text-sm text-gray-600">DNI *</span>
               <input
                 value={customer.document_number}
@@ -1232,7 +1283,7 @@ export default function GuestCheckoutModal({
                 inputMode="numeric"
               />
             </label>
-            <label className="block">
+            <label className="block sm:col-span-3">
               <span className="mb-1 block text-sm text-gray-600">Teléfono</span>
               <input
                 value={customer.phone}
@@ -1248,12 +1299,13 @@ export default function GuestCheckoutModal({
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Entrega</p>
 
           {deliveryOption === DELIVERY_OPTION_SHALOM && (
-            <div>
+            <div ref={shalonFieldRef}>
               <label className="block text-sm text-gray-600">Agencia Shalom *</label>
               <ShalonSearchCombobox
                 value={deliveryForm.idShalon}
                 selectedLabel={deliveryForm.shalon}
                 onChange={handleShalonSelect}
+                onOpenChange={handleShalonComboboxOpenChange}
               />
               {deliveryForm.shalon && (
                 <a
@@ -1777,7 +1829,11 @@ export default function GuestCheckoutModal({
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 sm:px-5 sm:py-4">
+          <div
+            ref={modalScrollRef}
+            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-3 sm:px-5 sm:py-4"
+            onMouseDown={handleModalScrollMouseDown}
+          >
             {renderStepContent()}
             {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
           </div>
@@ -1829,6 +1885,7 @@ export default function GuestCheckoutModal({
                     || (step === STEP_DELIVERY_TYPE && !canContinueFromDeliveryType)
                     || (step === STEP_DETAILS && !canContinueFromDetails)
                     || (step === STEP_DATE && !canContinueFromDate)
+                    || (step === STEP_PAYMENT && !canContinueFromPayment)
                   }
                   className="rounded-full bg-black px-6 py-2.5 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
                 >

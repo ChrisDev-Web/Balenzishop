@@ -19,6 +19,7 @@ export default function SearchableCombobox({
   filterLocally = true,
   onQueryChange,
   onChange,
+  onOpenChange,
 }) {
   const listboxId = useId()
   const rootRef = useRef(null)
@@ -53,6 +54,10 @@ export default function SearchableCombobox({
     document.addEventListener('mousedown', handlePointerDown)
     return () => document.removeEventListener('mousedown', handlePointerDown)
   }, [isOpen])
+
+  useEffect(() => {
+    onOpenChange?.(isOpen)
+  }, [isOpen, onOpenChange])
 
   function openForSearch(initialText = '') {
     setIsOpen(true)

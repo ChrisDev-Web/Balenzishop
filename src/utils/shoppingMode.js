@@ -61,6 +61,8 @@ export function buildCheckoutPath(mode = CART_MODES.MINORISTA) {
   return '/pedido'
 }
 
+const WHOLESALE_ACCESS_WHATSAPP_DIGITS = '51929020779'
+
 export function buildWhatsappAccessMessage(user) {
   const name = [user?.firstName, user?.lastNamePaternal, user?.lastNameMaternal]
     .filter(Boolean)
@@ -81,7 +83,7 @@ export function buildWhatsappAccessMessage(user) {
 
 export function buildWhatsappAccessUrl(user) {
   const message = encodeURIComponent(buildWhatsappAccessMessage(user))
-  return `https://wa.me/51924341477?text=${message}`
+  return `https://wa.me/${WHOLESALE_ACCESS_WHATSAPP_DIGITS}?text=${message}`
 }
 
 export function productLinkForMode(productId, mode = CART_MODES.MINORISTA) {

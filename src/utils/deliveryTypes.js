@@ -1,6 +1,6 @@
 export const BALENZI_DELIVERY_LABEL = 'Delivery Balenzi'
 
-export const OWN_DELIVERY_PICKUP_POINT_URL = 'https://maps.app.goo.gl/ZBRMAf39YREJ6cMJA'
+export const OWN_DELIVERY_PICKUP_POINT_URL = "https://www.google.com/maps/place/11%C2%B059'41.2%22S+77%C2%B006'21.3%22W/@-11.994771,-77.105908,17z/data=!3m1!4b1!4m4!3m3!8m2!3d-11.994771!4d-77.105908!5m1!1e1!18m1!1e1?entry=ttu&g_ep=EgoyMDI2MDkxNi4wIKXMDSoASAFQAw%3D%3D"
 
 export const DELIVERY_TYPES = {
   SHALON: 'shalon',

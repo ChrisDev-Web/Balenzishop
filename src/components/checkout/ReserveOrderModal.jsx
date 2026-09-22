@@ -86,7 +86,7 @@ function rebalancePaymentRows(rows, expectedAmount) {
   )
 }
 
-function getStepSubtitle(step, paymentMode, { isOwnDelivery = false, isShalomShipDate = false, balanceDue = 0 } = {}) {
+function getStepSubtitle(step, paymentMode, { isOwnDelivery = false, isShalomShipDate = false, balanceDue = 0, isWholesale = false } = {}) {
   switch (step) {
     case STEP_SUMMARY:
       return 'Revisa los productos de tu pedido'
@@ -99,7 +99,9 @@ function getStepSubtitle(step, paymentMode, { isOwnDelivery = false, isShalomShi
       }
       return 'Elige la fecha de entrega Balenzi'
     case STEP_PAYMENT:
-      return 'Indica si pagarás la reserva, un monto personalizado o el total'
+      return isWholesale
+        ? 'Los pedidos mayoristas se pagan completos (productos + empaquetado + envío)'
+        : 'Indica si pagarás la reserva, un monto personalizado o el total'
     case STEP_FINAL:
       return paymentMode === PAYMENT_MODE_FULL || balanceDue <= 0.009
         ? 'Confirma tu pedido antes de enviar'
@@ -131,10 +133,13 @@ export default function ReserveOrderModal({
   accessToken,
   paymentMethods,
   onOrderCreated,
+  isWholesale = false,
 }) {
   const clientId = useAuthStore((state) => state.user?.id)
   const [step, setStep] = useState(STEP_SUMMARY)
-  const [paymentMode, setPaymentMode] = useState(PAYMENT_MODE_RESERVATION)
+  const [paymentMode, setPaymentMode] = useState(
+    isWholesale ? PAYMENT_MODE_FULL : PAYMENT_MODE_RESERVATION,
+  )
   const [customPaymentAmount, setCustomPaymentAmount] = useState('')
   const [paymentRows, setPaymentRows] = useState([createPaymentRow()])
   const [remainderMethodId, setRemainderMethodId] = useState('')
@@ -293,7 +298,7 @@ export default function ReserveOrderModal({
 
   const canContinueFromPayment = amountMatches
     && allRowsValid
-    && (paymentMode !== PAYMENT_MODE_CUSTOM || customPaymentValidation.valid)
+    && (isWholesale || paymentMode !== PAYMENT_MODE_CUSTOM || customPaymentValidation.valid)
 
   const canContinueFromFinal = paymentMode === PAYMENT_MODE_FULL
     || balanceDue <= 0.009
@@ -305,7 +310,7 @@ export default function ReserveOrderModal({
     if (!open) return
 
     setStep(STEP_SUMMARY)
-    setPaymentMode(PAYMENT_MODE_RESERVATION)
+    setPaymentMode(isWholesale ? PAYMENT_MODE_FULL : PAYMENT_MODE_RESERVATION)
     setCustomPaymentAmount('')
     setPaymentRows([createPaymentRow()])
     setRemainderMethodId('')
@@ -318,7 +323,16 @@ export default function ReserveOrderModal({
     setShowProofPolicyConfirm(false)
     setCalendarPickerOpen(false)
     setScheduledDeliveryDate('')
-  }, [open])
+  }, [open, isWholesale])
+
+  useEffect(() => {
+    if (!isWholesale) return
+
+    setPaymentMode(PAYMENT_MODE_FULL)
+    setCustomPaymentAmount('')
+    setRemainderMethodId('')
+    setCashPaidWith('')
+  }, [isWholesale])
 
   useEffect(() => {
     if (!scheduledDeliveryDate || availableDeliveryDates.length === 0) return
@@ -638,69 +652,79 @@ export default function ReserveOrderModal({
     if (step === STEP_PAYMENT) {
       return (
         <div className="space-y-3">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <label className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm ${paymentMode === PAYMENT_MODE_RESERVATION ? 'border-black bg-gray-50' : 'border-gray-200'}`}>
-              <span className="flex min-w-0 items-center gap-1.5">
-                <input
-                  type="radio"
-                  name="payment_mode"
-                  className="h-3.5 w-3.5 shrink-0"
-                  checked={paymentMode === PAYMENT_MODE_RESERVATION}
-                  onChange={() => setPaymentMode(PAYMENT_MODE_RESERVATION)}
-                />
-                <span className="font-semibold text-gray-900">Solo reserva</span>
-              </span>
-              <span className="shrink-0 font-bold text-gray-900">S/ {reservationAmount.toFixed(2)}</span>
-            </label>
-            <label className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm ${paymentMode === PAYMENT_MODE_FULL ? 'border-black bg-gray-50' : 'border-gray-200'}`}>
-              <span className="flex min-w-0 items-center gap-1.5">
-                <input
-                  type="radio"
-                  name="payment_mode"
-                  className="h-3.5 w-3.5 shrink-0"
-                  checked={paymentMode === PAYMENT_MODE_FULL}
-                  onChange={() => setPaymentMode(PAYMENT_MODE_FULL)}
-                />
-                <span className="font-semibold text-gray-900">Pago completo</span>
-              </span>
-              <span className="shrink-0 font-bold text-gray-900">S/ {orderTotal.toFixed(2)}</span>
-            </label>
-            <label className={`flex cursor-pointer flex-col gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm sm:col-span-2 ${paymentMode === PAYMENT_MODE_CUSTOM ? 'border-black bg-gray-50' : 'border-gray-200'}`}>
-              <span className="flex items-center gap-1.5">
-                <input
-                  type="radio"
-                  name="payment_mode"
-                  className="h-3.5 w-3.5 shrink-0"
-                  checked={paymentMode === PAYMENT_MODE_CUSTOM}
-                  onChange={() => setPaymentMode(PAYMENT_MODE_CUSTOM)}
-                />
-                <span className="font-semibold text-gray-900">Pago personalizado</span>
-              </span>
-              {paymentMode === PAYMENT_MODE_CUSTOM && (
-                <div>
-                  <label className="block text-[11px] text-gray-600">
-                    Monto a pagar ahora (mayor a S/ {reservationAmount.toFixed(2)}, máx. S/ {orderTotal.toFixed(2)})
-                  </label>
+          {isWholesale ? (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs sm:text-sm">
+              <p className="font-semibold text-gray-900">Pago completo</p>
+              <p className="mt-1 text-[11px] leading-snug text-gray-600 sm:text-xs">
+                Los pedidos mayoristas requieren pagar el total del pedido: productos, empaquetado y envío (si aplica).
+              </p>
+              <p className="mt-2 font-bold text-gray-900">Total a pagar: S/ {orderTotal.toFixed(2)}</p>
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm ${paymentMode === PAYMENT_MODE_RESERVATION ? 'border-black bg-gray-50' : 'border-gray-200'}`}>
+                <span className="flex min-w-0 items-center gap-1.5">
                   <input
-                    type="number"
-                    min={roundMoney(reservationAmount + 0.1)}
-                    max={orderTotal}
-                    step="0.1"
-                    inputMode="decimal"
-                    placeholder="Ej. 250.50"
-                    value={customPaymentAmount}
-                    onChange={(event) => setCustomPaymentAmount(event.target.value)}
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm focus:border-black focus:outline-none"
+                    type="radio"
+                    name="payment_mode"
+                    className="h-3.5 w-3.5 shrink-0"
+                    checked={paymentMode === PAYMENT_MODE_RESERVATION}
+                    onChange={() => setPaymentMode(PAYMENT_MODE_RESERVATION)}
                   />
-                  {!customPaymentValidation.valid && customPaymentAmount.trim() !== '' && (
-                    <p className="mt-1 text-[11px] text-red-600">{customPaymentValidation.message}</p>
-                  )}
-                </div>
-              )}
-            </label>
-          </div>
+                  <span className="font-semibold text-gray-900">Solo reserva</span>
+                </span>
+                <span className="shrink-0 font-bold text-gray-900">S/ {reservationAmount.toFixed(2)}</span>
+              </label>
+              <label className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm ${paymentMode === PAYMENT_MODE_FULL ? 'border-black bg-gray-50' : 'border-gray-200'}`}>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <input
+                    type="radio"
+                    name="payment_mode"
+                    className="h-3.5 w-3.5 shrink-0"
+                    checked={paymentMode === PAYMENT_MODE_FULL}
+                    onChange={() => setPaymentMode(PAYMENT_MODE_FULL)}
+                  />
+                  <span className="font-semibold text-gray-900">Pago completo</span>
+                </span>
+                <span className="shrink-0 font-bold text-gray-900">S/ {orderTotal.toFixed(2)}</span>
+              </label>
+              <label className={`flex cursor-pointer flex-col gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm sm:col-span-2 ${paymentMode === PAYMENT_MODE_CUSTOM ? 'border-black bg-gray-50' : 'border-gray-200'}`}>
+                <span className="flex items-center gap-1.5">
+                  <input
+                    type="radio"
+                    name="payment_mode"
+                    className="h-3.5 w-3.5 shrink-0"
+                    checked={paymentMode === PAYMENT_MODE_CUSTOM}
+                    onChange={() => setPaymentMode(PAYMENT_MODE_CUSTOM)}
+                  />
+                  <span className="font-semibold text-gray-900">Pago personalizado</span>
+                </span>
+                {paymentMode === PAYMENT_MODE_CUSTOM && (
+                  <div>
+                    <label className="block text-[11px] text-gray-600">
+                      Monto a pagar ahora (mayor a S/ {reservationAmount.toFixed(2)}, máx. S/ {orderTotal.toFixed(2)})
+                    </label>
+                    <input
+                      type="number"
+                      min={roundMoney(reservationAmount + 0.1)}
+                      max={orderTotal}
+                      step="0.1"
+                      inputMode="decimal"
+                      placeholder="Ej. 250.50"
+                      value={customPaymentAmount}
+                      onChange={(event) => setCustomPaymentAmount(event.target.value)}
+                      className="mt-1 w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm focus:border-black focus:outline-none"
+                    />
+                    {!customPaymentValidation.valid && customPaymentAmount.trim() !== '' && (
+                      <p className="mt-1 text-[11px] text-red-600">{customPaymentValidation.message}</p>
+                    )}
+                  </div>
+                )}
+              </label>
+            </div>
+          )}
 
-          {hasBalanceAfterInitialPayment(paymentMode, balanceDue) && (
+          {!isWholesale && hasBalanceAfterInitialPayment(paymentMode, balanceDue) && (
             <p className="text-[11px] leading-snug text-gray-500">{RESERVATION_NOTICE}</p>
           )}
 
@@ -840,7 +864,7 @@ export default function ReserveOrderModal({
       )
     }
 
-    if (step === STEP_FINAL && hasBalanceAfterInitialPayment(paymentMode, balanceDue)) {
+    if (step === STEP_FINAL && !isWholesale && hasBalanceAfterInitialPayment(paymentMode, balanceDue)) {
       const initialPaymentLabel = paymentMode === PAYMENT_MODE_CUSTOM
         ? 'Pago personalizado'
         : 'Reserva pagada'
@@ -1019,6 +1043,7 @@ export default function ReserveOrderModal({
                 isOwnDelivery: requiresOwnDeliveryMeetingDate,
                 isShalomShipDate: requiresShalomShipDate,
                 balanceDue,
+                isWholesale,
               })}
             </p>
           </div>

@@ -1441,6 +1441,7 @@ export default function CheckoutPage() {
         accessToken={accessToken}
         paymentMethods={paymentMethods}
         onOrderCreated={handleOrderCreated}
+        isWholesale={checkoutMode === CART_MODES.MAYORISTA}
       />
 
       <GuestCheckoutModal

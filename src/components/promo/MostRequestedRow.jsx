@@ -6,7 +6,7 @@ import { productLink } from '../../utils/productUtils'
 
 export default function MostRequestedRow({ products, catalogLink: catalogHref, title = 'Lo más pedido' }) {
   const addToCart = useAddToCart()
-  const { getPrice, isMayorista, minQuantity } = useUserPricing()
+  const { getPrice, isMayorista } = useUserPricing()
 
   if (!products.length) return null
 
@@ -55,7 +55,7 @@ export default function MostRequestedRow({ products, catalogLink: catalogHref, t
               className="mt-2 flex w-full items-center justify-center gap-1 rounded-full bg-amber-100 py-2 text-xs font-bold text-gray-900 hover:bg-amber-200"
             >
               <ShoppingBag className="h-3.5 w-3.5" />
-              {isMayorista ? `Añadir (${minQuantity})` : 'Añadir'}
+              Añadir
             </button>
           </article>
         ))}

@@ -11,7 +11,7 @@ import { productLinkForMode } from '../../utils/shoppingMode'
 export default function SimilarProducts({ products = [], categoryLink, catalogMode = null }) {
   const scrollRef = useRef(null)
   const addToCart = useAddToCart(catalogMode)
-  const { isMayorista, minQuantity, role } = useUserPricing(catalogMode)
+  const { isMayorista, role } = useUserPricing(catalogMode)
 
   if (!products?.length) return null
 
@@ -85,7 +85,7 @@ export default function SimilarProducts({ products = [], categoryLink, catalogMo
               onClick={(event) => addToCart(p, event)}
               className="btn-fill mt-3 w-full py-2 text-[10px]"
             >
-              {isMayorista ? `Agregar (${minQuantity})` : 'Agregar'}
+              Agregar
             </button>
           </article>
         )})}

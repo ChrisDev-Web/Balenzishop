@@ -3,7 +3,9 @@ import {
   getCatalogDisplayPrices,
   getMinQuantity,
   getRoleLabel,
+  getWholesaleMinOrderQuantity,
   isMayorista,
+  isWholesaleOrderQuantityValid,
 } from '../utils/pricing'
 import { resolvePricingRoleForMode } from '../utils/shoppingMode'
 import { useShoppingMode } from './useShoppingMode'
@@ -17,6 +19,8 @@ export function useUserPricing(modeOverride = null) {
     roleLabel: getRoleLabel(role),
     isMayorista: isMayorista(role),
     minQuantity: getMinQuantity(role),
+    minOrderQuantity: getWholesaleMinOrderQuantity(),
+    isWholesaleOrderQuantityValid,
     getCatalogDisplayPrices: (product) => getCatalogDisplayPrices(product, role),
   }
 }

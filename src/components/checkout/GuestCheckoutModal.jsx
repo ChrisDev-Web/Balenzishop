@@ -37,6 +37,7 @@ import { createClientId } from '../../utils/createClientId'
 import {
   hasAcceptedProofPolicy,
   markProofPolicyAccepted,
+  normalizeProofPolicyClientId,
 } from '../../utils/proofPolicyStorage'
 import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 import {
@@ -180,8 +181,8 @@ function hasBalanceAfterInitialPayment(mode, balance) {
     && balance > 0.009
 }
 
-function normalizeGuestProofPolicyId(documentNumber) {
-  return String(documentNumber || '').replace(/\D/g, '')
+function requiresDocumentNumber(deliveryOption) {
+  return deliveryOption === DELIVERY_OPTION_SHALOM
 }
 
 function buildGuestDeliveryPayload({
@@ -439,12 +440,23 @@ export default function GuestCheckoutModal({
     ? roundMoney(Math.max(0, cashPaidWithAmount - balanceDue))
     : 0
 
-  const guestProofPolicyId = normalizeGuestProofPolicyId(customer.document_number)
+  const guestProofPolicyId = normalizeProofPolicyClientId({
+    documentNumber: customer.document_number,
+    phone: customer.phone,
+  })
 
   const canContinueFromDeliveryType = Boolean(deliveryOption)
 
   const canContinueFromDetails = useMemo(() => {
-    if (!customer.name.trim() || !customer.last_name_paternal.trim() || !customer.document_number.trim()) {
+    if (!customer.name.trim() || !customer.last_name_paternal.trim()) {
+      return false
+    }
+
+    if (requiresDocumentNumber(deliveryOption) && !customer.document_number.trim()) {
+      return false
+    }
+
+    if (!customer.phone.trim()) {
       return false
     }
 
@@ -873,8 +885,18 @@ export default function GuestCheckoutModal({
   }
 
   function validateDetailsStep() {
-    if (!customer.name.trim() || !customer.last_name_paternal.trim() || !customer.document_number.trim()) {
-      setError('Completa nombre, apellido paterno y DNI.')
+    if (!customer.name.trim() || !customer.last_name_paternal.trim()) {
+      setError('Completa nombre y apellido paterno.')
+      return false
+    }
+
+    if (requiresDocumentNumber(deliveryOption) && !customer.document_number.trim()) {
+      setError('El DNI es obligatorio para envíos Shalom.')
+      return false
+    }
+
+    if (!customer.phone.trim()) {
+      setError('Ingresa un teléfono válido.')
       return false
     }
 
@@ -1275,7 +1297,9 @@ export default function GuestCheckoutModal({
               />
             </label>
             <label className="block sm:col-span-3">
-              <span className="mb-1 block text-sm text-gray-600">DNI *</span>
+              <span className="mb-1 block text-sm text-gray-600">
+                DNI{requiresDocumentNumber(deliveryOption) ? ' *' : ' (opcional)'}
+              </span>
               <input
                 value={customer.document_number}
                 onChange={(event) => updateCustomerField('document_number', event.target.value)}

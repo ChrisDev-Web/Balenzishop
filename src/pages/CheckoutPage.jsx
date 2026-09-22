@@ -14,7 +14,7 @@ import {
 } from '../api/discountCoupons'
 import { fetchLiveMinoristaPricingStatus } from '../api/catalogSettings'
 import { getDeliveryFeeForAddress, computeOrderTotal } from '../utils/deliveryFee'
-import { getPackagingFeeForMode } from '../utils/wholesaleCheckout'
+import { getPackagingFeeForMode, getWholesaleMinOrderQuantity } from '../utils/wholesaleCheckout'
 import ShippingChargeDisplay from '../components/checkout/ShippingChargeDisplay'
 import { getDecantCartOptions, getMaxCartQuantity } from '../utils/pricing'
 import { getLineDisplayTotal, getLinePromoDiscount, useCartTotals } from '../hooks/useCartTotals'
@@ -134,10 +134,12 @@ export default function CheckoutPage() {
   const discount = appliedCode?.discount || 0
   const delivery = getDeliveryFeeForAddress(primaryAddress)
   const deliveryFee = delivery.fee
-  const packagingFee = getPackagingFeeForMode(checkoutMode)
-  const total = computeOrderTotal(subtotal, discount, deliveryFee, delivery.mode, packagingFee)
   const totalItems = items.reduce((sum, i) => sum + i.quantity, 0)
   const totalQuantity = totalItems
+  const packagingFee = getPackagingFeeForMode(checkoutMode, totalQuantity)
+  const total = computeOrderTotal(subtotal, discount, deliveryFee, delivery.mode, packagingFee)
+  const wholesaleMinNotMet = checkoutMode === CART_MODES.MAYORISTA
+    && totalQuantity < getWholesaleMinOrderQuantity()
   const clientFullName = [checkoutCustomer?.firstName, checkoutCustomer?.lastNamePaternal, checkoutCustomer?.lastNameMaternal].filter(Boolean).join(' ') || '—'
   const deliverySummary = primaryAddress
     ? `${primaryAddress.district}, ${primaryAddress.city}`
@@ -1322,6 +1324,12 @@ export default function CheckoutPage() {
               </div>
             </div>
 
+            {wholesaleMinNotMet && (
+              <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Las compras mayoristas requieren un mínimo de {getWholesaleMinOrderQuantity()} unidades en total. Puedes mezclar perfumes distintos.
+              </p>
+            )}
+
             {!isAddressReady && (
               <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 {isMasterAccount
@@ -1346,6 +1354,7 @@ export default function CheckoutPage() {
                 || paymentMethods.length === 0
                 || reserving
                 || !isAddressReady
+                || wholesaleMinNotMet
               }
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-black py-3.5 text-sm font-bold text-white hover:bg-gray-800 disabled:opacity-50"
             >

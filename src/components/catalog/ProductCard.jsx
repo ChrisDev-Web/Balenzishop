@@ -34,7 +34,7 @@ function ProductCard({ perfume, priority = false, catalogMode = null }) {
     (resolvedMode === 'mayorista' ? state.mayoristaItems : state.minoristaItems)
       .find((item) => item.id === perfume.id),
   )
-  const { getCatalogDisplayPrices, isMayorista, minQuantity, role } = useUserPricing(resolvedMode)
+  const { getCatalogDisplayPrices, isMayorista, minOrderQuantity, role } = useUserPricing(resolvedMode)
   const [imgError, setImgError] = useState(false)
   const pricePresentation = getCatalogPricePresentation(perfume, role)
   const { displayPrice, strikePrice } = getCatalogDisplayPrices(perfume)
@@ -117,7 +117,7 @@ function ProductCard({ perfume, priority = false, catalogMode = null }) {
           <div className="min-w-0">
             <CatalogPriceDisplay presentation={pricePresentation} variant="card" />
             {isMayorista && (
-              <p className="mt-0.5 text-[9px] text-gray-500 sm:text-[10px] md:text-xs">Mín. {minQuantity}</p>
+              <p className="mt-0.5 text-[9px] text-gray-500 sm:text-[10px] md:text-xs">Mín. {minOrderQuantity} und. total</p>
             )}
           </div>
 
@@ -126,19 +126,10 @@ function ProductCard({ perfume, priority = false, catalogMode = null }) {
             onClick={handleAdd}
             disabled={!canAddToCart}
             className="btn-fill w-full min-w-0 gap-1 px-1.5 py-1.5 text-[9px] disabled:cursor-not-allowed disabled:opacity-50 sm:gap-1.5 sm:px-2 sm:py-2 sm:text-[10px] md:px-3 md:py-2.5 md:text-xs"
-            aria-label={isMayorista ? `Agregar ${minQuantity} unidades` : 'Agregar al carrito'}
+            aria-label={isMayorista ? 'Agregar al carrito mayorista' : 'Agregar al carrito'}
           >
             <ShoppingBag className="h-3 w-3 shrink-0 md:h-3.5 md:w-3.5" />
-            <span className="truncate">
-              {isMayorista ? (
-                <>
-                  <span className="sm:hidden">+{minQuantity}</span>
-                  <span className="hidden sm:inline">Agregar ({minQuantity})</span>
-                </>
-              ) : (
-                'Agregar'
-              )}
-            </span>
+            <span className="truncate">Agregar</span>
           </button>
         </div>
       </div>

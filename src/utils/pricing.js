@@ -4,7 +4,9 @@ export const USER_ROLES = {
 }
 
 export const WHOLESALE_DISCOUNT = 0.1
-export const WHOLESALE_MIN_QTY = 6
+export const WHOLESALE_MIN_ORDER_QTY = 3
+export const WHOLESALE_PACKAGING_FEE_3_4 = 5
+export const WHOLESALE_PACKAGING_FEE_5_PLUS = 14
 
 export function getCartLineTotal(item) {
   if (item?.isDecant || item?.idProductDecant) {
@@ -29,7 +31,29 @@ export function isMayorista(role) {
 }
 
 export function getMinQuantity(role) {
-  return isMayorista(role) ? WHOLESALE_MIN_QTY : 1
+  return 1
+}
+
+export function getWholesaleMinOrderQuantity() {
+  return WHOLESALE_MIN_ORDER_QTY
+}
+
+export function getWholesalePackagingFee(totalQuantity) {
+  const quantity = Math.max(0, Number(totalQuantity) || 0)
+
+  if (quantity < WHOLESALE_MIN_ORDER_QTY) {
+    return 0
+  }
+
+  if (quantity <= 4) {
+    return WHOLESALE_PACKAGING_FEE_3_4
+  }
+
+  return WHOLESALE_PACKAGING_FEE_5_PLUS
+}
+
+export function isWholesaleOrderQuantityValid(totalQuantity) {
+  return Number(totalQuantity) >= WHOLESALE_MIN_ORDER_QTY
 }
 
 export function getCatalogPricePresentation(product, role) {

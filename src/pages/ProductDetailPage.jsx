@@ -108,7 +108,7 @@ export default function ProductDetailPage({ catalogMode = CART_MODES.MINORISTA }
   const { id } = useParams()
   const wholesale = catalogMode === CART_MODES.MAYORISTA
   const addToCart = useAddToCart(catalogMode)
-  const { isMayorista, minQuantity, role } = useUserPricing(catalogMode)
+  const { isMayorista, role } = useUserPricing(catalogMode)
   const { product, error, ready } = useProductDetail(id, { wholesale })
   const [selectedDecant, setSelectedDecant] = useState(null)
   const reviewsRef = useRef(null)
@@ -269,7 +269,7 @@ export default function ProductDetailPage({ catalogMode = CART_MODES.MINORISTA }
               disabled={!canAddToCart}
               className="btn-fill px-10 py-3.5 text-sm uppercase disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
             >
-              {isMayorista ? `Agregar (${minQuantity} und.)` : 'Agregar'}
+              Agregar
             </button>
             <ProductStarVote productId={product.id} onRated={scrollToReviews} centered />
           </div>

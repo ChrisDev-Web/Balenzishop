@@ -12,6 +12,16 @@ function readAcceptedClientIds() {
   }
 }
 
+export function normalizeProofPolicyClientId({ clientId, documentNumber, phone } = {}) {
+  const dni = String(documentNumber || '').replace(/\D/g, '')
+  if (dni) return `dni:${dni}`
+
+  const normalizedPhone = String(phone || '').replace(/\D/g, '')
+  if (normalizedPhone) return `phone:${normalizedPhone}`
+
+  return clientId ? String(clientId) : ''
+}
+
 export function hasAcceptedProofPolicy(clientId) {
   if (!clientId) return false
 

@@ -26,7 +26,9 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
   const openLoginModal = useUiStore((s) => s.openLoginModal)
   const setAuthIntent = useUiStore((s) => s.setAuthIntent)
   const authReturnTo = useUiStore((s) => s.authReturnTo)
-  const { isMayorista, minQuantity, role } = useUserPricing(mode)
+  const { isMayorista, minOrderQuantity, role } = useUserPricing(mode)
+  const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0)
+  const wholesaleMinNotMet = isMayorista && totalUnits < minOrderQuantity
 
   useEffect(() => {
     items.forEach((item) => {
@@ -81,6 +83,10 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
   }
 
   const handleGoToCheckout = () => {
+    if (wholesaleMinNotMet) {
+      return
+    }
+
     onClose()
     const checkoutPath = buildCheckoutPath(mode)
 
@@ -243,13 +249,16 @@ export default function CartDropdown({ onClose, variant = 'anchored' }) {
             <button
               type="button"
               onClick={handleGoToCheckout}
-              className="mt-4 block w-full rounded-full bg-black py-3 text-center text-sm font-semibold text-white hover:bg-gray-800"
+              disabled={wholesaleMinNotMet}
+              className="mt-4 block w-full rounded-full bg-black py-3 text-center text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
             >
               Ir a pedido
             </button>
             {isMayorista && (
               <p className="mt-2 text-center text-[11px] text-gray-500">
-                Precio mayorista · Mín. {minQuantity} und. por producto
+                {wholesaleMinNotMet
+                  ? `Compra mínima mayorista: ${minOrderQuantity} und. en total (puedes mezclar perfumes).`
+                  : 'Precio mayorista · Compra mín. 3 und. · Mezcla permitida'}
               </p>
             )}
           </div>

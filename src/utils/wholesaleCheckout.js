@@ -1,9 +1,14 @@
 import { CART_MODES } from './shoppingMode'
+import { getWholesalePackagingFee, getWholesaleMinOrderQuantity } from './pricing'
 
-export const WHOLESALE_PACKAGING_FEE = 15
+export { getWholesaleMinOrderQuantity, getWholesalePackagingFee }
 
-export function getPackagingFeeForMode(mode) {
-  return mode === CART_MODES.MAYORISTA ? WHOLESALE_PACKAGING_FEE : 0
+export function getPackagingFeeForMode(mode, totalQuantity = 0) {
+  if (mode !== CART_MODES.MAYORISTA) {
+    return 0
+  }
+
+  return getWholesalePackagingFee(totalQuantity)
 }
 
 export function formatPackagingFeeLabel() {

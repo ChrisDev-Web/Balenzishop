@@ -26,8 +26,6 @@ async function bootstrapApp() {
     localStorage.setItem(APP_CACHE_VERSION_KEY, APP_CACHE_VERSION)
   }
 
-  await initPersistentCache()
-
   createRoot(document.getElementById('root')).render(
     <StrictMode>
       <div className="flex min-h-dvh flex-1 flex-col">
@@ -35,6 +33,8 @@ async function bootstrapApp() {
       </div>
     </StrictMode>,
   )
+
+  void initPersistentCache()
 }
 
 bootstrapApp()

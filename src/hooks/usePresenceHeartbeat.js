@@ -28,6 +28,7 @@ function sectionFromPathname(pathname) {
   if (pathname.startsWith('/producto')) return 'producto'
   if (pathname.startsWith('/pedido')) return 'pedido'
   if (pathname.startsWith('/mi-cuenta')) return 'cuenta'
+  if (pathname.startsWith('/seguimiento')) return 'seguimiento'
   return 'otros'
 }
 

@@ -10,6 +10,7 @@ import MayoristaCatalogPage from './pages/MayoristaCatalogPage'
 import MayoristaProductDetailPage from './pages/MayoristaProductDetailPage'
 import ProductDetailPage from './pages/ProductDetailPage'
 import CheckoutPage from './pages/CheckoutPage'
+import GuestOrderTrackingPage from './pages/GuestOrderTrackingPage'
 import AccountLayout from './pages/account/AccountLayout'
 import CompleteProfilePage from './pages/account/CompleteProfilePage'
 import ProfilePage from './pages/account/ProfilePage'
@@ -27,6 +28,7 @@ export default function App() {
         <PresenceTracker />
         <CheckoutReservationGuard />
         <Routes>
+        <Route path="/seguimiento/:token" element={<GuestOrderTrackingPage />} />
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
           <Route path="mujeres" element={<WomenPage />} />

@@ -3,6 +3,7 @@ import { isCheckoutLegalViewActive, markCheckoutLegalView } from './checkoutRese
 export const CHECKOUT_RESERVATION_EXEMPT_PATHS = [
   '/terminos-y-condiciones',
   '/politica-de-privacidad',
+  '/seguimiento',
 ]
 
 export function normalizeAppPathname(pathname = '') {

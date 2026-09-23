@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Download, ExternalLink, Loader2 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
 import { fetchShalomReceiptBlob } from '../../api/clientOrders'
+import { fetchGuestOrderTrackingReceiptBlob } from '../../api/guestOrderTracking'
 import { inspectShalomReceiptBlob, prefersNativePdfEmbed } from '../../utils/shalomReceipt.js'
 import ShalomReceiptMobilePdfCanvas from './ShalomReceiptMobilePdfCanvas.jsx'
 
@@ -19,6 +20,7 @@ function triggerBlobDownload(blob, filename) {
 
 export default function ShalomReceiptPdfViewer({
   orderClientId,
+  trackingToken = null,
   receiptName = 'boleta-shalom.pdf',
   compact = false,
 }) {
@@ -29,7 +31,7 @@ export default function ShalomReceiptPdfViewer({
   const [useNativeEmbed] = useState(() => prefersNativePdfEmbed())
 
   useEffect(() => {
-    if (!orderClientId || !accessToken) {
+    if (!trackingToken && (!orderClientId || !accessToken)) {
       setLoading(false)
       setError('No se pudo cargar la boleta.')
       return undefined
@@ -44,7 +46,9 @@ export default function ShalomReceiptPdfViewer({
       setPreview(null)
 
       try {
-        const blob = await fetchShalomReceiptBlob(orderClientId, accessToken)
+        const blob = trackingToken
+          ? await fetchGuestOrderTrackingReceiptBlob(trackingToken)
+          : await fetchShalomReceiptBlob(orderClientId, accessToken)
         if (cancelled) return
 
         const inspected = await inspectShalomReceiptBlob(blob)
@@ -81,7 +85,7 @@ export default function ShalomReceiptPdfViewer({
         URL.revokeObjectURL(blobUrlToRevoke)
       }
     }
-  }, [orderClientId, accessToken])
+  }, [orderClientId, accessToken, trackingToken])
 
   const handleDownload = useCallback(() => {
     if (!preview?.blob) return

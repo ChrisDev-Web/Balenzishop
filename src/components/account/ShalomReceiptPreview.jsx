@@ -4,6 +4,7 @@ import ShalomReceiptPdfViewer from './ShalomReceiptPdfViewer.jsx'
 
 export default function ShalomReceiptPreview({
   orderClientId = null,
+  trackingToken = null,
   receiptUrl,
   receiptName = '',
   receiptIsPdf = false,
@@ -14,10 +15,11 @@ export default function ShalomReceiptPreview({
 
   const isPdf = isShalomReceiptPdf({ receiptIsPdf, receiptName, receiptUrl })
 
-  if (isPdf && orderClientId) {
+  if (isPdf && (orderClientId || trackingToken)) {
     return (
       <ShalomReceiptPdfViewer
         orderClientId={orderClientId}
+        trackingToken={trackingToken}
         receiptName={receiptName || 'boleta-shalom.pdf'}
         compact={compact}
       />

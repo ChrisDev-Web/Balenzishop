@@ -45,6 +45,13 @@ import {
   formatPaymentModeLabel,
 } from '../../utils/customPayment'
 import { saveGuestOrder } from '../../utils/guestOrderStorage'
+import { useDocumentTypes } from '../../hooks/useDocumentTypes'
+import {
+  formatDocumentInputById,
+  guestCheckoutDocumentTypeLabel,
+  resolveGuestCheckoutDocumentTypes,
+  validateDocumentById,
+} from '../../utils/documentValidation'
 import { inferDeliveryScopeFromShalonProvince } from '../../utils/addressFormHelpers'
 import {
   applyShalonSelectionToForm,
@@ -92,6 +99,7 @@ const emptyCustomer = {
   name: '',
   last_name_paternal: '',
   last_name_maternal: '',
+  id_document_type: '',
   document_number: '',
   phone: '',
 }
@@ -185,6 +193,11 @@ function requiresDocumentNumber(deliveryOption) {
   return deliveryOption === DELIVERY_OPTION_SHALOM
 }
 
+function customerNeedsDocumentType(customer, deliveryOption) {
+  if (requiresDocumentNumber(deliveryOption)) return true
+  return Boolean(customer.document_number?.trim())
+}
+
 function buildGuestDeliveryPayload({
   deliveryScope,
   deliveryType,
@@ -272,6 +285,12 @@ export default function GuestCheckoutModal({
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false)
   const modalScrollRef = useRef(null)
   const shalonFieldRef = useRef(null)
+  const { documentTypes } = useDocumentTypes({ enabled: open })
+
+  const guestDocumentTypeOptions = useMemo(
+    () => resolveGuestCheckoutDocumentTypes(documentTypes),
+    [documentTypes],
+  )
 
   const scrollShalonFieldIntoView = useCallback(() => {
     if (!window.matchMedia('(min-width: 640px)').matches) return
@@ -453,6 +472,10 @@ export default function GuestCheckoutModal({
     }
 
     if (requiresDocumentNumber(deliveryOption) && !customer.document_number.trim()) {
+      return false
+    }
+
+    if (customerNeedsDocumentType(customer, deliveryOption) && !customer.id_document_type) {
       return false
     }
 
@@ -758,6 +781,27 @@ export default function GuestCheckoutModal({
     setCustomer((current) => ({ ...current, [name]: value }))
   }
 
+  function updateCustomerDocumentType(value) {
+    setCustomer((current) => ({
+      ...current,
+      id_document_type: value,
+      document_number: value
+        ? formatDocumentInputById(guestDocumentTypeOptions, value, current.document_number)
+        : current.document_number,
+    }))
+  }
+
+  function updateCustomerDocumentNumber(value) {
+    setCustomer((current) => ({
+      ...current,
+      document_number: formatDocumentInputById(
+        guestDocumentTypeOptions,
+        current.id_document_type,
+        value,
+      ),
+    }))
+  }
+
   function handleRegionSelect(value, option) {
     const selected = option?.raw
       ?? regionOptions.find((item) => String(item.idRegion) === String(value))
@@ -891,8 +935,25 @@ export default function GuestCheckoutModal({
     }
 
     if (requiresDocumentNumber(deliveryOption) && !customer.document_number.trim()) {
-      setError('El DNI es obligatorio para envíos Shalom.')
+      setError('El número de documento es obligatorio para envíos Shalom.')
       return false
+    }
+
+    if (customerNeedsDocumentType(customer, deliveryOption) && !customer.id_document_type) {
+      setError('Selecciona el tipo de documento.')
+      return false
+    }
+
+    if (customer.document_number.trim()) {
+      const documentError = validateDocumentById(
+        guestDocumentTypeOptions,
+        customer.id_document_type,
+        customer.document_number,
+      )
+      if (documentError) {
+        setError(documentError)
+        return false
+      }
     }
 
     if (!customer.phone.trim()) {
@@ -997,6 +1058,9 @@ export default function GuestCheckoutModal({
           name: customer.name.trim(),
           last_name_paternal: customer.last_name_paternal.trim(),
           last_name_maternal: customer.last_name_maternal.trim() || null,
+          id_document_type: customer.id_document_type
+            ? Number(customer.id_document_type)
+            : null,
           document_number: customer.document_number.trim(),
           phone: customer.phone.trim() || null,
         },
@@ -1298,11 +1362,30 @@ export default function GuestCheckoutModal({
             </label>
             <label className="block sm:col-span-3">
               <span className="mb-1 block text-sm text-gray-600">
-                DNI{requiresDocumentNumber(deliveryOption) ? ' *' : ' (opcional)'}
+                Tipo de documento
+                {customerNeedsDocumentType(customer, deliveryOption) ? ' *' : ''}
+              </span>
+              <select
+                value={customer.id_document_type}
+                onChange={(event) => updateCustomerDocumentType(event.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
+              >
+                <option value="">Seleccionar</option>
+                {guestDocumentTypeOptions.map((item) => (
+                  <option key={item.id} value={String(item.id)}>
+                    {guestCheckoutDocumentTypeLabel(item.name)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block sm:col-span-3">
+              <span className="mb-1 block text-sm text-gray-600">
+                Número de documento
+                {requiresDocumentNumber(deliveryOption) ? ' *' : ' (opcional)'}
               </span>
               <input
                 value={customer.document_number}
-                onChange={(event) => updateCustomerField('document_number', event.target.value)}
+                onChange={(event) => updateCustomerDocumentNumber(event.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
                 inputMode="numeric"
               />

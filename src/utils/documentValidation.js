@@ -58,3 +58,28 @@ export function resolveDefaultDocumentTypeId(documentTypes = []) {
 
   return String((dniType ?? documentTypes[0]).id)
 }
+
+/** DNI + un solo CE (prioriza name "CE" sobre "Carnet de Extranjería"). */
+export function resolveGuestCheckoutDocumentTypes(documentTypes = []) {
+  const list = Array.isArray(documentTypes) ? documentTypes : []
+
+  const dni = list.find((type) => String(type.name ?? '').trim().toLowerCase() === 'dni')
+    ?? list.find((type) => String(type.name ?? '').toLowerCase().includes('dni'))
+
+  const ce = list.find((type) => String(type.name ?? '').trim().toLowerCase() === 'ce')
+    ?? list.find((type) => {
+      const name = String(type.name ?? '').toLowerCase()
+      return name.includes('extranjer') || name.includes('carnet')
+    })
+
+  return [dni, ce].filter(Boolean)
+}
+
+export function guestCheckoutDocumentTypeLabel(name) {
+  const normalized = String(name ?? '').trim().toLowerCase()
+  if (normalized === 'dni') return 'DNI'
+  if (normalized === 'ce' || normalized.includes('extranjer') || normalized.includes('carnet')) {
+    return 'CE'
+  }
+  return name
+}

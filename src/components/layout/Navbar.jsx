@@ -12,6 +12,7 @@ import { useCartAnimationStore } from '../../stores/cartAnimationStore'
 import { useCompanyStore } from '../../stores/companyStore'
 import { AUTH_INTENT } from '../../utils/authFlow'
 import { isMayorista } from '../../utils/pricing'
+import { useWholesaleGuestStore } from '../../stores/wholesaleGuestStore'
 import { useShoppingMode } from '../../hooks/useShoppingMode'
 import {
   DEFAULT_COMPANY_NAME,
@@ -33,7 +34,9 @@ function WholesaleNavButton({ className, onNavigate }) {
   )
 }
 
-function buildNavLinks(isMayoristaUser) {
+function buildNavLinks(isMayoristaUser, hasGuestWholesaleAccess) {
+  const canOpenMayoristaCatalog = isMayoristaUser || hasGuestWholesaleAccess
+
   return [
     ...baseNavLinks,
     {
@@ -41,7 +44,7 @@ function buildNavLinks(isMayoristaUser) {
       label: isMayoristaUser ? 'Minorista' : 'Catálogo',
       type: 'link',
     },
-    isMayoristaUser
+    canOpenMayoristaCatalog
       ? { to: '/mayorista', label: 'Mayorista', type: 'link' }
       : { label: 'Al por mayor', type: 'wholesale' },
   ]
@@ -257,8 +260,9 @@ export default function Navbar() {
   const { mode } = useShoppingMode()
   const cartShake = useCartAnimationStore((s) => s.cartShake)
   const company = useCompanyStore((s) => s.company)
+  const guestToken = useWholesaleGuestStore((state) => state.guestToken)
   const count = totalItems(mode)
-  const navLinks = buildNavLinks(isMayorista(user?.role))
+  const navLinks = buildNavLinks(isMayorista(user?.role), Boolean(guestToken))
   const logoUrl = company?.logo || DEFAULT_NAVBAR_LOGO
   const logoAlt = company?.name || DEFAULT_COMPANY_NAME
 

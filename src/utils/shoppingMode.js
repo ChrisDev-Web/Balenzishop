@@ -64,10 +64,12 @@ export function buildCheckoutPath(mode = CART_MODES.MINORISTA) {
 const WHOLESALE_ACCESS_WHATSAPP_DIGITS = '51929020779'
 
 export function buildWhatsappAccessMessage(user) {
-  const name = [user?.firstName, user?.lastNamePaternal, user?.lastNameMaternal]
-    .filter(Boolean)
-    .join(' ')
-    .trim()
+  const name = user
+    ? [user?.firstName, user?.lastNamePaternal, user?.lastNameMaternal]
+      .filter(Boolean)
+      .join(' ')
+      .trim()
+    : ''
   const email = user?.email ?? ''
   const phone = user?.phone ?? ''
 

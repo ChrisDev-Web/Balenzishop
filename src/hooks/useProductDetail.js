@@ -3,15 +3,22 @@ import { fetchCatalogProductDetail } from '../api/products'
 import { STORE_NS } from '../core/cache/moduleCacheNamespaces'
 import { runPersistedValueFetch, usePersistedValueQuery } from '../core/cache/usePersistedValueQuery'
 import { useAuthStore } from '../stores/authStore'
+import { useWholesaleGuestStore } from '../stores/wholesaleGuestStore'
+import { isMayorista } from '../utils/pricing'
 
 export function useProductDetail(productId, options = {}) {
   const { wholesale = false } = options
   const accessToken = useAuthStore((state) => state.accessToken)
+  const user = useAuthStore((state) => state.user)
+  const guestToken = useWholesaleGuestStore((state) => state.guestToken)
 
   const [refreshCounter, setRefreshCounter] = useState(0)
   const stableCacheKey = `${productId}|${wholesale}`
-  const queryKey = `${stableCacheKey}|${refreshCounter}|${accessToken ?? ''}`
-  const enabled = Boolean(productId) && !(wholesale && !accessToken)
+  const queryKey = `${stableCacheKey}|${refreshCounter}|${guestToken ?? ''}|${accessToken ?? ''}`
+
+  const wholesaleAuthToken = wholesale && isMayorista(user?.role) ? accessToken : null
+  const wholesaleGuestAuthToken = wholesale && !wholesaleAuthToken ? guestToken : null
+  const enabled = Boolean(productId) && (!wholesale || Boolean(wholesaleAuthToken || wholesaleGuestAuthToken))
 
   const {
     value: product,
@@ -31,11 +38,11 @@ export function useProductDetail(productId, options = {}) {
   useEffect(() => {
     if (!productId) return undefined
 
-    if (wholesale && !accessToken) {
+    if (!enabled) {
       setData({
         key: queryKey,
         value: null,
-        error: 'Inicia sesión para ver este producto mayorista.',
+        error: 'Ingresa tu clave de acceso mayorista para ver este producto.',
       })
       return undefined
     }
@@ -45,7 +52,8 @@ export function useProductDetail(productId, options = {}) {
     runPersistedValueFetch({
       fetcher: () =>
         fetchCatalogProductDetail(productId, {
-          token: wholesale ? accessToken : null,
+          token: wholesaleAuthToken,
+          wholesaleGuestToken: wholesaleGuestAuthToken,
           wholesale,
         }),
       queryKey,
@@ -59,15 +67,22 @@ export function useProductDetail(productId, options = {}) {
     return () => {
       ignore = true
     }
-  }, [accessToken, commitValueResult, productId, queryKey, setData, wholesale])
+  }, [
+    commitValueResult,
+    enabled,
+    productId,
+    queryKey,
+    setData,
+    wholesale,
+    wholesaleAuthToken,
+    wholesaleGuestAuthToken,
+  ])
 
-  const ready = wholesale && !accessToken ? true : cachedReady
+  const ready = enabled ? cachedReady : true
 
   return {
-    product: wholesale && !accessToken ? null : product,
-    error: wholesale && !accessToken
-      ? 'Inicia sesión para ver este producto mayorista.'
-      : error,
+    product: enabled ? product : null,
+    error: enabled ? error : 'Ingresa tu clave de acceso mayorista para ver este producto.',
     ready,
     isFetching: enabled && isFetching,
     refresh: () => setRefreshCounter((count) => count + 1),

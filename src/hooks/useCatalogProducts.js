@@ -3,10 +3,14 @@ import { fetchCatalogProducts } from '../api/products'
 import { runPersistedListFetch, usePersistedListQuery } from '../core/cache/usePersistedListQuery'
 import { STORE_NS } from '../core/cache/moduleCacheNamespaces'
 import { useAuthStore } from '../stores/authStore'
+import { useWholesaleGuestStore } from '../stores/wholesaleGuestStore'
+import { isMayorista } from '../utils/pricing'
 
 export function useCatalogProducts(filters, page, pageSize, filtersKey = null, options = {}) {
   const { wholesale = false } = options
   const accessToken = useAuthStore((state) => state.accessToken)
+  const user = useAuthStore((state) => state.user)
+  const guestToken = useWholesaleGuestStore((state) => state.guestToken)
 
   const resolvedFiltersKey = filtersKey ?? JSON.stringify(filters)
   const filtersRef = useRef(filters)
@@ -14,8 +18,11 @@ export function useCatalogProducts(filters, page, pageSize, filtersKey = null, o
 
   const [refreshCounter, setRefreshCounter] = useState(0)
   const stableCacheKey = `${wholesale}|${resolvedFiltersKey}|${page}|${pageSize}`
-  const queryKey = `${stableCacheKey}|${refreshCounter}`
-  const enabled = !(wholesale && !accessToken)
+  const queryKey = `${stableCacheKey}|${refreshCounter}|${guestToken ?? ''}|${accessToken ?? ''}`
+
+  const wholesaleAuthToken = wholesale && isMayorista(user?.role) ? accessToken : null
+  const wholesaleGuestAuthToken = wholesale && !wholesaleAuthToken ? guestToken : null
+  const enabled = !wholesale || Boolean(wholesaleAuthToken || wholesaleGuestAuthToken)
 
   const {
     items,
@@ -38,7 +45,7 @@ export function useCatalogProducts(filters, page, pageSize, filtersKey = null, o
         key: queryKey,
         items: [],
         meta: null,
-        error: 'Inicia sesión para ver el catálogo mayorista.',
+        error: 'Ingresa tu clave de acceso mayorista para ver el catálogo.',
       })
       return undefined
     }
@@ -51,7 +58,8 @@ export function useCatalogProducts(filters, page, pageSize, filtersKey = null, o
           filters: filtersRef.current,
           page,
           pageSize,
-          token: wholesale ? accessToken : null,
+          token: wholesaleAuthToken,
+          wholesaleGuestToken: wholesaleGuestAuthToken,
           wholesale,
         }),
       queryKey,
@@ -64,14 +72,24 @@ export function useCatalogProducts(filters, page, pageSize, filtersKey = null, o
     return () => {
       ignore = true
     }
-  }, [accessToken, commitListResult, enabled, page, pageSize, queryKey, setData, wholesale])
+  }, [
+    commitListResult,
+    enabled,
+    page,
+    pageSize,
+    queryKey,
+    setData,
+    wholesale,
+    wholesaleAuthToken,
+    wholesaleGuestAuthToken,
+  ])
 
   const ready = enabled ? cachedReady : true
 
   return {
     items: enabled ? items : [],
     meta: enabled ? meta : null,
-    error: enabled ? error : 'Inicia sesión para ver el catálogo mayorista.',
+    error: enabled ? error : 'Ingresa tu clave de acceso mayorista para ver el catálogo.',
     ready,
     isFetching: enabled && isFetching,
     refresh: () => setRefreshCounter((count) => count + 1),

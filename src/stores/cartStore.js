@@ -56,6 +56,26 @@ function setEditingForMode(state, mode, editing) {
   }
 }
 
+function recalculateCartLinePrices(items, mode) {
+  const role = resolvePricingRoleForMode(mode)
+
+  return items
+    .map((item) => {
+      const basePrice = item.basePrice ?? item.price
+      const prepared = prepareCartItem(
+        { ...item, price: basePrice, basePrice },
+        role,
+        item.quantity,
+        items,
+      )
+      const minQty = prepared.isDecant ? 1 : getMinQuantity(role)
+      if (prepared.quantity < minQty) return null
+
+      return prepared
+    })
+    .filter(Boolean)
+}
+
 function migrateLegacyCartState(state) {
   if (Array.isArray(state?.items) && state.minoristaItems == null && state.mayoristaItems == null) {
     return {
@@ -272,12 +292,22 @@ export const useCartStore = create(
     }),
     {
       name: CART_STORAGE_KEY,
-      version: 2,
+      version: 3,
       migrate: (persistedState, version) => {
-        const migrated = migrateLegacyCartState(persistedState ?? {})
+        let migrated = migrateLegacyCartState(persistedState ?? {})
 
         if (version < 2) {
-          return stripLegacyCartFields(migrated)
+          migrated = stripLegacyCartFields(migrated)
+        }
+
+        if (version < 3) {
+          migrated = {
+            ...migrated,
+            mayoristaItems: recalculateCartLinePrices(
+              migrated.mayoristaItems ?? [],
+              CART_MODES.MAYORISTA,
+            ),
+          }
         }
 
         return migrated

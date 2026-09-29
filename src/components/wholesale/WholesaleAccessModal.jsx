@@ -4,7 +4,8 @@ import { MessageCircle, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
-import { activateWholesaleAccess } from '../../api/clients'
+import { useWholesaleGuestStore } from '../../stores/wholesaleGuestStore'
+import { activateWholesaleAccess, verifyWholesaleGuestAccess } from '../../api/clients'
 import { AUTH_INTENT } from '../../utils/authFlow'
 import { buildWhatsappAccessUrl } from '../../utils/shoppingMode'
 import { isMayorista } from '../../utils/pricing'
@@ -16,6 +17,8 @@ export default function WholesaleAccessModal() {
   const closeWholesaleModal = useUiStore((state) => state.closeWholesaleModal)
   const openLoginModal = useUiStore((state) => state.openLoginModal)
   const { isAuthenticated, user, accessToken, bootstrapSession } = useAuthStore()
+  const setGuestToken = useWholesaleGuestStore((state) => state.setGuestToken)
+  const clearGuestAccess = useWholesaleGuestStore((state) => state.clearGuestAccess)
   const [accessCode, setAccessCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -40,17 +43,31 @@ export default function WholesaleAccessModal() {
     setLoading(true)
 
     try {
-      const response = await activateWholesaleAccess(accessCode, accessToken)
+      if (isAuthenticated) {
+        const response = await activateWholesaleAccess(accessCode, accessToken)
 
-      if (!response.success) {
-        throw new Error(response.message || 'No se pudo activar el acceso mayorista')
+        if (!response.success) {
+          throw new Error(response.message || 'No se pudo activar el acceso mayorista')
+        }
+
+        clearGuestAccess()
+        await bootstrapSession()
+        closeWholesaleModal()
+        navigate('/mayorista')
+        return
       }
 
-      await bootstrapSession()
+      const response = await verifyWholesaleGuestAccess(accessCode)
+
+      if (!response.success) {
+        throw new Error(response.message || 'No se pudo validar la clave')
+      }
+
+      setGuestToken(response.data?.guest_token ?? null)
       closeWholesaleModal()
       navigate('/mayorista')
     } catch (activateError) {
-      setError(activateError.message || 'No se pudo activar el acceso mayorista')
+      setError(activateError.message || 'No se pudo validar la clave de acceso')
     } finally {
       setLoading(false)
     }
@@ -81,39 +98,7 @@ export default function WholesaleAccessModal() {
           Al por mayor
         </h2>
 
-        {!isAuthenticated ? (
-          <>
-            <p className="mt-3 text-sm leading-6 text-gray-600">
-              Para solicitar tu clave de acceso mayorista primero debes iniciar sesión.
-              Si aún no tienes cuenta, regístrate y vuelve a esta sección.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => {
-                closeWholesaleModal()
-                openLoginModal(AUTH_INTENT.WHOLESALE)
-              }}
-              className="btn-fill mt-6 w-full rounded-full py-3.5 text-sm font-semibold"
-            >
-              Iniciar sesión
-            </button>
-
-            <p className="mt-5 text-center text-sm text-gray-600">
-              ¿No tienes cuenta?{' '}
-              <button
-                type="button"
-                onClick={() => {
-                  closeWholesaleModal()
-                  openLoginModal(AUTH_INTENT.WHOLESALE)
-                }}
-                className="font-semibold text-gray-900 underline hover:no-underline"
-              >
-                Regístrate
-              </button>
-            </p>
-          </>
-        ) : isMayoristaUser ? (
+        {isMayoristaUser ? (
           <>
             <p className="mt-3 text-sm leading-6 text-gray-600">
               Tu cuenta ya tiene acceso mayorista. Puedes ingresar al catálogo mayorista.
@@ -132,7 +117,8 @@ export default function WholesaleAccessModal() {
         ) : (
           <>
             <p className="mt-3 text-sm leading-6 text-gray-600">
-              Ingresa tu clave de acceso mayorista. Si aún no la tienes, solicítala por WhatsApp.
+              Ingresa tu clave de acceso mayorista para ver el catálogo. Para comprar necesitarás
+              iniciar sesión o registrarte al finalizar el pedido.
             </p>
 
             <form onSubmit={handleActivate} className="mt-5 space-y-4">
@@ -159,7 +145,7 @@ export default function WholesaleAccessModal() {
                 disabled={loading || !accessCode.trim()}
                 className="btn-fill w-full rounded-full py-3.5 text-sm font-semibold disabled:opacity-60"
               >
-                {loading ? 'Validando…' : 'Activar acceso mayorista'}
+                {loading ? 'Validando…' : 'Entrar al catálogo mayorista'}
               </button>
             </form>
 
@@ -172,6 +158,23 @@ export default function WholesaleAccessModal() {
               <MessageCircle className="h-4 w-4" />
               Solicitar clave por WhatsApp
             </a>
+
+            {isAuthenticated ? null : (
+              <p className="mt-5 text-center text-sm text-gray-600">
+                ¿Ya tienes cuenta?{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeWholesaleModal()
+                    openLoginModal(AUTH_INTENT.WHOLESALE)
+                  }}
+                  className="font-semibold text-gray-900 underline hover:no-underline"
+                >
+                  Iniciar sesión
+                </button>
+                {' '}(solo para comprar)
+              </p>
+            )}
           </>
         )}
       </div>

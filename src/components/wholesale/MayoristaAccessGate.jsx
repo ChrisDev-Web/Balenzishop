@@ -2,25 +2,28 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 import { useUiStore } from '../../stores/uiStore'
+import { useWholesaleGuestStore } from '../../stores/wholesaleGuestStore'
 import { isMayorista } from '../../utils/pricing'
 
 export default function MayoristaAccessGate({ children }) {
   const user = useAuthStore((state) => state.user)
+  const guestToken = useWholesaleGuestStore((state) => state.guestToken)
   const openWholesaleModal = useUiStore((state) => state.openWholesaleModal)
   const isMayoristaUser = isMayorista(user?.role)
+  const hasCatalogAccess = isMayoristaUser || Boolean(guestToken)
 
   useEffect(() => {
-    if (!isMayoristaUser) {
+    if (!hasCatalogAccess) {
       openWholesaleModal()
     }
-  }, [isMayoristaUser, openWholesaleModal])
+  }, [hasCatalogAccess, openWholesaleModal])
 
-  if (!isMayoristaUser) {
+  if (!hasCatalogAccess) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
         <h1 className="text-2xl font-bold text-gray-900">Catálogo mayorista</h1>
         <p className="mt-3 text-sm leading-6 text-gray-600">
-          Necesitas activar tu acceso mayorista para ver precios y productos al por mayor.
+          Ingresa tu clave de acceso mayorista para ver precios y productos al por mayor.
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <button

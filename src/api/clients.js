@@ -5,6 +5,10 @@ export async function activateWholesaleAccess(accessCode, token) {
   return apiPost('clients/activate_wholesale', { access_code: accessCode }, token)
 }
 
+export async function verifyWholesaleGuestAccess(accessCode) {
+  return apiPost('clients/verify_wholesale_access', { access_code: accessCode })
+}
+
 export async function registerClient(payload) {
   return apiPost('clients/register', payload)
 }

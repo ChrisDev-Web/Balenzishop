@@ -3,7 +3,6 @@ export const USER_ROLES = {
   MAYORISTA: 'mayorista',
 }
 
-export const WHOLESALE_DISCOUNT = 0.1
 export const WHOLESALE_MIN_ORDER_QTY = 3
 export const WHOLESALE_PACKAGING_FEE_3_4 = 5
 export const WHOLESALE_PACKAGING_FEE_5_PLUS = 14
@@ -155,19 +154,11 @@ export function getPromoDiscountLabel(product, role) {
   return discountText
 }
 
-export function getProductPrice(basePrice, role) {
-  if (isMayorista(role)) {
-    return Math.round(basePrice * (1 - WHOLESALE_DISCOUNT) * 100) / 100
-  }
-  return basePrice
-}
-
-export function getOriginalPriceForRole(originalPrice, role) {
-  if (!originalPrice) return null
-  if (isMayorista(role)) {
-    return Math.round(originalPrice * (1 - WHOLESALE_DISCOUNT) * 100) / 100
-  }
-  return originalPrice
+/** Precio de línea en carrito: mismo monto que catálogo (API ya envía mayorista/minorista). */
+export function getProductPrice(basePrice, _role) {
+  const amount = Number(basePrice)
+  if (!Number.isFinite(amount)) return 0
+  return Math.round(amount * 100) / 100
 }
 
 export function getDecantCartOptions(item, cartContext = null) {

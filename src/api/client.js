@@ -97,6 +97,9 @@ http.interceptors.response.use(
 export async function apiGet(path, params = {}, token = null, config = {}) {
   const headers = { ...config.headers }
   if (token) headers.Authorization = `Bearer ${token}`
+  if (config.wholesaleGuestToken) {
+    headers['X-Wholesale-Guest-Token'] = config.wholesaleGuestToken
+  }
 
   const response = await http.get(path, {
     ...config,

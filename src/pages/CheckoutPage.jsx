@@ -16,7 +16,7 @@ import { fetchLiveMinoristaPricingStatus } from '../api/catalogSettings'
 import { getDeliveryFeeForAddress, computeOrderTotal } from '../utils/deliveryFee'
 import { getPackagingFeeForMode, getWholesaleMinOrderQuantity } from '../utils/wholesaleCheckout'
 import ShippingChargeDisplay from '../components/checkout/ShippingChargeDisplay'
-import { getDecantCartOptions, getMaxCartQuantity } from '../utils/pricing'
+import { getDecantCartOptions, getMaxCartQuantity, isMayorista } from '../utils/pricing'
 import { getLineDisplayTotal, getLinePromoDiscount, useCartTotals } from '../hooks/useCartTotals'
 import { useUserPricing } from '../hooks/useUserPricing'
 import { CART_MODES, buildCheckoutPath, catalogLinkForMode, resolvePreferredCheckoutMode } from '../utils/shoppingMode'
@@ -77,6 +77,7 @@ export default function CheckoutPage() {
   const { role } = useUserPricing(checkoutMode)
   const { user, isAuthenticated, accessToken, updateAddress, syncAddresses } = useAuthStore()
   const openLoginModal = useUiStore((s) => s.openLoginModal)
+  const openWholesaleModal = useUiStore((s) => s.openWholesaleModal)
   const setAuthIntent = useUiStore((s) => s.setAuthIntent)
 
   const [codeInput, setCodeInput] = useState('')
@@ -891,13 +892,49 @@ export default function CheckoutPage() {
     return (
       <div className="mx-auto max-w-2xl px-4 py-20 text-center">
         <h1 className="text-2xl font-bold text-gray-900">Inicia sesión para continuar</h1>
-        <p className="mt-2 text-gray-600">Las compras mayoristas requieren una cuenta activa.</p>
+        <p className="mt-2 text-gray-600">
+          Para completar un pedido mayorista necesitas una cuenta. Si ya tienes clave mayorista,
+          actívala después de iniciar sesión.
+        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => openLoginModal(AUTH_INTENT.CHECKOUT, captureAuthReturnTo() || buildCheckoutPath(checkoutMode))}
+            className="inline-block rounded-full bg-brand px-6 py-2.5 text-sm font-semibold text-white"
+          >
+            Iniciar sesión
+          </button>
+          <button
+            type="button"
+            onClick={() => openLoginModal(AUTH_INTENT.CHECKOUT, captureAuthReturnTo() || buildCheckoutPath(checkoutMode))}
+            className="inline-block rounded-full border border-gray-300 px-6 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+          >
+            Registrarse
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (
+    isAuthenticated
+    && user
+    && checkoutMode === CART_MODES.MAYORISTA
+    && !isMayorista(user.role)
+  ) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-20 text-center">
+        <h1 className="text-2xl font-bold text-gray-900">Activa tu cuenta mayorista</h1>
+        <p className="mt-2 text-gray-600">
+          Tu sesión es de cliente minorista. Ingresa la misma clave de acceso mayorista para poder
+          confirmar este pedido.
+        </p>
         <button
           type="button"
-          onClick={() => openLoginModal(AUTH_INTENT.CHECKOUT)}
-          className="mt-6 inline-block rounded-full bg-brand px-6 py-2.5 text-sm font-semibold text-white"
+          onClick={openWholesaleModal}
+          className="mt-6 inline-block rounded-full bg-black px-6 py-2.5 text-sm font-semibold text-white hover:bg-gray-800"
         >
-          Iniciar sesión
+          Ingresar clave mayorista
         </button>
       </div>
     )

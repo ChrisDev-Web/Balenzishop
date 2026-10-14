@@ -18,7 +18,7 @@ export async function fetchCatalogProducts({
 
   const response = await dedupeRequest(cacheKey, () => apiGet(path, params, token, {
     signal,
-    wholesaleGuestToken: wholesale && !token ? wholesaleGuestToken : null,
+    wholesaleGuestToken: wholesale ? wholesaleGuestToken : null,
   }))
 
   return {
@@ -40,7 +40,7 @@ export async function fetchCatalogProductDetail(id, {
 
   const response = await dedupeRequest(cacheKey, () => apiGet(path, {}, token, {
     signal,
-    wholesaleGuestToken: wholesale && !token ? wholesaleGuestToken : null,
+    wholesaleGuestToken: wholesale ? wholesaleGuestToken : null,
   }))
 
   return mapCatalogProductDetail(response.data)

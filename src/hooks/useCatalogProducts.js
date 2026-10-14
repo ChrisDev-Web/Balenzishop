@@ -21,7 +21,7 @@ export function useCatalogProducts(filters, page, pageSize, filtersKey = null, o
   const queryKey = `${stableCacheKey}|${refreshCounter}|${guestToken ?? ''}|${accessToken ?? ''}`
 
   const wholesaleAuthToken = wholesale && isMayorista(user?.role) ? accessToken : null
-  const wholesaleGuestAuthToken = wholesale && !wholesaleAuthToken ? guestToken : null
+  const wholesaleGuestAuthToken = wholesale && guestToken ? guestToken : null
   const enabled = !wholesale || Boolean(wholesaleAuthToken || wholesaleGuestAuthToken)
 
   const {

@@ -6,6 +6,10 @@ import {
   isSessionExpiredError,
   markSessionExpiredError,
 } from '../utils/sessionExpiry'
+import {
+  recoverWholesaleCatalogAccess,
+  shouldRecoverWholesaleCatalogAccess,
+} from '../utils/wholesaleCatalogToken'
 
 export function parseApiFieldErrors(data) {
   if (!data?.errors || typeof data.errors !== 'object') return {}
@@ -80,6 +84,17 @@ http.interceptors.response.use(
   (error) => {
     if (axios.isCancel(error)) {
       return Promise.reject(error)
+    }
+
+    if (shouldRecoverWholesaleCatalogAccess(error)) {
+      recoverWholesaleCatalogAccess()
+      const data = error.response?.data
+      return Promise.reject(
+        createRequestError(
+          data,
+          'Tu acceso al catálogo mayorista ya no es válido. Ingresa de nuevo tu clave de acceso.',
+        ),
+      )
     }
 
     if (shouldRejectAsSessionExpired(error)) {

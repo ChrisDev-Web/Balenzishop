@@ -12,6 +12,7 @@ import CatalogSortSelect from '../components/catalog/CatalogSortSelect'
 import ProductCard from '../components/catalog/ProductCard'
 import ProductGridSkeleton from '../components/catalog/ProductGridSkeleton'
 import Pagination from '../components/catalog/Pagination'
+import { useUiStore } from '../stores/uiStore'
 
 const DEFAULT_MAX_PRICE = 500
 const PAGE_SIZE = 20
@@ -19,6 +20,7 @@ const SEARCH_DEBOUNCE_MS = 400
 
 export default function CatalogPage({ catalogMode = CART_MODES.MINORISTA }) {
   const wholesale = catalogMode === CART_MODES.MAYORISTA
+  const openWholesaleModal = useUiStore((state) => state.openWholesaleModal)
   const [searchParams, setSearchParams] = useSearchParams()
 
   const {
@@ -133,9 +135,21 @@ export default function CatalogPage({ catalogMode = CART_MODES.MINORISTA }) {
           </div>
 
           {error && (
-            <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
-              {error}
-            </p>
+            <div
+              className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+              role="alert"
+            >
+              <p>{error}</p>
+              {wholesale && (
+                <button
+                  type="button"
+                  onClick={openWholesaleModal}
+                  className="mt-3 rounded-full bg-red-800 px-4 py-2 text-xs font-semibold text-white hover:bg-red-900"
+                >
+                  Ingresar clave mayorista
+                </button>
+              )}
+            </div>
           )}
 
           {showSkeleton ? (

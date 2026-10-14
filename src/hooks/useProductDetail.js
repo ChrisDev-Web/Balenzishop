@@ -17,7 +17,7 @@ export function useProductDetail(productId, options = {}) {
   const queryKey = `${stableCacheKey}|${refreshCounter}|${guestToken ?? ''}|${accessToken ?? ''}`
 
   const wholesaleAuthToken = wholesale && isMayorista(user?.role) ? accessToken : null
-  const wholesaleGuestAuthToken = wholesale && !wholesaleAuthToken ? guestToken : null
+  const wholesaleGuestAuthToken = wholesale && guestToken ? guestToken : null
   const enabled = Boolean(productId) && (!wholesale || Boolean(wholesaleAuthToken || wholesaleGuestAuthToken))
 
   const {

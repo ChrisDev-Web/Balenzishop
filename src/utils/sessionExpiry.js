@@ -7,6 +7,10 @@ const AUTH_EXEMPT_PATHS = [
   'clients/password/send-code',
   'clients/password/verify-code',
   'clients/password/reset',
+  'clients/verify_wholesale_access',
+  'products/list_active_wholesale',
+  'products/detail_wholesale',
+  'catalog/bootstrap_wholesale',
 ]
 
 function isAuthExemptRequest(url = '') {

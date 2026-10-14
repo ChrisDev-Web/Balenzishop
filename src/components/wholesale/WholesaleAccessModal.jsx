@@ -18,7 +18,6 @@ export default function WholesaleAccessModal() {
   const openLoginModal = useUiStore((state) => state.openLoginModal)
   const { isAuthenticated, user, accessToken, bootstrapSession } = useAuthStore()
   const setGuestToken = useWholesaleGuestStore((state) => state.setGuestToken)
-  const clearGuestAccess = useWholesaleGuestStore((state) => state.clearGuestAccess)
   const [accessCode, setAccessCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -50,8 +49,11 @@ export default function WholesaleAccessModal() {
           throw new Error(response.message || 'No se pudo activar el acceso mayorista')
         }
 
-        clearGuestAccess()
         await bootstrapSession()
+        const catalogToken = response.data?.wholesale_catalog_token ?? null
+        if (catalogToken) {
+          setGuestToken(catalogToken)
+        }
         closeWholesaleModal()
         navigate('/mayorista')
         return
@@ -63,7 +65,9 @@ export default function WholesaleAccessModal() {
         throw new Error(response.message || 'No se pudo validar la clave')
       }
 
-      setGuestToken(response.data?.guest_token ?? null)
+      setGuestToken(
+        response.data?.guest_token ?? response.data?.wholesale_catalog_token ?? null,
+      )
       closeWholesaleModal()
       navigate('/mayorista')
     } catch (activateError) {

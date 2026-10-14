@@ -26,6 +26,7 @@ import {
 import { mapAddressFormToPayload, mapDirectionToAddress, sortAddresses } from '../utils/addressMapper'
 import { USER_ROLES } from '../utils/pricing'
 import { clearCheckoutDraftSession } from './checkoutDraftStore'
+import { persistWholesaleCatalogToken } from '../utils/wholesaleCatalogToken'
 
 let bootstrapSessionPromise = null
 let bootstrapSessionToken = null
@@ -74,6 +75,7 @@ export const useAuthStore = create(
         bootstrapSessionToken = accessToken
         bootstrapSessionPromise = fetchCurrentClient(accessToken)
           .then(async (response) => {
+            persistWholesaleCatalogToken(response.data)
             let nextUser = mapClientToUser(response.data, user)
             try {
               nextUser = await loadDirectionsForUser(accessToken, nextUser)
@@ -99,6 +101,7 @@ export const useAuthStore = create(
         try {
           const response = await loginClient(email, password)
           const { client, access_token, refresh_token } = response.data
+          persistWholesaleCatalogToken(response.data)
           let user = applySession(set, client, {
             access_token,
             refresh_token,
@@ -119,6 +122,7 @@ export const useAuthStore = create(
         try {
           const response = await registerClient(mapRegisterFormToPayload(form))
           const { client, access_token, refresh_token } = response.data
+          persistWholesaleCatalogToken(response.data)
           const user = applySession(set, client, {
             access_token,
             refresh_token,

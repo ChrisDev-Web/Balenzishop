@@ -44,12 +44,11 @@ export function useCartTotals(mode = CART_MODES.MINORISTA) {
   }, [items, promotions, brandSegments])
 }
 
-export function getLinePromoDiscount(lineIndex, promoResult) {
-  return Number(promoResult?.lineDiscounts?.[lineIndex] ?? 0)
+/** La promo decants se aplica una sola vez al carrito, no por línea. */
+export function getLinePromoDiscount() {
+  return 0
 }
 
-export function getLineDisplayTotal(item, lineIndex, promoResult) {
-  const gross = getCartLineTotal(item)
-  const promoDiscount = getLinePromoDiscount(lineIndex, promoResult)
-  return Math.round(Math.max(0, gross - promoDiscount) * 100) / 100
+export function getLineDisplayTotal(item) {
+  return getCartLineTotal(item)
 }

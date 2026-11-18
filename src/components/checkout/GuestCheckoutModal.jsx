@@ -159,6 +159,7 @@ function getStepSubtitle(step, paymentMode, {
   isOwnDelivery = false,
   isShalomShipDate = false,
   balanceDue = 0,
+  skipPaymentProofs = false,
 } = {}) {
   switch (step) {
     case STEP_DELIVERY_TYPE:
@@ -176,6 +177,9 @@ function getStepSubtitle(step, paymentMode, {
     case STEP_PAYMENT:
       return 'Indica si pagarás la reserva, un monto personalizado o el total'
     case STEP_FINAL:
+      if (skipPaymentProofs) {
+        return 'Confirma tu pedido antes de enviar por WhatsApp'
+      }
       return paymentMode === PAYMENT_MODE_FULL || balanceDue <= 0.009
         ? 'Confirma tu pedido antes de enviar'
         : 'Elige cómo cancelarás el saldo restante'
@@ -252,7 +256,10 @@ export default function GuestCheckoutModal({
   discountCode,
   packagingFee,
   paymentMethods,
+  compraRapidaPreset = null,
+  compraRapidaLink = false,
 }) {
+  const skipPaymentProofs = Boolean(compraRapidaLink)
   const [step, setStep] = useState(STEP_DELIVERY_TYPE)
   const [deliveryOption, setDeliveryOption] = useState(null)
   const [customer, setCustomer] = useState(emptyCustomer)
@@ -285,6 +292,10 @@ export default function GuestCheckoutModal({
   const [isLoadingDistricts, setIsLoadingDistricts] = useState(false)
   const modalScrollRef = useRef(null)
   const shalonFieldRef = useRef(null)
+  const compraRapidaOpenInitializedRef = useRef(false)
+  const compraRapidaBootstrapStartedRef = useRef(false)
+  const compraRapidaReserveContextRef = useRef({ items, discountCode, compraRapidaLink })
+  compraRapidaReserveContextRef.current = { items, discountCode, compraRapidaLink }
   const { documentTypes } = useDocumentTypes({ enabled: open })
 
   const guestDocumentTypeOptions = useMemo(
@@ -328,7 +339,8 @@ export default function GuestCheckoutModal({
     }
   }
   const stepIndex = STEPS.indexOf(step)
-  const isFirstStep = stepIndex === 0
+  const compraRapidaMinStepIndex = compraRapidaPreset ? STEPS.indexOf(STEP_DATE) : 0
+  const isFirstStep = stepIndex <= compraRapidaMinStepIndex
   const isLastStep = stepIndex === STEPS.length - 1
 
   const isLimaScope = deliveryScope === 'lima'
@@ -445,7 +457,9 @@ export default function GuestCheckoutModal({
   const amountMatches = Math.abs(paidTotal - expectedAmount) < 0.01
 
   const allRowsValid = paymentRows.every(
-    (row) => row.id_payment_method && Number(row.amount) > 0 && row.files.length > 0,
+    (row) => row.id_payment_method
+      && Number(row.amount) > 0
+      && (skipPaymentProofs || row.files.length > 0),
   )
 
   const selectedRemainderMethod = findPaymentMethodById(remainderPaymentMethods, remainderMethodId)
@@ -506,13 +520,17 @@ export default function GuestCheckoutModal({
 
   const canContinueFromDate = Boolean(scheduledDeliveryDate)
 
-  const canContinueFromPayment = amountMatches
-    && allRowsValid
-    && (paymentMode !== PAYMENT_MODE_CUSTOM || customPaymentValidation.valid)
+  const canContinueFromPayment = skipPaymentProofs
+    ? (paymentMode !== PAYMENT_MODE_CUSTOM || customPaymentValidation.valid)
+    : amountMatches
+      && allRowsValid
+      && (paymentMode !== PAYMENT_MODE_CUSTOM || customPaymentValidation.valid)
 
-  const canContinueFromFinal = paymentMode === PAYMENT_MODE_FULL
-    || balanceDue <= 0.009
-    || (Boolean(remainderMethodId) && cashPaidWithValid)
+  const canContinueFromFinal = skipPaymentProofs
+    ? (paymentMode !== PAYMENT_MODE_CUSTOM || customPaymentValidation.valid)
+    : paymentMode === PAYMENT_MODE_FULL
+      || balanceDue <= 0.009
+      || (Boolean(remainderMethodId) && cashPaidWithValid)
 
   const canSubmit = canContinueFromFinal && !submitting && !cancelling && draftOrderId && guestToken
 
@@ -544,6 +562,18 @@ export default function GuestCheckoutModal({
     [districtOptions],
   )
 
+  const applyCompraRapidaPreset = useCallback((preset) => {
+    if (!preset) return
+
+    setCustomer({ ...emptyCustomer, ...preset.customer })
+    setDeliveryForm({ ...emptyDeliveryForm, ...preset.deliveryForm })
+    setDeliveryType(preset.deliveryType ?? DELIVERY_TYPES.SHALON)
+    setDeliveryScope(preset.deliveryScope ?? null)
+    setDeliveryOption(preset.deliveryOption ?? null)
+    setLimaDeliveryType(preset.limaDeliveryType ?? null)
+    setStep(preset.startStep === 'date' ? STEP_DATE : STEP_DELIVERY_TYPE)
+  }, [])
+
   const resetState = useCallback(() => {
     setStep(STEP_DELIVERY_TYPE)
     setDeliveryOption(null)
@@ -572,9 +602,101 @@ export default function GuestCheckoutModal({
   }, [])
 
   useEffect(() => {
-    if (!open) return
-    resetState()
-  }, [open, resetState])
+    if (!open) {
+      compraRapidaOpenInitializedRef.current = false
+      compraRapidaBootstrapStartedRef.current = false
+      return
+    }
+
+    if (!compraRapidaPreset) {
+      if (!compraRapidaOpenInitializedRef.current) {
+        compraRapidaOpenInitializedRef.current = true
+        resetState()
+      }
+      return
+    }
+
+    if (!compraRapidaOpenInitializedRef.current) {
+      compraRapidaOpenInitializedRef.current = true
+      applyCompraRapidaPreset(compraRapidaPreset)
+    }
+
+    if (draftOrderId || compraRapidaBootstrapStartedRef.current) return
+
+    const preset = compraRapidaPreset
+    const presetCustomer = preset.customer ?? {}
+    const hasCustomer = Boolean(
+      presetCustomer.name?.trim()
+      && presetCustomer.last_name_paternal?.trim()
+      && presetCustomer.phone?.trim(),
+    )
+
+    if (!hasCustomer) return
+
+    compraRapidaBootstrapStartedRef.current = true
+
+    async function bootstrapReserve() {
+      setReserving(true)
+      setError('')
+
+      try {
+        const {
+          items: cartItems,
+          discountCode: activeDiscountCode,
+          compraRapidaLink: activeCompraRapidaLink,
+        } = compraRapidaReserveContextRef.current
+        const response = await reserveGuestCheckout({
+          items: cartItems,
+          compraRapidaLink: activeCompraRapidaLink,
+          customer: {
+            name: presetCustomer.name.trim(),
+            last_name_paternal: presetCustomer.last_name_paternal.trim(),
+            last_name_maternal: presetCustomer.last_name_maternal?.trim() || null,
+            id_document_type: presetCustomer.id_document_type
+              ? Number(presetCustomer.id_document_type)
+              : null,
+            document_number: presetCustomer.document_number?.trim() || null,
+            phone: presetCustomer.phone.trim(),
+          },
+          delivery: buildGuestDeliveryPayload({
+            deliveryScope: preset.deliveryScope,
+            deliveryType: preset.deliveryType,
+            deliveryForm: preset.deliveryForm,
+            scheduledDeliveryDate: null,
+          }),
+          discountCode: activeDiscountCode,
+        })
+
+        if (!response?.success) {
+          throw new Error(response.message || 'No se pudo reservar el pedido')
+        }
+
+        const orderId = response.data?.order?.id_client_order
+        const token = response.data?.guest_token
+
+        if (!orderId || !token) {
+          throw new Error('La reserva no devolvió los datos del pedido')
+        }
+
+        setDraftOrderId(orderId)
+        setGuestToken(token)
+        setStep(STEP_DATE)
+      } catch (reserveError) {
+        compraRapidaBootstrapStartedRef.current = false
+        setError(reserveError.message || 'No se pudo reservar el pedido')
+      } finally {
+        setReserving(false)
+      }
+    }
+
+    void bootstrapReserve()
+  }, [
+    open,
+    draftOrderId,
+    compraRapidaPreset,
+    applyCompraRapidaPreset,
+    resetState,
+  ])
 
   useEffect(() => {
     if (!scheduledDeliveryDate || availableDeliveryDates.length === 0) return
@@ -1017,7 +1139,7 @@ export default function GuestCheckoutModal({
   }
 
   async function goBack() {
-    if (isFirstStep || submitting || reserving) return
+    if (stepIndex <= compraRapidaMinStepIndex || submitting || reserving) return
     setError('')
 
     if (step === STEP_PAYMENT && draftOrderId && guestToken) {
@@ -1054,6 +1176,7 @@ export default function GuestCheckoutModal({
     try {
       const response = await reserveGuestCheckout({
         items,
+        compraRapidaLink,
         customer: {
           name: customer.name.trim(),
           last_name_paternal: customer.last_name_paternal.trim(),
@@ -1127,7 +1250,15 @@ export default function GuestCheckoutModal({
         return
       }
       if (!canContinueFromPayment) {
-        setError('Completa el método de pago, el monto y adjunta al menos un comprobante.')
+        setError(
+          skipPaymentProofs
+            ? 'Completa el método de pago y el monto.'
+            : 'Completa el método de pago, el monto y adjunta al menos un comprobante.',
+        )
+        return
+      }
+      if (skipPaymentProofs) {
+        setStep(STEP_FINAL)
         return
       }
       if (guestProofPolicyId && hasAcceptedProofPolicy(guestProofPolicyId)) {
@@ -1170,12 +1301,30 @@ export default function GuestCheckoutModal({
     setError('')
 
     try {
-      const payments = paymentRows.map((row) => ({
-        id_payment_method: Number(row.id_payment_method),
-        amount: Number(row.amount),
-      }))
+      const payments = skipPaymentProofs
+        ? []
+        : paymentRows.map((row) => ({
+          id_payment_method: Number(row.id_payment_method),
+          amount: Number(row.amount),
+        }))
 
-      const paymentProofs = paymentRows.map((row) => row.files)
+      const paymentProofs = skipPaymentProofs ? [] : paymentRows.map((row) => row.files)
+
+      const deliveryPayload = {
+        scheduled_delivery_date: scheduledDeliveryDate,
+        delivery_fee: effectiveDeliveryFee,
+        geo_lat: deliveryForm.geoLat,
+        geo_lng: deliveryForm.geoLng,
+      }
+
+      if (
+        skipPaymentProofs
+        && paymentMode === PAYMENT_MODE_CUSTOM
+        && customPaymentValidation.valid
+        && customPaymentValidation.amount != null
+      ) {
+        deliveryPayload.custom_payment_amount = customPaymentValidation.amount
+      }
 
       const response = await submitGuestCheckout(
         draftOrderId,
@@ -1184,18 +1333,17 @@ export default function GuestCheckoutModal({
           paymentMode,
           payments,
           paymentProofs,
-          balancePaymentMethodId: hasBalanceAfterInitialPayment(paymentMode, balanceDue)
-            ? Number(remainderMethodId)
-            : undefined,
-          cashPaidWith: hasBalanceAfterInitialPayment(paymentMode, balanceDue) && remainderIsCash
-            ? roundMoney(cashPaidWithAmount)
-            : undefined,
-          delivery: {
-            scheduled_delivery_date: scheduledDeliveryDate,
-            delivery_fee: effectiveDeliveryFee,
-            geo_lat: deliveryForm.geoLat,
-            geo_lng: deliveryForm.geoLng,
-          },
+          balancePaymentMethodId: skipPaymentProofs
+            ? undefined
+            : (hasBalanceAfterInitialPayment(paymentMode, balanceDue)
+              ? Number(remainderMethodId)
+              : undefined),
+          cashPaidWith: skipPaymentProofs
+            ? undefined
+            : (hasBalanceAfterInitialPayment(paymentMode, balanceDue) && remainderIsCash
+              ? roundMoney(cashPaidWithAmount)
+              : undefined),
+          delivery: deliveryPayload,
         },
       )
 
@@ -1393,8 +1541,14 @@ export default function GuestCheckoutModal({
             <label className="block sm:col-span-3">
               <span className="mb-1 block text-sm text-gray-600">Teléfono</span>
               <input
+                type="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={customer.phone}
-                onChange={(event) => updateCustomerField('phone', event.target.value)}
+                onChange={(event) => updateCustomerField(
+                  'phone',
+                  event.target.value.replace(/\D/g, '').slice(0, 11),
+                )}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-black focus:outline-none"
                 autoComplete="tel"
               />
@@ -1600,6 +1754,13 @@ export default function GuestCheckoutModal({
           <p className="text-[11px] leading-snug text-gray-500">{RESERVATION_NOTICE}</p>
         )}
 
+        {skipPaymentProofs ? (
+          <p className="text-[11px] leading-snug text-gray-500">
+            Indica cómo quieres pagar; el equipo coordinará el pago contigo por WhatsApp.
+          </p>
+        ) : null}
+
+        {!skipPaymentProofs ? (
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-semibold text-gray-900">Método y comprobante</p>
@@ -1678,24 +1839,26 @@ export default function GuestCheckoutModal({
 
                   <PaymentMethodCheckoutInfo method={selectedMethod} compact />
 
-                  <div className="mt-2 min-w-0">
-                    <label className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                      <Upload className="h-3.5 w-3.5" />
-                      Adjuntar comprobante
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/jpg"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => handleFilesChange(row.key, e)}
-                      />
-                    </label>
-                    {row.files.length > 0 && (
-                      <p className="mt-1 truncate text-[11px] text-gray-600">
-                        {row.files.map((file) => file.name).join(', ')}
-                      </p>
-                    )}
-                  </div>
+                  {!skipPaymentProofs ? (
+                    <div className="mt-2 min-w-0">
+                      <label className="inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                        <Upload className="h-3.5 w-3.5" />
+                        Adjuntar comprobante
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/jpg"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => handleFilesChange(row.key, e)}
+                        />
+                      </label>
+                      {row.files.length > 0 && (
+                        <p className="mt-1 truncate text-[11px] text-gray-600">
+                          {row.files.map((file) => file.name).join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               )
             })}
@@ -1712,19 +1875,21 @@ export default function GuestCheckoutModal({
             </button>
           )}
 
-          <p className="text-[11px] leading-snug text-amber-800">
-            {PROOF_WARNING}{' '}
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                setShowProofPolicyModal(true)
-              }}
-              className="font-semibold underline hover:text-amber-900"
-            >
-              Ver términos
-            </button>
-          </p>
+          {!skipPaymentProofs ? (
+            <p className="text-[11px] leading-snug text-amber-800">
+              {PROOF_WARNING}{' '}
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setShowProofPolicyModal(true)
+                }}
+                className="font-semibold underline hover:text-amber-900"
+              >
+                Ver términos
+              </button>
+            </p>
+          ) : null}
 
           {!amountMatches && paidTotal > 0 && expectedAmount > 0 && (
             <p className="text-xs text-red-600">
@@ -1732,11 +1897,61 @@ export default function GuestCheckoutModal({
             </p>
           )}
         </div>
+        ) : null}
       </div>
     )
   }
 
+  function resolveCompraRapidaPlannedAmount() {
+    if (paymentMode === PAYMENT_MODE_FULL) return orderTotal
+    if (paymentMode === PAYMENT_MODE_CUSTOM && customPaymentValidation.valid) {
+      return customPaymentValidation.amount ?? 0
+    }
+    return reservationAmount
+  }
+
   function renderFinalStep() {
+    if (skipPaymentProofs) {
+      const plannedAmount = resolveCompraRapidaPlannedAmount()
+
+      return (
+        <div className="space-y-3">
+          <div className="rounded-lg bg-gray-50 px-3 py-2 text-xs space-y-1">
+            <div className="flex justify-between gap-2">
+              <span className="text-gray-600">Forma de pago</span>
+              <span className="font-bold text-gray-900">{formatPaymentModeLabel(paymentMode)}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-gray-600">
+                {paymentMode === PAYMENT_MODE_FULL ? 'Monto total' : 'Monto indicado'}
+              </span>
+              <span className="font-bold text-gray-900">S/ {plannedAmount.toFixed(2)}</span>
+            </div>
+            {paymentMode !== PAYMENT_MODE_FULL ? (
+              <div className="flex justify-between gap-2 border-t border-gray-200 pt-1">
+                <span className="text-gray-600">Total del pedido</span>
+                <span className="font-bold text-gray-900">S/ {orderTotal.toFixed(2)}</span>
+              </div>
+            ) : null}
+            {hasBalanceAfterInitialPayment(paymentMode, balanceDue) ? (
+              <div className="flex justify-between gap-2 border-t border-gray-200 pt-1">
+                <span className="text-gray-600">Saldo pendiente</span>
+                <span className="font-bold text-gray-900">S/ {balanceDue.toFixed(2)}</span>
+              </div>
+            ) : null}
+            {scheduledDeliveryDate ? (
+              <p className="border-t border-gray-200 pt-1 text-gray-700">
+                {requiresOwnDeliveryMeetingDate ? 'Encuentro' : 'Entrega'}: {scheduledDeliveryDate}
+              </p>
+            ) : null}
+          </div>
+          <p className="text-[11px] leading-snug text-gray-500">
+            Al enviar por WhatsApp coordinarás el pago con nuestro equipo. No necesitas adjuntar comprobante aquí.
+          </p>
+        </div>
+      )
+    }
+
     if (hasBalanceAfterInitialPayment(paymentMode, balanceDue)) {
       const initialPaymentLabel = paymentMode === PAYMENT_MODE_CUSTOM
         ? 'Pago personalizado'
@@ -1922,6 +2137,7 @@ export default function GuestCheckoutModal({
                   isOwnDelivery: requiresOwnDeliveryMeetingDate,
                   isShalomShipDate: requiresShalomShipDate,
                   balanceDue,
+                  skipPaymentProofs,
                 })}
               </p>
             </div>
@@ -1948,15 +2164,26 @@ export default function GuestCheckoutModal({
           <div className="border-t px-4 py-3 sm:px-5 sm:py-4">
             {isLastStep ? (
               <>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={!canSubmit}
-                  className="flex w-full items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-xs font-bold text-white hover:bg-gray-800 disabled:opacity-50 sm:py-3.5 sm:text-sm"
-                >
-                  <MessageCircle className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
-                  {submitting ? 'Registrando pedido…' : 'Enviar por WhatsApp'}
-                </button>
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <button
+                    type="button"
+                    onClick={goBack}
+                    disabled={submitting || reserving || cancelling}
+                    className="inline-flex items-center justify-center gap-1 rounded-full border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Atrás
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
+                    className="flex w-full items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-xs font-bold text-white hover:bg-gray-800 disabled:opacity-50 sm:w-auto sm:flex-1 sm:py-3.5 sm:text-sm"
+                  >
+                    <MessageCircle className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
+                    {submitting ? 'Registrando pedido…' : 'Enviar por WhatsApp'}
+                  </button>
+                </div>
                 <p className="mt-2 text-center text-[11px] text-gray-500 sm:text-xs">
                   Registramos tu pedido y luego se abre WhatsApp con el resumen.
                 </p>

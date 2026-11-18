@@ -4,6 +4,7 @@ export const CHECKOUT_RESERVATION_EXEMPT_PATHS = [
   '/terminos-y-condiciones',
   '/politica-de-privacidad',
   '/seguimiento',
+  '/compra-rapida',
 ]
 
 export function normalizeAppPathname(pathname = '') {

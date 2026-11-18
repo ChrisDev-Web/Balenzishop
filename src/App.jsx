@@ -10,6 +10,7 @@ import MayoristaCatalogPage from './pages/MayoristaCatalogPage'
 import MayoristaProductDetailPage from './pages/MayoristaProductDetailPage'
 import ProductDetailPage from './pages/ProductDetailPage'
 import CheckoutPage from './pages/CheckoutPage'
+import CompraRapidaPage from './pages/CompraRapidaPage'
 import GuestOrderTrackingPage from './pages/GuestOrderTrackingPage'
 import AccountLayout from './pages/account/AccountLayout'
 import CompleteProfilePage from './pages/account/CompleteProfilePage'
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="hombres" element={<MenPage />} />
           <Route path="promociones" element={<PromotionsPage />} />
           <Route path="catalogo" element={<CatalogPage />} />
+          <Route path="compra-rapida" element={<CompraRapidaPage />} />
           <Route path="mayorista" element={<MayoristaCatalogPage />} />
           <Route path="mayorista/producto/:id" element={<MayoristaProductDetailPage />} />
           <Route path="producto/:id" element={<ProductDetailPage />} />

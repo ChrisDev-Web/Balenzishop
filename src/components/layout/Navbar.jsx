@@ -6,6 +6,7 @@ import { useCartStore } from '../../stores/cartStore'
 import LoginModal from '../auth/LoginModal'
 import WholesaleAccessModal from '../wholesale/WholesaleAccessModal'
 import CartDropdown from '../cart/CartDropdown'
+import { normalizeAppPathname } from '../../utils/checkoutReservationGuard'
 import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 import { useUiStore } from '../../stores/uiStore'
 import { useCartAnimationStore } from '../../stores/cartAnimationStore'
@@ -215,7 +216,14 @@ function AccountMenu({ accountOpen, setAccountOpen, accountRef, isAuthenticated,
   )
 }
 
-function CartButton({ count, isOpen, toggleCart, closeCart, cartShake }) {
+function CartButton({
+  count,
+  isOpen,
+  toggleCart,
+  closeCart,
+  cartShake,
+  isCompraRapida,
+}) {
   return (
     <div className="relative shrink-0">
       <button
@@ -236,16 +244,18 @@ function CartButton({ count, isOpen, toggleCart, closeCart, cartShake }) {
         )}
       </button>
 
-      {isOpen && (
+      {isOpen && !isCompraRapida ? (
         <div className="hidden xl:block">
           <CartDropdown onClose={closeCart} variant="anchored" />
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
 
 export default function Navbar() {
+  const location = useLocation()
+  const isCompraRapida = normalizeAppPathname(location.pathname) === '/compra-rapida'
   const [accountOpen, setAccountOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarDragX, setSidebarDragX] = useState(0)
@@ -266,7 +276,11 @@ export default function Navbar() {
   const logoUrl = company?.logo || DEFAULT_NAVBAR_LOGO
   const logoAlt = company?.name || DEFAULT_COMPANY_NAME
 
-  useBodyScrollLock(sidebarOpen || isOpen)
+  useBodyScrollLock(sidebarOpen || (!isCompraRapida && isOpen))
+
+  useEffect(() => {
+    if (isCompraRapida && isOpen) closeCart()
+  }, [isCompraRapida, isOpen, closeCart])
 
   useEffect(() => {
     if (!accountOpen) return undefined
@@ -427,13 +441,16 @@ export default function Navbar() {
               logout={logout}
               displayName={displayName}
             />
-            <CartButton
-              count={count}
-              isOpen={isOpen}
-              toggleCart={toggleCart}
-              closeCart={closeCart}
-              cartShake={cartShake}
-            />
+            {!isCompraRapida ? (
+              <CartButton
+                count={count}
+                isOpen={isOpen}
+                toggleCart={toggleCart}
+                closeCart={closeCart}
+                cartShake={cartShake}
+                isCompraRapida={false}
+              />
+            ) : null}
           </div>
         </div>
 
@@ -470,13 +487,16 @@ export default function Navbar() {
               displayName={displayName}
             />
 
-            <CartButton
-              count={count}
-              isOpen={isOpen}
-              toggleCart={toggleCart}
-              closeCart={closeCart}
-              cartShake={cartShake}
-            />
+            {!isCompraRapida ? (
+              <CartButton
+                count={count}
+                isOpen={isOpen}
+                toggleCart={toggleCart}
+                closeCart={closeCart}
+                cartShake={cartShake}
+                isCompraRapida={false}
+              />
+            ) : null}
           </div>
         </div>
       </header>
@@ -540,10 +560,10 @@ export default function Navbar() {
 
       <div className={`navbar-spacer ${isOpen ? 'max-xl:hidden' : ''}`} aria-hidden="true" />
 
-      {isOpen && (
+      {isOpen && !isCompraRapida ? (
         <>
           <div
-            className="fixed inset-0 z-[120] bg-black/40 xl:z-40"
+            className="fixed inset-0 z-[120] bg-black/40"
             onClick={closeCart}
             aria-hidden="true"
           />
@@ -551,7 +571,7 @@ export default function Navbar() {
             <CartDropdown onClose={closeCart} variant="mobile" />
           </div>
         </>
-      )}
+      ) : null}
 
       <LoginModal isOpen={loginModalOpen} onClose={closeLoginModal} />
       <WholesaleAccessModal />

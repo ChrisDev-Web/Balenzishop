@@ -16,7 +16,13 @@ function buildCartItems(items) {
   })
 }
 
-export function buildGuestReserveFormData({ items, customer, delivery, discountCode }) {
+export function buildGuestReserveFormData({
+  items,
+  customer,
+  delivery,
+  discountCode,
+  compraRapidaLink = false,
+}) {
   const formData = new FormData()
 
   formData.append(
@@ -27,6 +33,7 @@ export function buildGuestReserveFormData({ items, customer, delivery, discountC
       delivery,
       discount_code: discountCode || null,
       sale_client_type: 'minorista',
+      compra_rapida_link: Boolean(compraRapidaLink),
     }),
   )
 

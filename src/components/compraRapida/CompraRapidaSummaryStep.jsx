@@ -47,6 +47,7 @@ function SummaryAccordion({
   preview,
   badge,
   defaultOpen = false,
+  onEdit,
   children,
 }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -57,33 +58,53 @@ function SummaryAccordion({
     <article
       className={`compra-rapida-summary__card${open ? ' compra-rapida-summary__card--open' : ''}`}
     >
-      <button
-        type="button"
-        className="compra-rapida-summary__toggle"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-        aria-controls={panelId}
-      >
-        <span className="compra-rapida-summary__section-icon" aria-hidden>
-          <Icon size={18} />
-        </span>
-        <span className="compra-rapida-summary__toggle-text">
-          <span className="compra-rapida-summary__section-title">
-            {title}
-            {badge != null ? (
-              <span className="compra-rapida-summary__count">{badge}</span>
+      <div className="compra-rapida-summary__card-header">
+        <button
+          type="button"
+          className="compra-rapida-summary__toggle"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          aria-controls={panelId}
+        >
+          <span className="compra-rapida-summary__section-icon" aria-hidden>
+            <Icon size={18} />
+          </span>
+          <span className="compra-rapida-summary__toggle-text">
+            <span className="compra-rapida-summary__section-title">
+              {title}
+              {badge != null ? (
+                <span className="compra-rapida-summary__count">{badge}</span>
+              ) : null}
+            </span>
+            {!open && preview ? (
+              <span className="compra-rapida-summary__preview">{preview}</span>
             ) : null}
           </span>
-          {!open && preview ? (
-            <span className="compra-rapida-summary__preview">{preview}</span>
-          ) : null}
-        </span>
-        <ChevronDown
-          size={20}
-          className={`compra-rapida-summary__chevron${open ? ' compra-rapida-summary__chevron--open' : ''}`}
-          aria-hidden
-        />
-      </button>
+        </button>
+        {typeof onEdit === 'function' ? (
+          <button
+            type="button"
+            className="compra-rapida-summary__section-edit"
+            onClick={onEdit}
+          >
+            Editar
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="compra-rapida-summary__chevron-btn"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          aria-controls={panelId}
+          aria-label={open ? 'Contraer sección' : 'Expandir sección'}
+        >
+          <ChevronDown
+            size={20}
+            className={`compra-rapida-summary__chevron${open ? ' compra-rapida-summary__chevron--open' : ''}`}
+            aria-hidden
+          />
+        </button>
+      </div>
 
       {open ? (
         <div id={panelId} className="compra-rapida-summary__panel">
@@ -100,6 +121,7 @@ export default function CompraRapidaSummaryStep() {
     deliveryForm,
     deliveryChannel,
     deliveryScope,
+    openSetupForEdit,
     setStep,
   } = useCompraRapidaStore()
 
@@ -153,6 +175,7 @@ export default function CompraRapidaSummaryStep() {
         icon={UserRound}
         title="Datos de contacto"
         preview={contactPreview}
+        onEdit={() => openSetupForEdit(COMPRA_RAPIDA_STEPS.SUMMARY)}
       >
         <SummaryInfoRow icon={UserRound} label="Nombre">
           {fullName || '—'}

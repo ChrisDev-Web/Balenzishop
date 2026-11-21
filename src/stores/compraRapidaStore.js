@@ -53,6 +53,7 @@ const initialState = {
   catalogTab: 'sellados',
   cartItems: [],
   setupSaved: false,
+  setupReturnStep: null,
 }
 
 export const useCompraRapidaStore = create(
@@ -61,6 +62,11 @@ export const useCompraRapidaStore = create(
       ...initialState,
 
       setStep: (step) => set({ step }),
+
+      openSetupForEdit: (returnStep) => set({
+        step: COMPRA_RAPIDA_STEPS.SETUP,
+        setupReturnStep: returnStep,
+      }),
 
       setDeliveryChannel: (deliveryChannel) => set({
         deliveryChannel,
@@ -83,7 +89,14 @@ export const useCompraRapidaStore = create(
 
       setCatalogTab: (catalogTab) => set({ catalogTab }),
 
-      markSetupSaved: () => set({ setupSaved: true, step: COMPRA_RAPIDA_STEPS.CATALOG }),
+      markSetupSaved: () => {
+        const returnStep = get().setupReturnStep
+        set({
+          setupSaved: true,
+          step: returnStep ?? COMPRA_RAPIDA_STEPS.CATALOG,
+          setupReturnStep: null,
+        })
+      },
 
       addCartItem: (product, quantity = 1) => {
         const lineKey = product.idProductDecant
@@ -142,7 +155,12 @@ export const useCompraRapidaStore = create(
 
       resetFlow: () => {
         useCartStore.getState().clearCart(CART_MODES.MINORISTA)
-        set({ ...initialState, customer: { ...emptyCustomer }, deliveryForm: { ...emptyDeliveryForm } })
+        set({
+          ...initialState,
+          customer: { ...emptyCustomer },
+          deliveryForm: { ...emptyDeliveryForm },
+          setupReturnStep: null,
+        })
       },
 
       cartCount: () => get().cartItems.reduce((sum, item) => sum + item.quantity, 0),

@@ -53,6 +53,7 @@ export default function CompraRapidaSetupStep() {
     deliveryScope,
     setDeliveryScope,
     markSetupSaved,
+    setupReturnStep,
   } = useCompraRapidaStore()
 
   const [fullName, setFullName] = useState(
@@ -227,7 +228,10 @@ export default function CompraRapidaSetupStep() {
     }
 
     setError('')
-    useCartStore.getState().clearCart(CART_MODES.MINORISTA)
+    const isEditingExistingFlow = setupReturnStep != null
+    if (!isEditingExistingFlow) {
+      useCartStore.getState().clearCart(CART_MODES.MINORISTA)
+    }
     markSetupSaved()
   }
 
@@ -473,7 +477,7 @@ export default function CompraRapidaSetupStep() {
             )}
 
             <button type="submit" className="compra-rapida-btn compra-rapida-btn--primary">
-              Guardar y ver productos
+              {setupReturnStep ? 'Guardar cambios' : 'Guardar y ver productos'}
             </button>
           </div>
         </div>

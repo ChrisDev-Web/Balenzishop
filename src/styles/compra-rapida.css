@@ -261,12 +261,16 @@
   color: #fff;
 }
 
-.compra-rapida-link-btn {
-  margin-top: 0.35rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #374151;
-  text-decoration: underline;
+.compra-rapida-catalog__edit-delivery {
+  margin-top: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.06);
 }
 
 .compra-rapida-catalog {
@@ -330,10 +334,15 @@
   white-space: nowrap;
 }
 
-.compra-rapida-product-row__thumb,
-.compra-rapida-product-card__thumb {
+.compra-rapida-product-row__thumb {
   width: 4rem;
   height: 4rem;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: #f9fafb;
+}
+
+.compra-rapida-product-card__thumb {
   overflow: hidden;
   border-radius: 0.5rem;
   background: #f9fafb;
@@ -383,21 +392,11 @@
 }
 
 .compra-rapida-catalog__grid {
+  display: grid;
   width: 100%;
   min-width: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
-}
-
-@media (min-width: 768px) {
-  .compra-rapida-catalog__grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .compra-rapida-catalog__grid > .compra-rapida-product-card:only-child {
-    grid-column: span 4;
-    max-width: 100%;
-  }
 }
 
 .compra-rapida-product-card {
@@ -570,17 +569,67 @@
   padding-bottom: 0.85rem;
 }
 
+.compra-rapida-summary__card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+}
+
 .compra-rapida-summary__toggle {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 0.25rem 0;
   border: none;
   background: transparent;
   cursor: pointer;
   text-align: left;
   color: inherit;
+}
+
+.compra-rapida-summary__section-edit {
+  flex-shrink: 0;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #d1d5db;
+  border-radius: 9999px;
+  background: #fff;
+  color: #111827;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.05);
+}
+
+.compra-rapida-summary__section-edit:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.compra-rapida-summary__section-edit:focus-visible {
+  outline: 2px solid #111827;
+  outline-offset: 2px;
+}
+
+.compra-rapida-summary__chevron-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+}
+
+.compra-rapida-summary__chevron-btn:focus-visible {
+  outline: 2px solid #111827;
+  outline-offset: 2px;
+  border-radius: 0.35rem;
 }
 
 .compra-rapida-summary__toggle:focus-visible {

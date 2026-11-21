@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Plus, Search } from 'lucide-react'
+import { Pencil, Plus, Search } from 'lucide-react'
 import { fetchCatalogProducts, fetchCatalogProductDetail } from '../../api/products'
 import Pagination from '../catalog/Pagination'
 import { COMPRA_RAPIDA_STEPS, useCompraRapidaStore } from '../../stores/compraRapidaStore'
@@ -71,11 +71,15 @@ async function fetchSelladosInStockPage({
     apiPage += 1
   }
 
+  const items = stocked.slice(skip, skip + uiPageSize)
+  const catalogExhausted = apiPage >= (meta?.last_page ?? apiPage)
+
   return {
-    items: stocked.slice(skip, skip + uiPageSize),
+    items,
     meta,
     stockedTotal: stocked.length,
-    catalogExhausted: apiPage >= (meta?.last_page ?? apiPage),
+    catalogExhausted,
+    hasNextPage: !catalogExhausted || stocked.length > skip + items.length,
   }
 }
 
@@ -179,7 +183,7 @@ export default function CompraRapidaCatalogStep() {
   const uiPageSize = useCompraRapidaCatalogPageSize()
   const catalogTab = useCompraRapidaStore((state) => state.catalogTab)
   const setCatalogTab = useCompraRapidaStore((state) => state.setCatalogTab)
-  const setStep = useCompraRapidaStore((state) => state.setStep)
+  const openSetupForEdit = useCompraRapidaStore((state) => state.openSetupForEdit)
   const addToCart = useAddToCart(COMPRA_RAPIDA_CART_MODE)
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -190,6 +194,7 @@ export default function CompraRapidaCatalogStep() {
   const [decantLoadedThroughApiPage, setDecantLoadedThroughApiPage] = useState(0)
   const [selladosMeta, setSelladosMeta] = useState(null)
   const [selladosStockedTotal, setSelladosStockedTotal] = useState(null)
+  const [selladosHasNextPage, setSelladosHasNextPage] = useState(false)
   const [selladosVisibleItems, setSelladosVisibleItems] = useState([])
   const [decantMeta, setDecantMeta] = useState(null)
   const decantLoadStateRef = useRef({
@@ -203,6 +208,7 @@ export default function CompraRapidaCatalogStep() {
   const [decantPickerProduct, setDecantPickerProduct] = useState(null)
 
   const isSellados = catalogTab === 'sellados'
+  const isDesktopCatalog = uiPageSize === DESKTOP_UI_PAGE_SIZE
   const searchActive = debouncedSearch.trim().length > 0
 
   const catalogFilters = useMemo(() => (
@@ -218,6 +224,7 @@ export default function CompraRapidaCatalogStep() {
     setDecantRowsCache([])
     setDecantLoadedThroughApiPage(0)
     setSelladosStockedTotal(null)
+    setSelladosHasNextPage(false)
     setSelladosMeta(null)
     setDecantMeta(null)
     setError('')
@@ -263,6 +270,7 @@ export default function CompraRapidaCatalogStep() {
       setSelladosVisibleItems([])
       setSelladosMeta(null)
       setSelladosStockedTotal(null)
+      setSelladosHasNextPage(false)
       setIsLoading(false)
       setError('')
       return undefined
@@ -284,6 +292,7 @@ export default function CompraRapidaCatalogStep() {
 
         setSelladosVisibleItems(result.items)
         setSelladosMeta(result.meta)
+        setSelladosHasNextPage(Boolean(result.hasNextPage))
         if (result.catalogExhausted) {
           setSelladosStockedTotal(result.stockedTotal)
         } else {
@@ -408,19 +417,24 @@ export default function CompraRapidaCatalogStep() {
   const decantFilledPages = Math.max(1, Math.ceil(decantRowsCache.length / uiPageSize))
 
   const selladosTotalPages = useMemo(() => {
+    const withNextPage = (pages) => (
+      selladosHasNextPage ? Math.max(pages, selladosUiPage + 1) : pages
+    )
+
     if (selladosStockedTotal != null && selladosStockedTotal > 0) {
-      return Math.max(1, Math.ceil(selladosStockedTotal / uiPageSize))
+      return withNextPage(Math.max(1, Math.ceil(selladosStockedTotal / uiPageSize)))
     }
 
     const total = selladosMeta?.total
     if (total != null && Number(total) > 0) {
-      return Math.max(1, Math.ceil(Number(total) / uiPageSize))
+      return withNextPage(Math.max(1, Math.ceil(Number(total) / uiPageSize)))
     }
 
     const lastApiPage = selladosMeta?.last_page ?? 1
     const apiPageSize = catalogApiPageSizeForUi(uiPageSize)
-    return Math.max(1, Math.ceil((lastApiPage * apiPageSize) / uiPageSize))
-  }, [selladosMeta, selladosStockedTotal, uiPageSize])
+    const estimated = Math.max(1, Math.ceil((lastApiPage * apiPageSize) / uiPageSize))
+    return withNextPage(estimated)
+  }, [selladosMeta, selladosStockedTotal, selladosHasNextPage, selladosUiPage, uiPageSize])
 
   const visibleItems = useMemo(() => {
     if (isSellados) return selladosVisibleItems
@@ -472,9 +486,10 @@ export default function CompraRapidaCatalogStep() {
           <h1 className="compra-rapida-catalog__title">Elige tus productos</h1>
           <button
             type="button"
-            className="compra-rapida-link-btn"
-            onClick={() => setStep(COMPRA_RAPIDA_STEPS.SETUP)}
+            className="compra-rapida-btn compra-rapida-btn--secondary compra-rapida-catalog__edit-delivery"
+            onClick={() => openSetupForEdit(COMPRA_RAPIDA_STEPS.CATALOG)}
           >
+            <Pencil size={16} aria-hidden />
             Editar datos de entrega
           </button>
         </div>
@@ -526,19 +541,8 @@ export default function CompraRapidaCatalogStep() {
       ) : null}
 
       {searchActive && visibleItems.length > 0 ? (
-        <>
-          <div className="compra-rapida-catalog__list md:hidden">
-            {visibleItems.map((product) => (
-              <CatalogProductRow
-                key={product.id}
-                product={product}
-                onAdd={handleAdd}
-                addLabel={isSellados ? 'Añadir' : 'Elegir'}
-              />
-            ))}
-          </div>
-
-          <div className="compra-rapida-catalog__grid hidden md:grid">
+        isDesktopCatalog ? (
+          <div className="compra-rapida-catalog__grid" aria-label="Productos">
             {visibleItems.map((product) => (
               <CatalogProductCard
                 key={product.id}
@@ -548,7 +552,18 @@ export default function CompraRapidaCatalogStep() {
               />
             ))}
           </div>
-        </>
+        ) : (
+          <div className="compra-rapida-catalog__list" aria-label="Productos">
+            {visibleItems.map((product) => (
+              <CatalogProductRow
+                key={product.id}
+                product={product}
+                onAdd={handleAdd}
+                addLabel={isSellados ? 'Añadir' : 'Elegir'}
+              />
+            ))}
+          </div>
+        )
       ) : null}
 
       {!isLoading && searchActive && visibleItems.length > 0 && pagination.totalPages > 1 ? (
